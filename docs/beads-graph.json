@@ -1,0 +1,335 @@
+{
+  "nodes": [
+    {
+      "key": "epic-a",
+      "title": "Epic A: Workstation runtime",
+      "type": "epic",
+      "priority": 1,
+      "description": "Stand up local inference on the M5 Pro / 24GB laptop via imkarrer/workstation. Dual purpose: a genuinely useful daily-driver AI setup, and the reference implementation that gets templated for the school. Unblocks all other technical work."
+    },
+    {
+      "key": "a0",
+      "parent_key": "epic-a",
+      "title": "Verify beads cross-machine sync",
+      "type": "chore",
+      "priority": 1,
+      "description": "Install bd 1.2.2 on the Mac (beads_1.2.2_darwin_arm64.tar.gz) and confirm the task graph round-trips between the Linux session and the M5 Pro before relying on it.\n\nBeads uses embedded Dolt as the source of truth; .beads/issues.jsonl is only an export. Cross-machine sync is `bd dolt push` / `bd dolt pull` against refs/dolt/data on the git remote. `bd init` warned that no Dolt remote is configured yet.\n\nDone when: a bead created on one machine appears on the other after push/pull."
+    },
+    {
+      "key": "a1",
+      "parent_key": "epic-a",
+      "title": "Add ollama-app cask to workstation",
+      "type": "task",
+      "priority": 0,
+      "description": "Repo: imkarrer/workstation. File: darwin/homebrew.nix.\n\nAdd \"ollama-app\" to the casks list. This IS a nix-darwin-managed install because nix-homebrew is already enabled in flake.nix, so it stays declarative and in git.\n\nCask token is `ollama-app` (former token: `ollama`), requires macOS 14+. It symlinks /opt/homebrew/bin/ollama into /Applications/Ollama.app/Contents/Resources/ollama, so the CLI lands on PATH for free.\n\nCRITICAL: do NOT install the Homebrew `ollama` FORMULA or nixpkgs `pkgs.ollama`. Homebrew issue #285982 documents the formula bottle shipping the MLX runner but omitting llama-server, so GGUF and embedding models fail. If the formula is present alongside the cask it wins the /opt/homebrew/bin/ollama symlink and brew only warns 'skipping link', leaving you silently on the broken binary.\n\nFollows the repo's existing placement rule: .app bundles go in homebrew.nix as casks, like google-chrome."
+    },
+    {
+      "key": "a2",
+      "parent_key": "epic-a",
+      "title": "Add darwin/ai.nix with launchd env vars",
+      "type": "task",
+      "priority": 1,
+      "description": "Repo: imkarrer/workstation. New file: darwin/ai.nix, imported from flake.nix modules list.\n\nThe cask runs Ollama as a macOS app, which never reads .zshrc, so exported shell variables are silently ignored. The common workaround is running `launchctl setenv` by hand, which is exactly the undeclared state this repo exists to eliminate. Use nix-darwin's declarative equivalent:\n\n  launchd.user.envVariables = {\n    OLLAMA_KEEP_ALIVE      = \"30m\";    # 30m on the laptop; -1 on the Mac Studio\n    OLLAMA_CONTEXT_LENGTH  = \"16384\";  # default is 2048 and will ruin RAG\n    OLLAMA_FLASH_ATTENTION = \"1\";\n    OLLAMA_NUM_PARALLEL    = \"4\";      # retune from load-test results\n  };\n\nKeep this out of the captured-defaults machinery (darwin/defaults.generated.nix is written by capture-defaults.sh; do not hand-edit it)."
+    },
+    {
+      "key": "a3",
+      "parent_key": "epic-a",
+      "title": "Verification script: confirm MLX is actually active",
+      "type": "task",
+      "priority": 0,
+      "description": "Repo: imkarrer/workstation.\n\nEvery failure mode in this stack is a SILENT fallback rather than an error, so this check is load-bearing for every benchmark that follows.\n\nAssert:\n  1. `which ollama` resolves into /Applications/Ollama.app/... (not a formula or nix store path)\n  2. Server logs report the MLX backend, not `library=metal` or `library=cpu`\n  3. The MLX dylibs are arm64 (Ollama 0.20.4 shipped x86_64-only libmlxc.dylib / libmlx.dylib that failed to load on arm64 entirely; see ollama issue #15433)\n  4. macOS is 26+ so the M5-optimized mlx_metal_v4 variant is selected rather than mlx_metal_v3\n\nOllama 0.12.9 also shipped a regression that silently fell back GPU-to-CPU, taking users from 53 tok/s to 7. This script is the guard against shipping a benchmark run on the wrong backend."
+    },
+    {
+      "key": "a4",
+      "parent_key": "epic-a",
+      "title": "Local LLM client in the base flox env",
+      "type": "task",
+      "priority": 1,
+      "description": "Repo: imkarrer/workstation. File: flox/.flox/env/manifest.toml.\n\nGoal: use the model for real everyday work, not just benchmarks. `ollama run` already works in any shell via the cask symlink; what the base env adds is a one-shot client that pipes well, sitting alongside git and jq as 'interactive CLI userland'.\n\nAdd [profile] shell helpers rather than global env vars, e.g.:\n  ask()  { ollama run \"${LOCAL_MODEL:-qwen3.5:4b}\" \"$*\"; }\n  sumz() { ollama run \"${LOCAL_MODEL:-qwen3.5:4b}\" \"Summarize concisely:\\n\\n$(cat)\"; }\n\nDO NOT set OPENAI_BASE_URL in [vars]. It is the tempting one-liner but silently redirects every OpenAI-compatible tool in every shell at the local model, and claude / claude-code are already installed on this machine.\n\nKeep python, mlx-lm, and pymarc OUT of this env: it auto-activates in every shell. Those belong in ai/.flox (see a5).\n\nPull models: gpt-oss-20b (14GB, strong tool calling, doubles as the MoE performance proxy) and qwen3.5:4b (instant responses)."
+    },
+    {
+      "key": "a5",
+      "parent_key": "epic-a",
+      "title": "Create ai/.flox lab environment",
+      "type": "task",
+      "priority": 1,
+      "description": "Repo: imkarrer/workstation. New: ai/.flox/env/manifest.toml, committed to git.\n\nSeparate from the auto-activating base flox env. Install python, uv, mlx-lm, httpx, pymarc, pandas. Use the [services] block for long-running processes so `flox activate` starts them and exit stops them, which is the right lifecycle on a laptop; the same manifests run under launchd on the Mac Studio later.\n\nStructure ai/ so it can be lifted out with `git subtree split` when the hardware arrives."
+    },
+    {
+      "key": "a6",
+      "parent_key": "epic-a",
+      "title": "Pin the Ollama version via in-repo cask",
+      "type": "task",
+      "priority": 2,
+      "description": "Repo: imkarrer/workstation. New: Casks/ollama-pinned.rb.\n\nCasks track latest, which is wrong for a benchmark baseline and risky given Ollama's history (0.12.9 silent GPU-to-CPU fallback; 0.20.4 broken arm64 MLX dylibs).\n\nThe repo already has the machinery: Casks/ is a trusted in-repo tap with clone_target pointing at the local checkout, and dr-sprinto is already installed that way. Write a cask with a fixed version and sha256.\n\nGotcha from the repo README: after bumping an in-repo cask, run `brew untap imkarrer/casks` before darwin-switch, because brew bundle will not re-clone an already-installed tap.\n\nDo this AFTER a baseline exists so you know which version you are pinning to."
+    },
+    {
+      "key": "a7",
+      "parent_key": "epic-a",
+      "title": "Dogfood review after two weeks of real use",
+      "type": "task",
+      "priority": 2,
+      "description": "Use the local model as a genuine daily driver for two weeks, then write up what broke, what was missing, and which model handled which task well.\n\nThis is the cheapest quality signal available. A configuration that survives real daily use is worth far more as a school template than one that only passes a demo, and problems surface here that no benchmark will find.\n\nOutput: workstation/ai/docs/dogfood-notes.md"
+    },
+
+    {
+      "key": "epic-b",
+      "title": "Epic B: Benchmark suite",
+      "type": "epic",
+      "priority": 1,
+      "description": "Answer four specific questions: which runtime to ship, whether MLX is genuinely active, what the concurrency curve looks like, and what the numbers become on an M5 Max. Not a leaderboard. Designed so results collected on three different machines stay comparable."
+    },
+    {
+      "key": "b1",
+      "parent_key": "epic-b",
+      "title": "Benchmark harness skeleton",
+      "type": "task",
+      "priority": 1,
+      "description": "Repo: imkarrer/workstation, path ai/bench/.\n\nDriver sweeping runtime x model x workload x concurrency. Emit JSONL to results/<chip>-<mem>-<date>.jsonl.\n\nEvery row must capture chip, GPU core count, memory, bandwidth, macOS version, and runtime version from system_profiler, so results are self-describing when compared across the M5 Pro, a rented M4 Max, and eventually the M5 Max.\n\nMetrics: TTFT (ms), prefill tok/s, decode tok/s, total wall time, peak memory, and critically the backend actually used (mlx / metal / cpu)."
+    },
+    {
+      "key": "b2",
+      "parent_key": "epic-b",
+      "title": "Runtime adapters for the bake-off",
+      "type": "task",
+      "priority": 1,
+      "description": "Repo: imkarrer/workstation, path ai/bench/runtimes/.\n\nAdapters:\n  - ollama_cask.py   : path A, official app with the real MLX backend\n  - ollama_nixpkgs.py: deliberate CONTROL, expected slower, proves the gap is real rather than assumed\n  - mlx_lm.py        : path B, mlx_lm.server. No dylib packaging games and fits the flox [services] model cleanly, but weaker continuous batching than Ollama, which matters exactly in the concurrency scenario.\n\nDecide on concurrency behavior, not single-stream speed. This question is architecture-dependent rather than memory-dependent, so the M5 Pro can settle it fully before any hardware purchase."
+    },
+    {
+      "key": "b3",
+      "parent_key": "epic-b",
+      "title": "Benchmark workloads",
+      "type": "task",
+      "priority": 1,
+      "description": "Repo: imkarrer/workstation, path ai/bench/workloads/.\n\n  - prefill_sweep : 512 / 1k / 2k / 4k / 8k / 16k prompt tokens\n  - rag_realistic : real MARC-shaped chunks plus librarian questions, ~6k tokens\n  - concurrency   : N = 1, 2, 4, 8, 16, 25\n\nAlso measure prefix-cache benefit (identical system prompt repeated vs unique prompts) and thermal drift (same workload for ten minutes, first-minute vs last-minute delta).\n\nThe prefix-cache number matters most: the plan predicts caching the ~1500-token system prompt plus cutting retrieval from 8 chunks to 4 drops per-query prefill cost roughly 60%, which is what makes a class of 25 viable."
+    },
+    {
+      "key": "b4",
+      "parent_key": "epic-b",
+      "title": "First M5 Pro baseline run (Tier A models)",
+      "type": "task",
+      "priority": 0,
+      "description": "Tier A calibration models: Qwen3.5-4B and Qwen3.5-9B at int4, 4096-token prompts. Small enough to run on all three machines, which is what makes cross-machine comparison valid.\n\nUse the mlx_transformers_benchmark methodology specifically, NOT oMLX or another harness. Published M5 Max figures for these exact models are 2,785 and 1,740 tok/s prefill, and only same-harness comparisons are meaningful. Cross-harness numbers disagree wildly: oMLX reports an M5 Pro at 466 tok/s prefill on a 27B while mlx_transformers_benchmark reports an M5 Max at 476 tok/s on a comparable 27B, which would imply zero speedup and is obviously an artifact.\n\nHygiene: three repetitions, report the median, plugged in, other apps closed, runtime version pinned, thermal state logged."
+    },
+    {
+      "key": "b5",
+      "parent_key": "epic-b",
+      "title": "report.py with scaling-ratio computation",
+      "type": "task",
+      "priority": 1,
+      "description": "Repo: imkarrer/workstation, path ai/bench/report.py.\n\nRender comparison tables across runtimes and machines, compute scaling ratios, and flag regressions between runs. Should make it obvious at a glance if a run landed on the wrong backend or if thermal throttling contaminated the numbers."
+    },
+    {
+      "key": "b6",
+      "parent_key": "epic-b",
+      "title": "BaseRT adapter (timeboxed research)",
+      "type": "task",
+      "priority": 3,
+      "description": "Repo: imkarrer/workstation, path ai/bench/runtimes/basert.py.\n\nBaseRT (arxiv 2607.19438, github.com/basecompute/baseRT) is an inference engine with hand-written Metal tensor-core kernels reporting up to 3.9x higher prefill than mlx-lm on M5 Pro, including 2.2-3.9x on the MoE Qwen3-30B-A3B.\n\nPrefill is precisely what caps concurrency in the class-of-25 scenario, so a win of that magnitude would change the capacity math outright. Treat as research, not a dependency. Timebox it."
+    },
+
+    {
+      "key": "epic-c",
+      "title": "Epic C: Hardware validation",
+      "type": "epic",
+      "priority": 0,
+      "description": "Gate the ~$5,400 purchase on measurement rather than extrapolation. Neither available machine is an M5 Max, but the M5 Pro (right microarchitecture, wrong memory) and a rented M4 Max (right memory and core count, wrong microarchitecture) bracket it on both axes."
+    },
+    {
+      "key": "c1",
+      "parent_key": "epic-c",
+      "title": "Confirm the laptop's GPU tier",
+      "type": "chore",
+      "priority": 1,
+      "description": "M5 Pro ships as either 15-core CPU / 16-core GPU or 18-core CPU / 20-core GPU, both at 307GB/s. 24GB is the base config, which suggests the 16-core variant.\n\nThis sets the prefill scaling ratio to the 40-core M5 Max: 16 cores gives 2.5x, 20 cores gives 2.0x. Decode scales with bandwidth either way, 307 to 614 GB/s = exactly 2.0x.\n\nCheck with: system_profiler SPDisplaysDataType"
+    },
+    {
+      "key": "c2",
+      "parent_key": "epic-c",
+      "title": "Calibrate against published M5 Max figures",
+      "type": "task",
+      "priority": 0,
+      "description": "Compare the b4 Tier A results against published mlx_transformers_benchmark M5 Max numbers (Qwen3.5-4B: 2,785 tok/s prefill; Qwen3.5-9B: 1,740 tok/s) to derive the EMPIRICAL scaling factor rather than trusting the theoretical one.\n\nExpected: near 2.0x decode, 2.0-2.5x prefill. If measurement disagrees with theory, measurement wins and the plan's capacity estimates get revised.\n\nThis factor then projects every other measurement onto the Mac Studio."
+    },
+    {
+      "key": "c3",
+      "parent_key": "epic-c",
+      "title": "Rent an AWS EC2 M4 Max Mac instance",
+      "type": "task",
+      "priority": 1,
+      "description": "M5 Max is NOT rentable and will not be before the purchase decision. Hosting providers buy Apple hardware through retail channels, so it typically reaches their fleets months after the Sept 22 ship date, realistically 2027. MacStadium, Scaleway, and AWS all top out at M4 today.\n\nAWS EC2 offers an M4 Max Mac instance built on the M4 Max Mac Studio: 16-core CPU, 40-core GPU, 128GB unified memory. Same GPU core count and same memory as the target machine. Per-second billing with a 24-hour minimum on a dedicated host, so tens of dollars against a $5,400 decision.\n\nRun what the laptop cannot: Tier B models (gpt-oss-120b at 66GB, Qwen3.6-35B-A3B), full model residency, and the 25-concurrent-user ladder against the real lineup."
+    },
+    {
+      "key": "c4",
+      "parent_key": "epic-c",
+      "title": "Publish the M5 Max projection",
+      "type": "task",
+      "priority": 0,
+      "description": "Combine c2 and c3 into one defensible projection.\n\nFrom the M4 Max results: scale prefill up roughly 3.5-4x for the M5 Neural Accelerators (same 40 GPU cores, so the gain is nearly all from the new matrix hardware) and decode 1.12-1.25x for bandwidth (546 to 614 GB/s). The M5 Pro results independently confirm the M5-generation prefill multiplier is real on this specific workload.\n\nMust answer: how many concurrent students can one Mac Studio actually serve, and does the 128GB-over-64GB argument hold up? Full residency is estimated at ~101GB (35B-A3B 23GB + gpt-oss-120b 66GB + Llama Guard 4 8GB + embeddings 2GB + Parakeet 2GB), which does not fit in 64GB."
+    },
+    {
+      "key": "c5",
+      "parent_key": "epic-c",
+      "title": "Quality preflight: gpt-oss-120b via hosted API",
+      "type": "task",
+      "priority": 0,
+      "description": "No technical blockers. START EARLY, this is on the critical path to the purchase decision.\n\nDO NOT let the librarian judge answer quality on the 24GB laptop. A 12B model will underwhelm on readers' advisory, someone concludes local AI is not good enough, and a false negative kills the project.\n\nInstead: gpt-oss-120b is open-weight and available on hosted APIs. Run the librarian's golden question set against it via API. Those questions are about books and contain no student PII. Then run the IDENTICAL weights locally in production. Quality gets settled before a dollar is spent, without sending student data anywhere.\n\nDepends on having the golden question set from the librarian, which is an Epic E conversation."
+    },
+    {
+      "key": "c6",
+      "parent_key": "epic-c",
+      "title": "Purchase decision",
+      "type": "decision",
+      "priority": 0,
+      "description": "Recommended build: Mac Studio M5 Max, 18-core CPU / 40-core GPU, 128GB unified memory, 1TB internal SSD = $5,400 (roughly $5,000-5,200 at Apple education institutional pricing).\n\nSkip the 8TB internal SSD: it costs $3,800 and buys nothing a ~$350 external Thunderbolt 5 NVMe will not. Max the memory instead, since it is soldered and unupgradeable on a 5-7 year school asset.\n\nCTO ladder for reference: 40-core GPU base with 48GB is $3,100; 64GB is +$400; 128GB is +$2,000; SSD 1TB +$300, 8TB +$3,800.\n\nTiming risk: pre-orders opened Aug 25, units ship Sept 22, and the memory supply crunch is what doubled the 128GB upgrade price versus M4 Max. If board approval slips past the ship date, consider ordering early and validating after.\n\nGated on c4 (projection), c5 (quality), e2 (board approval)."
+    },
+
+    {
+      "key": "epic-d",
+      "title": "Epic D: Library system",
+      "type": "epic",
+      "priority": 2,
+      "description": "The actual application: catalog RAG, chat interface, safety pipeline. Mostly buildable on the laptop; only production deployment is gated on hardware."
+    },
+    {
+      "key": "d1",
+      "parent_key": "epic-d",
+      "title": "MARC ingest pipeline",
+      "type": "task",
+      "priority": 2,
+      "description": "Parse a Destiny 'Catalog > Export Titles' MARC file with pymarc, chunk and embed BIBLIOGRAPHIC RECORDS ONLY, load into the vector store.\n\nThis is the privacy firewall, expressed as architecture: the pipeline never touches patron records, checkout history, or fines. Books are indexed; who read them is not. Destiny has no bulk-MARC REST API, so this is a scheduled export plus a parse rather than a live integration, which is a feature since the boundary is enforced by the export format itself.\n\nDocument the refresh schedule and the explicit exclusion of all patron and circulation data."
+    },
+    {
+      "key": "d2",
+      "parent_key": "epic-d",
+      "title": "Retrieval quality tuning",
+      "type": "task",
+      "priority": 2,
+      "description": "Chunking strategy and retrieval tuning for readers' advisory and catalog search.\n\nThis is where most of the actual value lives and it is MODEL-INDEPENDENT, so it can be perfected on the laptop. For these tasks the quality ceiling is set by how well MARC records are chunked, not by model size. The ingest pipeline is the bottleneck, not the model.\n\nTarget top-4 retrieval rather than top-8, since halving retrieved context is half of the concurrency fix."
+    },
+    {
+      "key": "d3",
+      "parent_key": "epic-d",
+      "title": "Chat UI, auth, RBAC, retention purge",
+      "type": "task",
+      "priority": 2,
+      "description": "Open WebUI: single container, native Ollama integration, built-in RAG with hybrid search and reranking, RBAC scoped to knowledge bases, OIDC/SAML, audit logging as a native stack.\n\nLicense caveat: removing Open WebUI branding requires 50-or-fewer users per rolling 30 days or a paid agreement. Using it at any scale is fine; white-labeling it is not. If branding it as the school's own tool matters for the AI-literacy goal, LibreChat is MIT with no such clause, at the cost of running MongoDB and Meilisearch alongside.\n\nContainer runtime: Colima or Podman, NOT Docker Desktop, which requires a paid subscription above 250 employees and many districts exceed that.\n\nAuth via OIDC against whatever the district already runs. Retention purge at 30-45 days."
+    },
+    {
+      "key": "d4",
+      "parent_key": "epic-d",
+      "title": "Safety pipeline and flag queue",
+      "type": "task",
+      "priority": 1,
+      "description": "Two-stage gate: Llama Prompt Guard 2 (22M, fast first-pass jailbreak detector) in front of Llama Guard 4 12B (input and output content classification, custom categories tuned for grades 6-8). Both run locally.\n\nNote these are complementary, not redundant: Llama Guard 4 is a content classifier and NOT a prompt-injection detector, so stacking with Prompt Guard 2 covers both axes.\n\nSystem prompts enforce RAG-grounded citations by default. Plus a librarian-reviewable flag queue wired to the e4 escalation protocol."
+    },
+    {
+      "key": "d5",
+      "parent_key": "epic-d",
+      "title": "Network isolation and the library darwinConfiguration",
+      "type": "task",
+      "priority": 2,
+      "description": "The privacy firewall, in order of how convincing each control is to a school board:\n\n1. Default-deny outbound at the firewall. The Mac Studio's VLAN gets no egress. Model downloads and macOS updates happen in a scheduled maintenance window with a temporary allowlist. Auditable, reversible, and demonstrable in a board meeting.\n2. Catalog indexed, circulation data never touched (see d1).\n3. No API keys anywhere on the box, so no accidental fallback path.\n\nSecond darwinConfiguration 'library' sharing common modules with 'dev', but with the lockdown, iogpu.wired_limit_mb around 118000, and OLLAMA_KEEP_ALIVE=-1 rather than 30m.\n\nUse upstream Nix, NEVER Determinate: flox does not support it. This is already the documented rule in the workstation repo."
+    },
+    {
+      "key": "d6",
+      "parent_key": "epic-d",
+      "title": "Production provisioning and runbook",
+      "type": "task",
+      "priority": 2,
+      "description": "Rebuild-from-scratch bootstrap sequence, Caddy TLS, sops-nix secrets for the OIDC client secret, and an explicit list of state deliberately NOT in git: model weights (pin by SHA256 in models.lock.json plus a fetch script), chat logs, the vector index (regenerable), macOS/FileVault/MDM enrollment.\n\nMust include a non-Nix escape hatch — plain Homebrew plus shell scripts — so hitting a Nix wall can never be the reason the project dies. Nix solves reproducibility and introduces a knowledge dependency; the runbook has to address both."
+    },
+
+    {
+      "key": "epic-e",
+      "title": "Epic E: School program",
+      "type": "epic",
+      "priority": 0,
+      "description": "Non-technical, fully parallel, and should START IMMEDIATELY. DPI consultation and board scheduling have long lead times that the technical work does not, and e2 gates the purchase decision."
+    },
+    {
+      "key": "e1",
+      "parent_key": "epic-e",
+      "title": "DPI consultation on Common School Fund eligibility",
+      "type": "task",
+      "priority": 0,
+      "description": "Wis. Stat. 43.70(3) permits Common School Fund (Library Aid) dollars for 'school library computers and related software' under three conditions, all of which this design meets:\n  - The school board consults the district's licensed library media specialist (PI 8.01(2)(h))\n  - The computers are HOUSED IN THE SCHOOL LIBRARY, which the Mac Studio form factor makes literal (a rack server in the district datacenter would NOT qualify)\n  - Purchases align with the district's written long-range library plan\n\nCoded to WUFAR Function 222000, Project Code 031.\n\nContact: Monica Treptow, DPI School Library Education Consultant, monica.treptow@dpi.wi.gov. Do this before ordering."
+    },
+    {
+      "key": "e2",
+      "parent_key": "epic-e",
+      "title": "Board brief and budget",
+      "type": "task",
+      "priority": 0,
+      "description": "One-page administrative ask with line-item budget for both the 128GB and 64GB builds, the Common School Fund eligibility argument, and WUFAR coding.\n\nYear one total roughly $9,300-11,000: Mac Studio $5,400, AppleCare+ ~$380, external TB5 NVMe ~$400, Time Machine drive ~$300, UPS ~$200, locking enclosure ~$150, software $0 (all open source), setup stipend $1,500-3,000, staff PD ~$1,000. Ongoing is about $60/year in electricity plus 2-4 hours/week of librarian time.\n\nA 64GB build with no stipend lands near $6,500 and is a legitimate pilot if the board balks.\n\nGates the purchase decision (c6)."
+    },
+    {
+      "key": "e3",
+      "parent_key": "epic-e",
+      "title": "Compliance packet",
+      "type": "task",
+      "priority": 1,
+      "description": "Privacy impact assessment using DPI's mini-template, data retention policy (30-45 day auto-purge with a flagged-event exception), and an AUP insert adopting DPI's AI Use Tiers (Human-Only / AI-Assist / AI-Optional) plus a student disclosure box.\n\nLegal framing to get right:\n  - Wis. Stat. 43.30 (library record confidentiality) governs PUBLIC libraries, not school libraries. Commonly conflated; get it right in the board memo.\n  - FERPA and Wis. Stat. 118.125 (pupil records) are the operative rules. Chat logs tied to a student identity are plausibly pupil records, bringing parent inspection rights and a 60-day response window. Short retention plus written policy is the mitigation.\n  - COPPA regulates commercial operators. A school-hosted non-commercial system is not a covered operator, which is a real structural advantage over ChatGPT or Gemini in a building full of 11-to-13-year-olds.\n  - DPI's tool-vetting checklist asks whether the vendor signs a DPA, whether student data trains models, and whether data is deleted at contract end. With no vendor, all three are satisfied by construction.\n\nSTORE IN THIS PRIVATE REPO, never in the public workstation repo."
+    },
+    {
+      "key": "e4",
+      "parent_key": "epic-e",
+      "title": "Escalation protocol for student disclosures",
+      "type": "task",
+      "priority": 0,
+      "description": "THE MOST IMPORTANT NON-TECHNICAL ITEM IN THE PLAN. Must be complete before any student touches the system.\n\nMiddle schoolers will disclose things to a chatbot they will not say to an adult. The system needs a defined path for self-harm, abuse, and bullying disclosures that routes to the school counselor, not just a refusal message.\n\nDefine: what triggers escalation, who reviews the flag queue and on what cadence, how fast a human sees it, what gets retained and for how long (this is the exception to the 30-45 day purge), and what the student sees in the moment.\n\nBuild this BEFORE students touch it, not after."
+    },
+    {
+      "key": "e5",
+      "parent_key": "epic-e",
+      "title": "Assign a named district IT co-owner",
+      "type": "task",
+      "priority": 1,
+      "description": "School technology projects die when the person who built them leaves. The nix-darwin layer is the primary mitigation, since the machine's entire configuration is a file in git and rebuilding is one command. But that only works if a second human exists.\n\nGet a named district IT co-owner assigned in Phase 0 — not as a courtesy CC, but as a person who has personally run darwin-rebuild switch against this flake at least once before it matters.\n\nAlso coordinate Nix and Jamf/MDM coexistence with them early, before the machine is enrolled."
+    },
+    {
+      "key": "e6",
+      "parent_key": "epic-e",
+      "title": "AI literacy curriculum unit",
+      "type": "task",
+      "priority": 2,
+      "description": "Runs alongside Phase 2 supervised student access.\n\nMake RAG-grounded mode with visible citations the DEFAULT rather than an option, with persistent 'this can be wrong, check the source' framing in the UI. For a middle school this is simultaneously a safety control and the curriculum.\n\nBe honest about the capability envelope in the teaching material: readers' advisory and catalog search are at parity with frontier models because they are retrieval-grounded; transcription actually beats cloud Whisper (Parakeet v3 at 6.32% English WER vs 7.83%); research help has a modest gap; multi-step math has a real gap and this should not be presented as a math tutor."
+    }
+  ],
+  "edges": [
+    { "from_key": "a2", "to_key": "a1", "type": "blocks" },
+    { "from_key": "a3", "to_key": "a1", "type": "blocks" },
+    { "from_key": "a4", "to_key": "a1", "type": "blocks" },
+    { "from_key": "a5", "to_key": "a1", "type": "blocks" },
+    { "from_key": "a7", "to_key": "a4", "type": "blocks" },
+    { "from_key": "a6", "to_key": "b4", "type": "blocks" },
+
+    { "from_key": "b1", "to_key": "a5", "type": "blocks" },
+    { "from_key": "b2", "to_key": "b1", "type": "blocks" },
+    { "from_key": "b3", "to_key": "b1", "type": "blocks" },
+    { "from_key": "b4", "to_key": "a3", "type": "blocks" },
+    { "from_key": "b4", "to_key": "b2", "type": "blocks" },
+    { "from_key": "b4", "to_key": "b3", "type": "blocks" },
+    { "from_key": "b5", "to_key": "b4", "type": "blocks" },
+    { "from_key": "b6", "to_key": "b2", "type": "blocks" },
+
+    { "from_key": "c2", "to_key": "b4", "type": "blocks" },
+    { "from_key": "c2", "to_key": "c1", "type": "blocks" },
+    { "from_key": "c3", "to_key": "b5", "type": "blocks" },
+    { "from_key": "c4", "to_key": "c2", "type": "blocks" },
+    { "from_key": "c4", "to_key": "c3", "type": "blocks" },
+    { "from_key": "c6", "to_key": "c4", "type": "blocks" },
+    { "from_key": "c6", "to_key": "c5", "type": "blocks" },
+    { "from_key": "c6", "to_key": "e2", "type": "blocks" },
+
+    { "from_key": "d1", "to_key": "a5", "type": "blocks" },
+    { "from_key": "d2", "to_key": "d1", "type": "blocks" },
+    { "from_key": "d3", "to_key": "a5", "type": "blocks" },
+    { "from_key": "d4", "to_key": "d3", "type": "blocks" },
+    { "from_key": "d5", "to_key": "c6", "type": "blocks" },
+    { "from_key": "d6", "to_key": "d5", "type": "blocks" },
+    { "from_key": "d6", "to_key": "e4", "type": "blocks" },
+
+    { "from_key": "e2", "to_key": "e1", "type": "blocks" }
+  ]
+}
