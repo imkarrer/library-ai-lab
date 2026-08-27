@@ -26,30 +26,29 @@ cd library-ai-lab
 ```
 
 The clone gives you the repo but **not** the issues. `.beads/embeddeddolt/` is gitignored,
-so the Dolt database does not travel with a normal `git clone`. Pull it:
+so the Dolt database does not travel with a normal `git clone`. It rides along in a
+separate ref, `refs/dolt/data`, which has already been pushed. Pull it:
 
 ```bash
 bd dolt pull
 bd stats     # expect: Total 37, Ready 14, Blocked 23
 ```
 
-If `bd dolt pull` finds no remote history — this repo has never pushed Dolt data from the
-Linux side at time of writing, so this is the likely case — rebuild from the committed
-graph definition instead:
+**Prefer this path.** Issue IDs are content-hashed, so rebuilding from the graph
+definition would produce a different set of IDs and silently fork the tracker.
+
+Only if `bd dolt pull` fails outright, rebuild from the committed definition:
 
 ```bash
 bd init --non-interactive --prefix lib --role maintainer
 bd create --graph docs/beads-graph.json
 bd stats     # expect: Total 37, Ready 14, Blocked 23
-bd dolt push # now the Mac is the origin of the Dolt history
+bd dolt push --force
 ```
 
-Either path produces the same 37 issues. Issue IDs are content-hashed and **will differ**
-between a rebuild and a pull, so pick one path and stay on it. Rebuilding is fine right
-now because no work has been logged against any issue yet; once you start closing beads,
-`bd dolt pull` becomes the only safe option.
-
 Verifying this round-trip is itself a tracked task: **"Verify beads cross-machine sync."**
+Create a throwaway bead on the Mac, `bd dolt push`, and confirm it comes back. Then close
+the bead out.
 
 ## 3. Sanity-check the graph
 
