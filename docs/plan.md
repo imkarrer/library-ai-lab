@@ -24,7 +24,7 @@ todos:
     content: "Add the runtime to imkarrer/workstation following its own placement rules: the ollama-app cask in darwin/homebrew.nix (never the ollama formula, which omits llama-server and hijacks the /opt/homebrew/bin/ollama symlink), a new darwin/ai.nix with launchd.user.envVariables for OLLAMA_KEEP_ALIVE, OLLAMA_CONTEXT_LENGTH, OLLAMA_FLASH_ATTENTION and OLLAMA_NUM_PARALLEL since the app never reads zshrc, and the import line in flake.nix. Add a verification step asserting which ollama resolves into Ollama.app and that the backend reports mlx rather than metal or cpu."
     status: pending
   - id: repo-setup
-    content: "Create the private library-ai-lab project repo for beads and the higher-level project, and clone imkarrer/workstation onto the Linux session so its Nix and Python files can be authored here. Keep workstation public and generic; keep anything school-specific in library-ai-lab."
+    content: "Create the library-ai-lab project repo for beads and the higher-level project, and clone imkarrer/workstation onto the Linux session so its Nix and Python files can be authored here. Both repos are public: keep workstation generic, keep school-specific artifacts in library-ai-lab, and keep operational detail (firewall rules, filled-in PIA, incident records) out of git entirely."
     status: pending
   - id: beads-setup
     content: "Install bd on both the Linux session and the Mac, run bd init in library-ai-lab, and verify cross-machine sync with bd dolt push / bd dolt pull against refs/dolt/data before relying on it. Then create all five epics (A workstation runtime, B benchmark suite, C hardware validation, D library system, E school program) with the blocks edges from the plan. Since beads scopes issues to one repo, tasks that execute in workstation must name the target repo and file paths in their description."
@@ -347,7 +347,9 @@ workstation/
 
 Everything stays generic here — no district names, no student data, no school network topology. It is a public repo about running local models on a Mac, which is exactly what it should be.
 
-**`library-ai-lab` (new, private) — the project.** Holds the beads graph, this plan, and eventually the school deliverables. Private, because a privacy impact assessment, an escalation protocol for student self-harm disclosures, and firewall design for a system middle schoolers use should not be published regardless of how sound the design is.
+**`library-ai-lab` (new, public) — the project.** Holds the beads graph, this plan, and eventually the school deliverables. The split from `workstation` is about separation of concerns rather than secrecy: the school program has its own lifecycle, its own audience, and a board that benefits from being able to read the proposal in full.
+
+Public is the right call for the plan, the task graph, the budget, and the legal reasoning — a board member can audit it, and another district can copy it. It is the wrong call for operational detail. Firewall rules and VLAN layout, a filled-in privacy impact assessment naming real staff and systems, flagged-event records, and anything traceable to a student stay out of git entirely and live in a district-controlled location. The escalation protocol splits along the same line: the policy is publishable, the incident log is not.
 
 ```
 library-ai-lab/
@@ -356,7 +358,7 @@ library-ai-lab/
   docs/                         # board brief, PIA, escalation, budget — later
 ```
 
-The handoff between them is deliberate: `workstation/ai/` is structured so it can be lifted out with `git subtree split` when the Mac Studio arrives, and the school-specific configuration layered on top lives only in the private repo.
+The handoff between them is deliberate: `workstation/ai/` is structured so it can be lifted out with `git subtree split` when the Mac Studio arrives, and the school-specific configuration layered on top lives in `library-ai-lab`.
 
 For this phase, skip network isolation, OIDC, the retention purge, and the guard-model pipeline. This is a personal machine and a performance investigation.
 
@@ -589,7 +591,7 @@ Work gets tracked in beads (`bd`) in the **`library-ai-lab`** repo rather than i
 Beads scopes issues to one repository, so tasks that execute in `workstation` must name the target repo and file paths in their description. That is a small annotation cost in exchange for one graph covering both the technical build and the school program, which is what actually needs coordinating.
 
 **Epic A — Workstation runtime** (unblocks everything technical; also the daily-driver payoff)
-- `A0` Create the private `library-ai-lab` repo; `bd init`; verify `bd dolt push` / `bd dolt pull` across both machines
+- `A0` Create the `library-ai-lab` repo; `bd init`; verify `bd dolt push` / `bd dolt pull` across both machines
 - `A1` Add the `ollama-app` cask to `darwin/homebrew.nix`; assert the `ollama` formula and `pkgs.ollama` are absent
 - `A2` Add `darwin/ai.nix` with `launchd.user.envVariables`; import it from `flake.nix` — *blocked by A1*
 - `A3` Verification script: `which ollama` resolves into `Ollama.app`, backend reports `mlx` not `metal` or `cpu` — *blocked by A1*
@@ -636,7 +638,7 @@ One practical prerequisite beyond `A0`: `workstation` is not cloned on the Linux
 
 ## Eventual Mac Studio layout
 
-For reference — this is what gets extracted from `workstation/ai/` when the hardware arrives. School-specific documents belong in a private repository, not the public workstation repo.
+For reference — this is what gets extracted from `workstation/ai/` when the hardware arrives. School-specific documents belong in `library-ai-lab`, not the `workstation` repo; operational detail such as firewall rules and the filled-in privacy impact assessment belongs in neither and stays with the district.
 
 ```
 library-ai-lab/

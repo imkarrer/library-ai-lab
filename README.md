@@ -11,16 +11,32 @@ third party in the loop at all.
 
 This project spans two repositories on purpose.
 
-| | [`imkarrer/workstation`](https://github.com/imkarrer/workstation) | `imkarrer/library-ai-lab` (this repo) |
+| | [`imkarrer/workstation`](https://github.com/imkarrer/workstation) | [`imkarrer/library-ai-lab`](https://github.com/imkarrer/library-ai-lab) (this repo) |
 |---|---|---|
-| Visibility | Public | Private |
 | Holds | nix-darwin + flox config, `ai/` lab, benchmark suite | Beads task graph, plan, board brief, compliance packet |
-| Role | Reference implementation and daily driver | Project management and school-specific artifacts |
+| Role | Reference implementation and daily driver | Project management and school-facing artifacts |
 
-The split exists for one reason: `workstation` is public. The privacy impact assessment,
-escalation protocol, network topology, and firewall rules must not live there. Everything
-in `workstation/ai/` is deliberately generic and structured so it can be lifted out with
-`git subtree split` when the school hardware arrives.
+Both repos are public. The split is about separation of concerns rather than secrecy:
+`workstation` is a personal machine configuration that happens to double as the reference
+implementation, while the school program — budget, DPI consultation, compliance, curriculum
+— has its own lifecycle and its own audience. Everything in `workstation/ai/` is
+deliberately generic and structured so it can be lifted out with `git subtree split` when
+the school hardware arrives.
+
+### What must not be committed here
+
+Being public is fine for the plan and the task graph, and arguably good for them — a school
+board can read exactly what is being proposed, and other districts can copy it. It is not
+fine for operational detail. Keep out of both repos:
+
+- Network topology, VLAN layout, and firewall rules for the school
+- Any secret material (the OIDC client secret belongs in `sops-nix`)
+- Chat logs, flagged-event records, and anything else traceable to a student
+- A completed privacy impact assessment naming real systems and staff
+
+The compliance packet task (Epic E) produces a **template and the legal reasoning**, which
+belong here. The filled-in version, with real names and real network detail, needs a
+private home — a district-controlled repo or document store.
 
 ## Where the work is tracked
 
