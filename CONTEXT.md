@@ -52,8 +52,8 @@ Generating a Batch on the Teacher's own machine: Cards to print, a Roster to kee
 hashes to register.
 
 **Registration**:
-Sending a Batch's Token hashes, expiry, and Class label to the assistant. Nothing else about
-the Batch ever reaches it.
+Sending a Batch's Token hashes with their Card numbers, the expiry, and the Class label to the
+assistant. Nothing else about the Batch ever reaches it.
 
 **Roster**:
 The Teacher's record of which Student holds which Card number. It never leaves the Teacher's
