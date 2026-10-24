@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Flox
+        uses: flox/install-flox-action@v2
+
+      # Same command as the bead-loop gate, so a worktree that passes it is one CI passes.
+      - name: Check
+        uses: flox/activate-action@v2
+        with:
+          command: bash scripts/check.sh
