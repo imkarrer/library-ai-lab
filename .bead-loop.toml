@@ -1,0 +1,7 @@
+# bead-loop (github.com/imkarrer/bead-loop): which beads the loop works here and how a
+# worktree is proven. Stages, lanes and research come from the global
+# ~/.config/bead-loop/config.toml. The gate is CI's job verbatim.
+label = "delegate:local"
+base = "main"
+gate = "flox activate -- bash scripts/check.sh"
+merge = "auto"                       # the watcher squash-merges once CI's `test` is green
