@@ -1,5 +1,46 @@
 # Agent Instructions
 
+This repo is the **Library Assistant**: a local AI assistant a school librarian installs
+with flox, plus the school-facing templates (compliance, escalation, AUP) that ship with it.
+Read `CONTEXT.md` before naming anything and use its terms (Card, Batch, Roster, Session,
+Flag, Install); read the ADRs in `docs/adr/` that touch the area before changing it.
+
+The privacy design is the product. Three ADRs bind every change: the assistant never holds a
+Card-to-Student link (0002), transcripts purge daily (0003), and an Install reaches only the
+school intranet (0006). A change that weakens one of them is a design change: stop and ask.
+
+This repo is public. Templates and legal reasoning belong here; anything traceable to a
+student, an Install's network detail, and secrets do not. See `README.md` § "What must not
+be committed here".
+
+## Verify
+
+`flox activate -- bash scripts/check.sh` is the one gate: CI runs it, bead-loop runs it on
+every worktree. A new kind of check goes into that script, never beside it.
+
+## Gotchas no config confesses
+
+- In `bd dep add A B`, **A is blocked by B**. Confirm with `bd show` after wiring an edge.
+- Stay on upstream Nix: flox does not support Determinate Nix.
+- Issue IDs are content-hashed, so a rebuilt tracker forks. Sync with `bd dolt pull`.
+- The pre-restructure plan (hardware budget, Common School Fund argument, DPI contacts, Wisconsin law analysis) is `docs/plan.md` at commit `68abceb`. Template beads cite it.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in beads (`bd`, prefix `lib-`), the only tracker. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five default roles as bd labels (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+## Beads
+
 This project uses **bd** (beads) for issue tracking. Run `bd prime` for full workflow context.
 
 > **Architecture in one line:** Issues live in a local Dolt database
