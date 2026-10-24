@@ -58,14 +58,15 @@ It checks free disk against an estimate before downloading anything, keeps only 
 adolescent titles (the MARC 008 target-audience byte), and resumes a partial download if
 re-run with the same `--download-dir`.
 
-Measured from one real run (fill in after running the builder against the live LoC
-distribution):
+Measured from one real run against the live LoC distribution. A loop worker has no network
+access to produce these; `lib-f24.19` (a human bead, blocked by this one) runs the builder
+once and fills them in:
 
 | Metric | Value |
 | --- | --- |
-| Download size | TODO: measure on a real run |
-| On-disk Catalog size | TODO: measure on a real run |
-| Record count (post-filter) | TODO: measure on a real run |
+| Download size | pending lib-f24.19 |
+| On-disk Catalog size | pending lib-f24.19 |
+| Record count (post-filter) | pending lib-f24.19 |
 
 ## Working with the tracker
 
