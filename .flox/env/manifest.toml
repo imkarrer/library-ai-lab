@@ -5,6 +5,12 @@ python.pkg-path = "python312"
 uv.pkg-path = "uv"
 nodejs.pkg-path = "nodejs"
 
+[install.llama-cpp]
+pkg-path = "llama-cpp"
+# Only the M5 Pro demo runs the model server; dev boxes point LIBRARY_ASSISTANT_OPENAI_*
+# at llm-box instead (ADR-0008).
+systems = ["aarch64-darwin"]
+
 [vars]
 UV_PYTHON_DOWNLOADS = "never"
 
@@ -28,6 +34,12 @@ on-activate = '''
   # `flox activate -- cmd` runs no profile script, so put the venv on PATH
   # here for it; interactive shells get the venv from [profile] below.
   export PATH="$venv/bin:$PATH"
+
+  # The demo model, once scripts/fetch_demo_model.sh has fetched it (ADR-0006's one online
+  # setup exception). `:-` keeps an override, so development keeps pointing at llm-box
+  # (ADR-0008) by exporting these two before activating.
+  export LIBRARY_ASSISTANT_OPENAI_ENDPOINT="${LIBRARY_ASSISTANT_OPENAI_ENDPOINT:-http://127.0.0.1:8080/v1}"
+  export LIBRARY_ASSISTANT_OPENAI_MODEL="${LIBRARY_ASSISTANT_OPENAI_MODEL:-Qwen3-30B-A3B-Instruct-2507}"
 '''
 
 [profile]
@@ -45,6 +57,24 @@ fish = '''
 command = '''
   cd "$FLOX_ENV_PROJECT" && "$FLOX_ENV_CACHE/venv/bin/uvicorn" library_assistant.app:app --host 127.0.0.1 --port 8000
 '''
+
+[services.model]
+command = '''
+  model="$FLOX_ENV_CACHE/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf"
+  if [ ! -f "$model" ]; then
+    echo "Demo model not found; run scripts/fetch_demo_model.sh once, online, first." >&2
+    exit 1
+  fi
+  # No -v, --log-prompts-dir, or --slot-save-path, and --no-slots (ADR-0003 addendum): the
+  # model server keeps no log or cache of a question. 127.0.0.1 only (ADR-0006).
+  exec llama-server \
+    --model "$model" \
+    --host 127.0.0.1 \
+    --port 8080 \
+    --ctx-size 8192 \
+    --no-slots
+'''
+systems = ["aarch64-darwin"]
 
 [options]
 systems = ["aarch64-darwin", "aarch64-linux", "x86_64-linux"]
