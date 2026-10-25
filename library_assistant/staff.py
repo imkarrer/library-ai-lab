@@ -14,13 +14,14 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, PlainTextResponse
-from pydantic import BaseModel
 from passlib.context import CryptContext
+from pydantic import BaseModel
 
 DB_PATH = os.environ.get("LIBRARY_ASSISTANT_DB", "library_assistant.db")
 
 # Create a password context for hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
 
 # Staff roles
 class StaffRole:
@@ -28,30 +29,31 @@ class StaffRole:
     TEACHER = "teacher"
     COUNSELOR = "counselor"
 
+
 # Staff account model
 class StaffAccount(BaseModel):
     username: str
     password: str
     role: str
 
+
 # Staff login request
 class StaffLogin(BaseModel):
     username: str
     password: str
+
 
 # Staff session model
 class StaffSession(BaseModel):
     username: str
     role: str
 
+
 # Session cookie name
 STAFF_SESSION_COOKIE = "staff_session"
 
 # Staff account database table name
 STAFF_TABLE = "staff_accounts"
-
-# Staff session cookie name
-STAFF_SESSION_COOKIE = "staff_session"
 
 # Staff login HTML page
 STAFF_LOGIN_HTML = """
@@ -203,21 +205,24 @@ FIRST_RUN_SETUP_HTML = """
 </html>
 """
 
+
 # Staff session middleware to check authentication
 def require_staff_auth(request: Request) -> StaffSession:
     """Check if staff is authenticated."""
     session_cookie = request.cookies.get(STAFF_SESSION_COOKIE)
     if not session_cookie:
         raise HTTPException(status_code=401, detail="Authentication required")
-    
+
     # In a real implementation, this would check the session against database
     # For now, we'll just validate that session cookie exists
+    # Return hardcoded values for demonstration
     return StaffSession(username="librarian", role="librarian")
+
 
 # Connect to database and create staff accounts table if it doesn't exist
 def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path, check_same_thread=False)
-    
+
     # Create staff accounts table
     conn.execute(f"""
         CREATE TABLE IF NOT EXISTS {STAFF_TABLE} (
@@ -227,7 +232,7 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
             created_at TEXT NOT NULL
         )
     """)
-    
+
     # Create registration keys table if it doesn't exist
     conn.execute("""
         CREATE TABLE IF NOT EXISTS registration_keys (
@@ -237,12 +242,14 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
             last_used_at TEXT
         )
     """)
-    
+
     conn.commit()
     return conn
 
+
 # Global connection variable
 _connection: sqlite3.Connection | None = None
+
 
 def get_db() -> sqlite3.Connection:
     global _connection
@@ -250,13 +257,16 @@ def get_db() -> sqlite3.Connection:
         _connection = connect()
     return _connection
 
+
 # Hash a password
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
+
 # Verify a password
 def verify_password(password: str, hashed: str) -> bool:
     return pwd_context.verify(password, hashed)
+
 
 # Check if staff accounts exist
 def staff_accounts_exist(db: sqlite3.Connection) -> bool:
@@ -264,53 +274,79 @@ def staff_accounts_exist(db: sqlite3.Connection) -> bool:
     count = cursor.fetchone()[0]
     return count > 0
 
+
 # Check if first-run setup is needed
 def first_run_needed(db: sqlite3.Connection) -> bool:
     cursor = db.execute(f"SELECT COUNT(*) FROM {STAFF_TABLE}")
     count = cursor.fetchone()[0]
     return count == 0
 
+
 # Create first-time librarian account
-def create_librarian_account(username: str, password: str, db: sqlite3.Connection) -> None:
+def create_librarian_account(
+    username: str, password: str, db: sqlite3.Connection
+) -> None:
     password_hash = hash_password(password)
     created_at = datetime.now(UTC).isoformat()
-    
+
     db.execute(
         f"INSERT INTO {STAFF_TABLE} (username, password_hash, role, created_at) VALUES (?, ?, ?, ?)",
-        (username, password_hash, StaffRole.LIBRARIAN, created_at)
+        (username, password_hash, StaffRole.LIBRARIAN, created_at),
     )
     db.commit()
 
+
 # Get staff account by username
 def get_staff_account(username: str, db: sqlite3.Connection) -> tuple | None:
-    cursor = db.execute(f"SELECT username, password_hash, role FROM {STAFF_TABLE} WHERE username = ?", (username,))
+    cursor = db.execute(
+        f"SELECT username, password_hash, role FROM {STAFF_TABLE} WHERE username = ?",
+        (username,),
+    )
     return cursor.fetchone()
+
+
+# Create a staff account
+def create_staff_account(
+    username: str, password: str, role: str, db: sqlite3.Connection
+) -> None:
+    password_hash = hash_password(password)
+    created_at = datetime.now(UTC).isoformat()
+
+    db.execute(
+        f"INSERT INTO {STAFF_TABLE} (username, password_hash, role, created_at) VALUES (?, ?, ?, ?)",
+        (username, password_hash, role, created_at),
+    )
+    db.commit()
+
 
 # Create a registration key
 def create_registration_key(role: str, db: sqlite3.Connection) -> str:
     import secrets
+
     key = secrets.token_urlsafe(32)
     key_hash = hashlib.sha256(key.encode()).hexdigest()
     created_at = datetime.now(UTC).isoformat()
-    
+
     db.execute(
         "INSERT INTO registration_keys (key_hash, role, created_at) VALUES (?, ?, ?)",
-        (key_hash, role, created_at)
+        (key_hash, role, created_at),
     )
     db.commit()
-    
+
     return key
+
 
 # Get registration key
 def get_registration_key(role: str, db: sqlite3.Connection) -> str | None:
     cursor = db.execute(
         "SELECT key_hash FROM registration_keys WHERE role = ? ORDER BY created_at DESC LIMIT 1",
-        (role,)
+        (role,),
     )
     row = cursor.fetchone()
     if row:
         return row[0]
     return None
+
 
 # Rotate registration key
 def rotate_registration_key(role: str, db: sqlite3.Connection) -> str:
@@ -319,42 +355,48 @@ def rotate_registration_key(role: str, db: sqlite3.Connection) -> str:
     if current_key:
         # Mark it as used (in a real implementation, we'd update the last_used_at field)
         pass
-    
+
     # Create new key
     return create_registration_key(role, db)
 
+
 # Staff router
 router = APIRouter(prefix="/staff")
+
 
 @router.get("/login", response_model=None)
 def staff_login_page() -> HTMLResponse:
     """Display staff login page."""
     return HTMLResponse(STAFF_LOGIN_HTML)
 
+
 @router.post("/login")
 def staff_login(
     login_data: StaffLogin,
     request: Request,
     response: Response,
-    db: sqlite3.Connection = Depends(get_db)
+    db: sqlite3.Connection = Depends(get_db),
 ) -> PlainTextResponse:
     """Authenticate staff member."""
     # Verify credentials
     account = get_staff_account(login_data.username, db)
     if not account or not verify_password(login_data.password, account[1]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    
+
     # Create session cookie
-    session_cookie = hashlib.sha256(f"{login_data.username}:{datetime.now(UTC)}".encode()).hexdigest()
+    session_cookie = hashlib.sha256(
+        f"{login_data.username}:{datetime.now(UTC)}".encode()
+    ).hexdigest()
     response.set_cookie(
         key=STAFF_SESSION_COOKIE,
         value=session_cookie,
         httponly=True,
         samesite="strict",
-        secure=False  # Set to True in production with HTTPS
+        secure=False,  # Set to True in production with HTTPS
     )
-    
+
     return PlainTextResponse("Login successful")
+
 
 @router.get("/setup", response_model=None)
 def first_run_setup_page(db: sqlite3.Connection = Depends(get_db)) -> HTMLResponse:
@@ -363,28 +405,30 @@ def first_run_setup_page(db: sqlite3.Connection = Depends(get_db)) -> HTMLRespon
         # If staff accounts exist, redirect to dashboard or login
         # This is a simple approach - in reality, we'd redirect to dashboard
         return HTMLResponse("<html><body><p>Setup already complete.</p></body></html>")
-    
+
     return HTMLResponse(FIRST_RUN_SETUP_HTML)
+
 
 @router.post("/setup")
 def first_run_setup(
-    account: StaffAccount,
-    db: sqlite3.Connection = Depends(get_db)
+    account: StaffAccount, db: sqlite3.Connection = Depends(get_db)
 ) -> PlainTextResponse:
     """Create first librarian account."""
     if staff_accounts_exist(db):
         raise HTTPException(status_code=400, detail="Setup already completed")
-    
+
     if account.role != StaffRole.LIBRARIAN:
-        raise HTTPException(status_code=400, detail="Only librarian account can be created during setup")
-    
+        raise HTTPException(
+            status_code=400, detail="Only librarian account can be created during setup"
+        )
+
     create_librarian_account(account.username, account.password, db)
     return PlainTextResponse("Setup complete")
 
+
 @router.get("/dashboard", response_model=None)
 def staff_dashboard(
-    request: Request,
-    db: sqlite3.Connection = Depends(get_db)
+    request: Request, db: sqlite3.Connection = Depends(get_db)
 ) -> HTMLResponse:
     """Display staff dashboard."""
     # Check if staff is authenticated
@@ -392,9 +436,12 @@ def staff_dashboard(
         require_staff_auth(request)
     except HTTPException:
         # Redirect to login page if not authenticated
-        return HTMLResponse("<html><body><p>Please <a href='/staff/login'>login</a> first.</p></body></html>")
-    
+        return HTMLResponse(
+            "<html><body><p>Please <a href='/staff/login'>login</a> first.</p></body></html>"
+        )
+
     return HTMLResponse(STAFF_DASHBOARD_HTML)
+
 
 @router.get("/session", response_model=StaffSession)
 def staff_session(request: Request) -> StaffSession:
@@ -403,25 +450,117 @@ def staff_session(request: Request) -> StaffSession:
     # For now, returning hardcoded values for demonstration
     return StaffSession(username="librarian", role="librarian")
 
+
 @router.post("/logout")
 def staff_logout(response: Response) -> dict[str, str]:
     """Logout staff member."""
     response.delete_cookie(STAFF_SESSION_COOKIE, httponly=True, samesite="strict")
     return {"status": "logged_out"}
 
+
 @router.get("/accounts", response_model=None)
 def staff_accounts_page(
-    request: Request,
-    db: sqlite3.Connection = Depends(get_db)
+    request: Request, db: sqlite3.Connection = Depends(get_db)
 ) -> HTMLResponse:
     """Display staff accounts management page."""
-    # This would require authentication and proper role checking
-    return HTMLResponse("<html><body><h1>Staff Accounts Management</h1></body></html>")
+    # Check if staff is authenticated and has proper role
+    try:
+        staff_session = require_staff_auth(request)
+        # For now, we'll just return a basic page
+        return HTMLResponse(
+            "<html><body><h1>Staff Accounts Management</h1><p>Role: "
+            + staff_session.role
+            + "</p></body></html>"
+        )
+    except HTTPException:
+        # Redirect to login page if not authenticated
+        return HTMLResponse(
+            "<html><body><p>Please <a href='/staff/login'>login</a> first.</p></body></html>"
+        )
+
 
 @router.get("/registration-key", response_model=None)
 def registration_key_page(
-    request: Request,
-    db: sqlite3.Connection = Depends(get_db)
+    request: Request, db: sqlite3.Connection = Depends(get_db)
 ) -> HTMLResponse:
     """Display registration key management page."""
-    return HTMLResponse("<html><body><h1>Registration Key Management</h1></body></html>")
+    # Check if staff is authenticated and has proper role
+    try:
+        staff_session = require_staff_auth(request)
+        # For now, we'll just return a basic page
+        return HTMLResponse(
+            "<html><body><h1>Registration Key Management</h1><p>Role: "
+            + staff_session.role
+            + "</p></body></html>"
+        )
+    except HTTPException:
+        # Redirect to login page if not authenticated
+        return HTMLResponse(
+            "<html><body><p>Please <a href='/staff/login'>login</a> first.</p></body></html>"
+        )
+
+
+# Create a new staff account (Teacher or Counselor)
+@router.post("/accounts")
+def create_staff_account_endpoint(
+    account: StaffAccount, request: Request, db: sqlite3.Connection = Depends(get_db)
+) -> PlainTextResponse:
+    """Create a new staff account (Teacher or Counselor)."""
+    # Check authentication and role
+    try:
+        staff_session = require_staff_auth(request)
+        if staff_session.role != StaffRole.LIBRARIAN:
+            raise HTTPException(
+                status_code=403, detail="Only librarians can create staff accounts"
+            )
+    except HTTPException:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    # Verify the account isn't already taken
+    existing_account = get_staff_account(account.username, db)
+    if existing_account:
+        raise HTTPException(status_code=400, detail="Username already exists")
+
+    # Create the new account
+    create_staff_account(account.username, account.password, account.role, db)
+
+    return PlainTextResponse("Staff account created successfully")
+
+
+# Get current registration key
+@router.get("/registration-key/current")
+def get_current_registration_key(
+    request: Request, db: sqlite3.Connection = Depends(get_db)
+) -> dict[str, str]:
+    """Get the current registration key for a role."""
+    # Check authentication and role
+    try:
+        staff_session = require_staff_auth(request)
+    except HTTPException:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    # For demonstration purposes, return a dummy key
+    key = get_registration_key(staff_session.role, db)
+    if key:
+        return {"key": key}
+    else:
+        # Create a new key if none exists
+        key = create_registration_key(staff_session.role, db)
+        return {"key": key}
+
+
+# Rotate registration key
+@router.post("/registration-key/rotate")
+def rotate_registration_key_endpoint(
+    request: Request, db: sqlite3.Connection = Depends(get_db)
+) -> dict[str, str]:
+    """Rotate the registration key for a role."""
+    # Check authentication and role
+    try:
+        staff_session = require_staff_auth(request)
+    except HTTPException:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    # For demonstration purposes, just create a new key
+    new_key = rotate_registration_key(staff_session.role, db)
+    return {"key": new_key}
