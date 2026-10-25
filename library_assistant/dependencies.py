@@ -9,8 +9,9 @@ from typing import Annotated
 
 from fastapi import Depends, HTTPException
 
+from library_assistant.catalog import Catalog
+from library_assistant.config import Settings, build_catalog
 from library_assistant.models import Session
-from library_assistant.config import Settings
 
 DB_PATH = os.environ.get("LIBRARY_ASSISTANT_DB", "library_assistant.db")
 
@@ -38,22 +39,31 @@ def get_db() -> sqlite3.Connection:
     return conn
 
 
-def get_session(session_id: str, db: sqlite3.Connection = Depends(get_db), clock: datetime = Depends(get_clock)) -> Session:
+def get_settings() -> Settings:
+    """Get application settings."""
+    return Settings()
+
+
+def get_session(
+    session_id: str,
+    db: sqlite3.Connection = Depends(get_db),
+    clock: datetime = Depends(get_clock),
+) -> Session:
     """Get a session by ID, or raise if invalid."""
     row = db.execute(
         "SELECT card_number, class_label, started_at, expires_at FROM sessions WHERE session_id = ?",
         (session_id,),
     ).fetchone()
-    
+
     if row is None:
         raise HTTPException(status_code=400, detail="invalid session")
-    
+
     card_number, class_label, started_at, expires_at = row
     expires_at_dt = datetime.fromisoformat(expires_at)
-    
+
     if clock > expires_at_dt:
         raise HTTPException(status_code=400, detail="session expired")
-    
+
     return Session(
         session_id=session_id,
         card_number=card_number,
@@ -63,9 +73,9 @@ def get_session(session_id: str, db: sqlite3.Connection = Depends(get_db), clock
     )
 
 
+def get_catalog(settings: Settings = Depends(get_settings)) -> Catalog:
+    """Get the configured Catalog adapter."""
+    return build_catalog(settings)
+
+
 SessionDep = Annotated[Session, Depends(get_session)]
-
-
-def get_settings() -> Settings:
-    """Get application settings."""
-    return Settings()
