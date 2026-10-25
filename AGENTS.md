@@ -18,6 +18,9 @@ be committed here".
 `flox activate -- bash scripts/check.sh` is the one gate: CI runs it, bead-loop runs it on
 every worktree. A new kind of check goes into that script, never beside it.
 
+The gate's `ruff format --check` fails on unformatted code; before committing run
+`flox activate -- ruff format . && flox activate -- ruff check --fix .`
+
 Adding or editing a waiver (`scripts/confidentiality-waivers.toml`) is a design change: stop
 and ask.
 

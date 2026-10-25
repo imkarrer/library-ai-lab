@@ -116,6 +116,28 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
         )
         """
     )
+    # Staff accounts and their sessions (library_assistant.staff). As with a Student's
+    # Session, only the hash of the staff session id is stored.
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS staff_accounts (
+            id INTEGER PRIMARY KEY,
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            role TEXT NOT NULL CHECK (role IN ('librarian', 'teacher', 'counselor')),
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS staff_sessions (
+            session_hash TEXT PRIMARY KEY,
+            account_id INTEGER NOT NULL REFERENCES staff_accounts (id),
+            expires_at TEXT NOT NULL
+        )
+        """
+    )
     conn.commit()
     return conn
 
