@@ -1,0 +1,6 @@
+# Waiver files and the checks that read them. A human must review any
+# change here: this is the quiet route an agent could use to clear the gate.
+# See AGENTS.md § Verify.
+/scripts/confidentiality-waivers.toml @imkarrer
+/scripts/confidentiality.py @imkarrer
+/scripts/check.sh @imkarrer
