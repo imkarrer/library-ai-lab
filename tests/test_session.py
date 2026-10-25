@@ -8,6 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from library_assistant.access import (
+    REFUSAL_TEXT,
     SESSION_COOKIE,
     connect,
     get_clock,
@@ -314,6 +315,38 @@ def test_chat_page_has_end_session_button(client):
     page = test_client.get("/chat")
     assert page.status_code == 200
     assert "End session" in page.text
+
+
+def test_refusal_shown_chat_page_script_reads_detail_on_403(client):
+    """The /ask submit handler reads `detail` from the 403 JSON body."""
+    test_client, _ = client
+    _sign_in(test_client)
+    page = test_client.get("/chat")
+    assert page.status_code == 200
+    assert "response.status === 403" in page.text
+    assert "data.detail" in page.text
+    assert '"question").disabled = true' in page.text
+
+
+def test_refusal_shown_chat_page_has_refusal_text_from_access(client):
+    """The refusal wording is the access.py constant, not a duplicated literal."""
+    test_client, _ = client
+    _sign_in(test_client)
+    page = test_client.get("/chat")
+    assert page.status_code == 200
+    assert REFUSAL_TEXT in page.text
+
+
+def test_refusal_shown_chat_page_never_writes_raw_json(client):
+    """Any other non-200 status shows a plain generic message, never the raw response."""
+    test_client, _ = client
+    _sign_in(test_client)
+    page = test_client.get("/chat")
+    assert page.status_code == 200
+    assert "Something went wrong. Ask the librarian." in page.text
+    assert "answer.textContent = response" not in page.text
+    assert "answer.textContent = JSON.stringify" not in page.text
+    assert "answer.textContent = data.detail" in page.text
 
 
 def test_card_page_has_end_session_button(client):
