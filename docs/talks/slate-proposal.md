@@ -68,8 +68,8 @@ question, and nothing is sent to a vendor.
 ### Abstract (152 words; the limit is `[VERIFY]`)
 
 Most AI tools for students send every question to a company's servers, and leave librarians
-and counselors with no view of what students ask. We'll show another way: an open-source
-library assistant that runs on a single computer in the building and, once installed, needs
+and counselors with no view of what students ask. We'll show another way: a library assistant,
+free for schools, that runs on a single computer in the building and, once installed, needs
 no internet. Students scan a short-lived QR card that carries no name, then ask about the
 library's own collection, and each answer points to a real book they can find on the shelf.
 The librarian watches questions as they arrive. A fixed, reviewable list of warning phrases
@@ -112,15 +112,16 @@ Participants will be able to:
   Teacher's and the Librarian's view.
 - `[BLANK: presenter 2, name]`, `[BLANK: title]`, `[BLANK: organization]`: the engineer who
   built the assistant. **Disclose the affiliation:** this presenter works at Flox, the company
-  whose free tool installs the assistant. The assistant itself is open source and
-  free, and nothing is sold in the session.
+  whose free tool installs the assistant. The assistant's code is public and free for schools
+  to run. The presenter also plans to offer paid setup and support through their own company:
+  disclose that as well, and sell nothing in the session.
 
 Contact details go on the form only, not in this repository.
 
 ### Biographies (`[BLANK]`, about 50 words each)
 
 - `[BLANK: presenter 1 bio. Lead with years as a school librarian and the grades served]`
-- `[BLANK: presenter 2 bio. Lead with the open-source project and say where they work]`
+- `[BLANK: presenter 2 bio. Lead with the project and say where they work]`
 
 ---
 
