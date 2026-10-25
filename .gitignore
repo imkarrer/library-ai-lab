@@ -13,3 +13,8 @@ __pycache__/
 # Demo Catalog build output (scripts/build_demo_catalog.py defaults)
 catalog.db
 marc-dist-download/
+
+# nix build links, and the agent stack launcher's staging (flake.nix)
+result
+result-*
+.agent-stacks/

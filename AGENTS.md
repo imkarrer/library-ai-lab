@@ -42,6 +42,14 @@ The five default roles as bd labels (`needs-triage`, `needs-info`, `ready-for-ag
 
 Single-context: `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
 
+### Beads for bead-loop
+
+bead-loop works the beads labelled `delegate:local` (`.bead-loop.toml`). Cut a plan into
+beads with bead-loop's `breakdown` skill and check each against `delegate`, in place of a
+generic ticket breakdown: beads cut here as user-facing features with prose acceptance
+criteria landed none of eight on the local model. `nix run` at the repo root starts Claude
+Code with those skills (the agent stack in `flake.nix`).
+
 ## Beads
 
 This project uses **bd** (beads) for issue tracking. Run `bd prime` for full workflow context.
