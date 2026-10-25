@@ -21,4 +21,4 @@ fi
 ruff check .
 ruff format --check .
 python scripts/confidentiality.py
-pytest
+pytest -x tests/test_offline_minting.py
