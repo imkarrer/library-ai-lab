@@ -13,5 +13,6 @@ what already runs, so a diagram also shows how far the build has got.
 |---|---|
 | [Student message flow](student-message-flow.md) | What happens to one message, from the chat box to the reply and the Flag queue. Can a Student keep prompting after a Flag? |
 | [Session lifecycle](session-lifecycle.md) | How a Session starts, what pauses it, what ends it, and what happens to its words afterwards. |
+| [Live view](live-view.md) | What the Librarian sees: the overview of active Sessions, clicking into one to watch it live, and the conference demo. |
 
 When a bead changes a flow drawn here, it updates the diagram in the same PR.

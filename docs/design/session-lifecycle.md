@@ -78,8 +78,8 @@ Registration refuses an expiry past it (lib-f24.44).
 |---|---|---|---|
 | Finished button | Student | None: the Card can start a new Session | lib-f24.1 (on main) |
 | Idle past the limit (default 20 min, 0 = none) | The Librarian sets the limit | None: scan again | lib-f24.60, lib-f24.61 |
-| Revoke this Card | Librarian, from the Live view | Dead for good | lib-f24.49 (the registration-key route is on main) |
-| Revoke the Batch | Librarian, from the Live view | Every Card in the Batch dead | lib-f24.49 |
+| Revoke this Card | Librarian, from the Session detail page in the Live view | Dead for good | lib-f24.49 (the registration-key route is on main) |
+| Revoke the Batch | Librarian, from the Session detail page in the Live view | Every Card in the Batch dead | lib-f24.49 |
 | Batch expiry | Set at minting, no later than the end of the school day | Dead | lib-f24.1 (on main), lib-f24.44 |
 
 ## What happens to the words afterwards
