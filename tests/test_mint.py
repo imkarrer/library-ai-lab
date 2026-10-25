@@ -14,7 +14,7 @@ from library_assistant.mint import (
     roster_csv,
     roster_sheet_html,
 )
-from scripts.mint_batch import upload_payload, write_batch_files
+from scripts.mint_batch import main, upload_payload, write_batch_files
 
 REGISTRATION_KEY = "s3cret-registration-key"
 
@@ -200,3 +200,40 @@ def test_cli_writes_the_roster_sheet_wherever_it_runs(tmp_path, monkeypatch):
     payload = json.loads(paths["json"].read_text())
     assert payload == result.registration_payload
     assert "Sealed Roster" not in json.dumps(payload)
+
+
+def test_cli_default_expiry_is_today_at_1530(tmp_path, monkeypatch, capsys):
+    """Test that the default --until is today at 15:30."""
+    monkeypatch.setattr(
+        "scripts.mint_batch._now", lambda: datetime(2026, 11, 2, 10, 0, tzinfo=UTC)
+    )
+    code = main(
+        ["--count", "1", "--class-label", "Period 3", "--out-dir", str(tmp_path)]
+    )
+    assert code == 0
+    captured = capsys.readouterr()
+    assert "wrote json:" in captured.out
+    payload = json.loads(tmp_path.joinpath("Period_3-registration.json").read_text())
+    assert payload["expires_at"] == "2026-11-02T15:30:00+00:00"
+
+
+def test_cli_until_in_the_past_exits_2(tmp_path, monkeypatch, capsys):
+    """Test that --until in the past causes exit code 2."""
+    monkeypatch.setattr(
+        "scripts.mint_batch._now", lambda: datetime(2026, 11, 2, 16, 0, tzinfo=UTC)
+    )
+    code = main(
+        [
+            "--count",
+            "1",
+            "--class-label",
+            "Period 3",
+            "--until",
+            "15:30",
+            "--out-dir",
+            str(tmp_path),
+        ]
+    )
+    assert code == 2
+    captured = capsys.readouterr()
+    assert "--until is already past for today" in captured.err
