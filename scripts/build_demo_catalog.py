@@ -19,11 +19,20 @@ from __future__ import annotations
 import argparse
 import re
 import shutil
+import sys
 import urllib.parse
 import urllib.request
 from pathlib import Path
 
-from library_assistant.catalog.marc import is_juvenile, parse_marcxml, to_record
+# Run as `python3 scripts/build_demo_catalog.py`, Python puts scripts/ on the import
+# path, not the repo root, so library_assistant would not import.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from library_assistant.catalog.marc import (
+    is_juvenile,
+    parse_marcxml,
+    to_record,
+)
 from library_assistant.catalog.sqlite_backend import SqliteCatalog
 
 BOOKS_ALL_INDEX_URL = "https://www.loc.gov/cds/products/MDSConnect-books_all.html"
