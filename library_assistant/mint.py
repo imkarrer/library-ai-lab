@@ -8,6 +8,7 @@ Registration payload reaches the assistant, and it carries no Student data.
 from __future__ import annotations
 
 import csv
+import html
 import io
 import secrets
 from dataclasses import dataclass
@@ -128,6 +129,65 @@ def qr_sheet_html(
   <div class="sheet">
     {"".join(cells)}
   </div>
+</body>
+</html>
+"""
+
+
+def roster_sheet_html(
+    cards: list[Card], class_label: str, minted_at: datetime, expires_at: datetime
+) -> str:
+    """The sealed Roster sheet (ADR-0002): one blank name line per Card number, to be
+    filled in by hand, sealed, and kept in the office. It carries no Token, so it cannot
+    sign anyone in, and it never reaches the assistant.
+    """
+    label = html.escape(class_label)
+    minted = minted_at.date().isoformat()
+    expires = expires_at.date().isoformat()
+    rows = "".join(
+        f"""
+    <div class="card-row">
+      <span class="card-number">Card {html.escape(card.card_number)}</span>
+      <span class="name-line"></span>
+    </div>"""
+        for card in cards
+    )
+    return f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>{label} - Sealed Roster</title>
+<style>
+  body {{ font-family: sans-serif; }}
+  .header {{ text-align: center; margin-bottom: 1em; }}
+  .class-label {{ font-size: 1.5em; font-weight: bold; }}
+  .card-row {{ margin: 0.6em 0; }}
+  .card-number {{ font-weight: bold; display: inline-block; width: 5em; }}
+  .name-line {{ border-bottom: 1px solid #000; width: 18em; display: inline-block; }}
+  .box {{ margin-top: 1.5em; padding: 0.8em; border: 1px solid #999; }}
+  .log td {{ border-bottom: 1px solid #000; height: 1.6em; }}
+</style>
+</head>
+<body>
+  <div class="header">
+    <div class="class-label">{label}</div>
+    <div>Minted {minted} &middot; expires {expires}</div>
+  </div>
+  <div class="roster">{rows}
+  </div>
+  <div class="box">
+    <strong>Sealed Roster.</strong> Write the Student's name beside each Card number you
+    hand out, then seal this sheet in an envelope marked with the Class label and dates and
+    give it to the office. The office opens it only to identify which Student held a Card
+    number when an adult needs to know, records each opening below, and reseals it. Shred
+    it when the Batch expires, unless a Hold or an open Flag still needs it.
+  </div>
+  <table class="log box" width="100%">
+    <tr><th align="left">Opened by</th><th align="left">When</th><th align="left">Why</th></tr>
+    <tr><td></td><td></td><td></td></tr>
+    <tr><td></td><td></td><td></td></tr>
+    <tr><td></td><td></td><td></td></tr>
+  </table>
 </body>
 </html>
 """
