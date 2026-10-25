@@ -36,24 +36,43 @@ async def get_http_client(
         yield client
 
 
-def store_exchange(
-    db: sqlite3.Connection,
-    session: Session,
-    question: str,
-    answer: str,
-    citations: list[Citation],
-    asked_at: datetime,
-) -> None:
-    """Record one question-and-answer exchange in the Session's transcript."""
-    db.execute(
-        "INSERT INTO transcripts (session_hash, question, answer, citations, asked_at) "
-        "VALUES (?, ?, ?, ?, ?)",
+def start_exchange(
+    db: sqlite3.Connection, session: Session, question: str, asked_at: datetime
+) -> int:
+    """Record a question the moment it is admitted, so the Live view sees it at once.
+
+    The Class label and Card number are copied onto the row: a Revoke deletes the Card's
+    row, and the exchange must still say whose Session it was. Returns the row's id.
+    """
+    cursor = db.execute(
+        "INSERT INTO transcripts "
+        "(session_hash, class_label, card_number, question, answer, citations, asked_at) "
+        "VALUES (?, ?, ?, ?, '', '', ?)",
         (
             session.ref,
+            session.class_label,
+            session.card_number,
             question,
+            asked_at.isoformat(),
+        ),
+    )
+    db.commit()
+    return cursor.lastrowid
+
+
+def finish_exchange(
+    db: sqlite3.Connection,
+    transcript_id: int,
+    answer: str,
+    citations: list[Citation],
+) -> None:
+    """Fill in the answer and its Citations once the reply has streamed."""
+    db.execute(
+        "UPDATE transcripts SET answer = ?, citations = ? WHERE id = ?",
+        (
             answer,
             ",".join(citation.record_id for citation in citations),
-            asked_at.isoformat(),
+            transcript_id,
         ),
     )
     db.commit()

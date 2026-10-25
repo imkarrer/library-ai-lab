@@ -109,6 +109,8 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
         CREATE TABLE IF NOT EXISTS transcripts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             session_hash TEXT NOT NULL,
+            class_label TEXT NOT NULL,
+            card_number TEXT NOT NULL,
             question TEXT NOT NULL,
             answer TEXT NOT NULL,
             citations TEXT NOT NULL,

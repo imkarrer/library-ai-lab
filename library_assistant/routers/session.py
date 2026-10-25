@@ -21,9 +21,10 @@ from library_assistant.config import Settings
 from library_assistant.dependencies import (
     HttpClientDep,
     SessionDep,
+    finish_exchange,
     get_catalog,
     get_settings,
-    store_exchange,
+    start_exchange,
 )
 from library_assistant.models import AskRequest, Citation
 
@@ -108,6 +109,7 @@ async def ask(
     clock: datetime = Depends(get_clock),
 ) -> StreamingResponse:
     """Ask a question in a Session and stream a Grounded answer with Citations."""
+    transcript_id = start_exchange(db, session, request.question, clock)
     records = catalog.search(request.question, k=4)
     citations = [
         Citation(
@@ -130,32 +132,36 @@ async def ask(
 
     async def generate():
         answer_parts: list[str] = []
-        async with http_client.stream(
-            "POST",
-            "/chat/completions",
-            json={
-                "model": settings.openai_model,
-                "messages": messages,
-                "stream": True,
-            },
-        ) as response:
-            async for line in response.aiter_lines():
-                if not line.startswith("data: "):
-                    continue
-                payload = line.removeprefix("data: ")
-                if payload == "[DONE]":
-                    break
-                delta = json.loads(payload)["choices"][0]["delta"].get("content", "")
-                if delta:
-                    answer_parts.append(delta)
-                    yield delta
+        shown: list[Citation] = []
+        # finally: a model error or a hang-up still records what the Student saw.
+        try:
+            async with http_client.stream(
+                "POST",
+                "/chat/completions",
+                json={
+                    "model": settings.openai_model,
+                    "messages": messages,
+                    "stream": True,
+                },
+            ) as response:
+                async for line in response.aiter_lines():
+                    if not line.startswith("data: "):
+                        continue
+                    payload = line.removeprefix("data: ")
+                    if payload == "[DONE]":
+                        break
+                    delta = json.loads(payload)["choices"][0]["delta"].get(
+                        "content", ""
+                    )
+                    if delta:
+                        answer_parts.append(delta)
+                        yield delta
 
-        for citation in citations:
-            yield "\n" + citation.line()
-
-        store_exchange(
-            db, session, request.question, "".join(answer_parts), citations, clock
-        )
+            for citation in citations:
+                yield "\n" + citation.line()
+                shown.append(citation)
+        finally:
+            finish_exchange(db, transcript_id, "".join(answer_parts), shown)
 
     return StreamingResponse(
         generate(), media_type="text/plain", headers={"Cache-Control": "no-store"}

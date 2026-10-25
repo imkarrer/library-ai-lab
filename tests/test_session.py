@@ -225,3 +225,83 @@ def test_chat_page_shows_the_banner_and_needs_a_session(client):
     assert BANNER_TEXT in page.text
     assert "Period 3" in page.text and "card 14" in page.text
     assert "Finished" in page.text
+
+
+def test_question_is_recorded_on_arrival(client, monkeypatch):
+    """The row exists, with its Class label and Card number, before the model replies."""
+    test_client, db = client
+    _sign_in(test_client)
+    seen_by_model: list[tuple] = []
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        seen_by_model.extend(
+            db.execute(
+                "SELECT class_label, card_number, question, answer FROM transcripts"
+            ).fetchall()
+        )
+        return httpx.Response(
+            200,
+            content=b'data: {"choices":[{"delta":{"content":"Ferdinand"}}]}\n\n'
+            b"data: [DONE]\n\n",
+            headers={"content-type": "text/event-stream"},
+        )
+
+    monkeypatch.setattr(
+        httpx.AsyncHTTPTransport, "handle_async_request", handle_async_request
+    )
+    test_client.post("/ask", json={"question": "a book about bulls?"})
+
+    assert seen_by_model == [("Period 3", "14", "a book about bulls?", "")]
+
+
+def test_answer_is_filled_in_after_stream(client, model_calls):
+    test_client, db = client
+    _sign_in(test_client)
+    test_client.post("/ask", json={"question": "a book about bulls?"})
+
+    rows = db.execute(
+        "SELECT class_label, card_number, answer, citations FROM transcripts"
+    ).fetchall()
+    assert rows == [("Period 3", "14", "Try Ferdinand, a gentle bull.", RECORD.id)]
+
+
+def test_exchange_keeps_its_labels_after_the_card_is_revoked(client, model_calls):
+    test_client, db = client
+    _sign_in(test_client)
+    test_client.post("/ask", json={"question": "a book about bulls?"})
+    test_client.post(
+        "/batches/revoke-card",
+        json={
+            "registration_key": REGISTRATION_KEY,
+            "class_label": "Period 3",
+            "card_number": "14",
+            "expires_at": EXPIRES.isoformat(),
+        },
+    )
+    assert (
+        db.execute("SELECT count(*) FROM cards WHERE card_number = '14'").fetchone()[0]
+        == 0
+    )
+    assert db.execute(
+        "SELECT class_label, card_number FROM transcripts"
+    ).fetchall() == [("Period 3", "14")]
+
+
+def test_model_error_still_finishes_the_exchange_with_what_was_shown(
+    client, monkeypatch
+):
+    test_client, db = client
+    _sign_in(test_client)
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("model server down")
+
+    monkeypatch.setattr(
+        httpx.AsyncHTTPTransport, "handle_async_request", handle_async_request
+    )
+    with pytest.raises(httpx.ConnectError):
+        test_client.post("/ask", json={"question": "a book about bulls?"})
+
+    assert db.execute(
+        "SELECT question, answer, citations FROM transcripts"
+    ).fetchall() == [("a book about bulls?", "", "")]
