@@ -44,9 +44,10 @@ district-controlled store.
 ## Demo Catalog
 
 The shipped Catalog adapter is SQLite over MARC
-([ADR-0005](docs/adr/0005-catalog-behind-an-adapter.md)). A tiny fixture Catalog
-(`tests/fixtures/catalog/fixture.xml`) ships in the repo so a fresh checkout can search a
-Catalog with no network. For a demo with a realistic collection, build one from the Library
+([ADR-0005](docs/adr/0005-catalog-behind-an-adapter.md)). A 270-record sample of real
+Library of Congress records (`tests/fixtures/catalog/loc-books-2016-sample.xml`; source and
+selection in [its README](tests/fixtures/catalog/README.md)) ships in the repo so a fresh
+checkout can search a Catalog with no network. For a demo with a realistic collection, build one from the Library
 of Congress open-access MARC distribution — a separate, one-time setup step, never run by the
 assistant and never run in CI ([ADR-0006](docs/adr/0006-intranet-only.md)'s demo exception):
 

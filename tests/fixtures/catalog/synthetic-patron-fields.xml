@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SYNTHETIC. This record was written by hand for one test; it is not a Library of
+  Congress record and describes no real book. Real LoC records carry no patron,
+  circulation, or hold fields, so they cannot show that such fields in MARC input
+  never reach a Record (tests/test_catalog.py). The 952 field below imitates a local
+  holdings field an exported school Catalog might carry. For real records, see
+  loc-books-2016-sample.xml and README.md in this directory.
+-->
+<collection xmlns="http://www.loc.gov/MARC21/slim">
+  <record>
+    <leader>00000nam a2200000 a 4500</leader>
+    <controlfield tag="001">synthetic0001</controlfield>
+    <controlfield tag="008">830419s1985    nyu    j        0 10eng d</controlfield>
+    <datafield tag="100" ind1="1" ind2=" ">
+      <subfield code="a">Example, Author.</subfield>
+    </datafield>
+    <datafield tag="245" ind1="1" ind2="0">
+      <subfield code="a">A synthetic title /</subfield>
+      <subfield code="b">by Author Example.</subfield>
+    </datafield>
+    <datafield tag="952" ind1=" " ind2=" ">
+      <subfield code="p">patron-barcode-004821</subfield>
+      <subfield code="q">hold-queue-3</subfield>
+    </datafield>
+  </record>
+</collection>
