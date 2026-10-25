@@ -118,8 +118,8 @@
             <input type="number" id="count" min="1" max="100" value="24" required>
         </div>
         <div class="form-group">
-            <label for="days">Expiry (days from now):</label>
-            <input type="number" id="days" min="1" max="365" value="90" required>
+            <label for="until">Cards stop working at (today):</label>
+            <input type="time" id="until" value="15:30" required>
         </div>
         <button id="generate-btn">Generate Cards</button>
     </div>
@@ -2519,12 +2519,19 @@ var qrcode = function() {
         }
 
         // Generate cards with tokens, hashes, and roster data
-        async function generateCards(count, classLabel, days) {
+        async function generateCards(count, classLabel, until) {
             const cards = [];
             const rosterRows = [];
 
             const now = new Date();
-            const expiresAt = new Date(now.getTime() + (days * 24 * 60 * 60 * 1000));
+            const [untilHours, untilMinutes] = until.split(':').map(Number);
+            const expiresAt = new Date(
+                now.getFullYear(), now.getMonth(), now.getDate(), untilHours, untilMinutes
+            );
+
+            if (expiresAt <= now) {
+                return { error: 'That time has already passed today. No cards were minted.' };
+            }
 
             for (let i = 0; i < count; i++) {
                 const token = await generateToken();
@@ -2685,14 +2692,19 @@ var qrcode = function() {
             document.getElementById('generate-btn').addEventListener('click', async function() {
                 const classLabel = document.getElementById('class-label').value;
                 const count = parseInt(document.getElementById('count').value);
-                const days = parseInt(document.getElementById('days').value);
+                const until = document.getElementById('until').value;
 
-                if (!classLabel || count < 1 || days < 1) {
+                if (!classLabel || count < 1 || !until) {
                     alert('Please fill all fields with valid values');
                     return;
                 }
 
-                const result = await generateCards(count, classLabel, days);
+                const result = await generateCards(count, classLabel, until);
+
+                if (result.error) {
+                    alert(result.error);
+                    return;
+                }
 
                 document.getElementById('qr-sheet-container').innerHTML = generateQRSheet(result.cards, classLabel);
                 document.getElementById('audit-table-body').innerHTML = generateAuditTableRows(result.cards);
