@@ -386,9 +386,10 @@ closes the Flag, and are deleted after that. So:
   procedure".
 - **Do not use open Flags as storage.** Aim to close every Flag within `[BLANK: 5]` school days.
   Any Flag open longer is reviewed by the Counselor.
-- **If CPS, police, or counsel asks the school to keep the exchange,** leave the Flag open and
-  tell the administrator. `[VERIFY]` with district counsel how long, and whether the school must
-  export it to its own records instead.
+- **If CPS, police, or counsel asks the school to keep the exchange,** tell the administrator and
+  have the Librarian set a Hold on it before that day's Purge (ADR-0003, "Holds"), then Export
+  it into the school's own records. Leaving the Flag open is not a way to keep it. `[VERIFY]` with
+  district counsel when the Hold may be lifted.
 
 A transcript tied to a named Student may be a pupil record under Wis. Stat. 118.125 and FERPA,
 which is why the assistant is built never to hold that link. Once the school's own record names
