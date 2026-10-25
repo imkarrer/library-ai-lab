@@ -1,4 +1,4 @@
-# Flags come from a Watchlist always, and from Oversight only when it costs Students nothing
+# Flags come from a Watchlist always, and from Oversight screening every message when configured
 
 Every Student message is checked against the Watchlist, a curated, versioned set of phrases
 and patterns for each Rubric category. It needs no inference and can't be switched off, so
@@ -8,17 +8,19 @@ exchange against the Rubric on its own Lane, separate from the Answer lane that 
 Students. Oversight is shaped like bead-loop's lanes: one endpoint per job, a lock per
 shared resource, and a backlog that is held rather than failed when its endpoint is down.
 
-Oversight must never cost Students anything:
+When Oversight is configured, it screens every message in real time, in parallel with the
+answer, and a Session's next message waits for the current one's verdict ("Screening is real
+time and ordered per Session", below). Where it runs:
 
-- **Its own hardware** (a second box, such as two M5s): it runs continuously.
-- **Sharing the Answer lane's box**: it runs only when both models fit in memory together
-  *and* the Answer lane is idle. It yields the accelerator whenever a Student is waiting, and
-  drains its backlog in the gaps and after class, always before the Purge.
+- **Its own hardware** (a second box, such as two M5s): the better choice, since screening
+  never contends with answering.
+- **Sharing the Answer lane's box**: only when both models fit in memory together and the box
+  can run both at once acceptably, which hardware detection (lib-06g) checks.
 - **Not configured, or the box can't hold both models**: the Watchlist alone.
 
 High-severity Flags, from either source, return a Supportive reply rather than a refusal,
 since a refusal teaches a 12-year-old not to say it again. A Supportive reply can only come
-from the Watchlist, because Oversight runs after the answer. The Counselor role is optional:
+from the Watchlist, because Oversight's verdict can land after the answer has streamed. The Counselor role is optional:
 the Librarian can work the Flag queue and escalate by hand. The product and its docs describe
 flagging as help for the adults' duty of care, never as a substitute for it.
 
@@ -36,12 +38,14 @@ flagging as help for the adults' duty of care, never as a substitute for it.
   Installs and the only source of an immediate Supportive reply. A miss is a Watchlist bug.
 - Hardware detection decides whether Oversight can share the box. The default is off unless
   both models fit.
-- An Oversight Flag can arrive minutes or hours after the exchange. The Flag queue shows which
-  source raised each Flag and when.
+- An Oversight Flag arrives within seconds of its message, before that Session can send
+  another. The Flag queue shows which source raised each Flag and when.
 
 ## Addendum: sharing the Answer lane's box
 
-Decided 2026-10-24 (lib-f24.16), for lib-f24.14. Memory fitting is not enough. On one Apple
+Decided 2026-10-24 (lib-f24.16), for lib-f24.14; partly superseded 2026-10-25 by "Screening
+is real time and ordered per Session" at the end of this addendum, which wins where they
+disagree. Memory fitting is not enough. On one Apple
 Silicon box the two models share one GPU and one unified-memory bus, and decode is bandwidth
 bound. Metal does not partition the GPU between processes, so any overlap slows the Student's
 request. That is the reason for the lock.
@@ -107,11 +111,32 @@ Oversight with that reason and does not retry it. If Oversight shares the Answer
 llama-server, it is pinned to one slot (`id_slot`) so that it does not evict the Students'
 cached prefixes.
 
-**Starvation is accepted; the Purge waits.** Oversight never gets priority over a Student,
-not even near the Purge. During class it runs in the gaps, and after the last class it
-drains. lib-f24.10 already keeps every unreviewed exchange through the Purge. When the
-backlog is not empty at Purge time, the Purge records how many items are waiting, the Flag
-queue shows that count, and the next Purge takes the exchanges once they are reviewed.
+**Screening is real time and ordered per Session.** Decided 2026-10-25 (lib-wpg), and it
+supersedes the rest of this addendum where they disagree. Every chat interaction is screened
+and reported while the adults who will act on it are present (ADR-0010):
+
+- **In parallel with the answer.** When a Student's message arrives, the Watchlist runs
+  first, as before. Then the Answer lane and the Oversight lane both start on it at once;
+  Oversight does not wait for the answer, and the answer does not wait for Oversight.
+- **The next message waits for the current screen.** A Session's next message is not
+  admitted, to the Watchlist, the Answer lane, or Oversight, until Oversight's verdict on its
+  current message is recorded. The chat page shows "one moment" meanwhile. One Session never
+  waits on another Session's screening.
+- **Nothing is cancelled to make room.** Because an Oversight verdict gates its own Session,
+  an Oversight call is never cancelled when another Student asks. On a shared box the two
+  lanes contend for the accelerator while both run; that cost is accepted, and it is why a
+  second box is the better Oversight lane and why hardware detection (lib-06g) must plan for
+  both models resident and busy at once.
+- **When Oversight is down,** the Session's next message waits, the Live view says screening
+  is unavailable, and after `oversight.unavailable_seconds` (default 30) the Librarian chooses
+  between pausing Sessions and continuing on the Watchlist alone, recorded on every exchange
+  admitted that way. Oversight not configured at all means the Watchlist alone, as before.
+
+So the shared-box rules above that let Oversight yield, wait for an idle Answer lane, be
+cancelled by a Student's arrival, or drain after class no longer apply. The in-process count of
+Student requests and the `flock` stay useful for the Live view and for refusing a second
+process. lib-f24.10 still keeps any unscreened exchange through the Purge, as a safety net that
+should not be needed.
 
 **Tests are deterministic and use fakes.** A fake OpenAI server runs each request from a
 script (prefill gate, tokens, per-token gate) and is driven by `asyncio.Event`s, not by
