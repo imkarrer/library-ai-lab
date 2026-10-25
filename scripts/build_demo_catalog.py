@@ -19,11 +19,20 @@ from __future__ import annotations
 import argparse
 import re
 import shutil
+import sys
 import urllib.parse
 import urllib.request
 from pathlib import Path
 
-from library_assistant.catalog.marc import is_juvenile, parse_marcxml, to_record
+# Run as `python3 scripts/build_demo_catalog.py`, Python puts scripts/ on the import
+# path, not the repo root, so library_assistant would not import.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from library_assistant.catalog.marc import (
+    is_juvenile,
+    parse_marcxml,
+    to_record,
+)
 from library_assistant.catalog.sqlite_backend import SqliteCatalog
 
 BOOKS_ALL_INDEX_URL = "https://www.loc.gov/cds/products/MDSConnect-books_all.html"
@@ -36,10 +45,11 @@ USER_AGENT = (
 
 # Each part is about 70 MB compressed (checked 2026-10-25; 43 parts for 2016,
 # about 3 GB in all). Only one part is on disk at a time, so the build needs
-# room for the largest part plus the growing Catalog. The measured figures
-# from one real run belong in README.md (lib-f24.19), not here.
+# room for the largest part plus the growing Catalog. One real run
+# (lib-f24.19, 2026-10-25; full figures in README.md) produced a 157,335,552
+# byte Catalog; the estimate below is that figure with about 2x headroom.
 ESTIMATED_LARGEST_PART_BYTES = 100_000_000
-ESTIMATED_CATALOG_BYTES = 1_000_000_000
+ESTIMATED_CATALOG_BYTES = 300_000_000
 
 
 def estimate_required_bytes() -> int:
