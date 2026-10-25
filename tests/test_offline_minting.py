@@ -1,70 +1,174 @@
-import hashlib
+"""Offline Minting page: a headless check (Node, not a browser) that runs the page's own
+<script> blocks verbatim and compares their output to the server's hash_token().
+
+Binding: ADR-0002. The Registration upload must carry no Roster data.
+"""
+
+import json
+import re
+import subprocess
 from pathlib import Path
 
+import pytest
 
-def hash_token_cli(token: str) -> str:
-    """Hash a token using the same method as the CLI."""
-    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+from library_assistant.access import hash_token
 
+PAGE_PATH = Path(__file__).resolve().parent.parent / "offline-minting.html"
 
-def test_offline_minting_page_exists():
-    """Test that the offline minting page exists and has required content."""
-    offline_page_path = Path("offline-minting.html")
-    assert offline_page_path.exists(), "offline-minting.html not found"
-
-    # Read the HTML to make sure it exists and contains expected content
-    with open(offline_page_path, "r") as f:
-        content = f.read()
-
-    # Verify key elements are present
-    assert "Offline Minting Page" in content
-    assert "generateToken" in content
-    assert "sha256" in content
-    assert "QR Code" in content
-    assert "Download Roster CSV" in content
-    assert "Registration" in content
+NODE_STUB_DOCUMENT = """
+global.crypto = require('node:crypto').webcrypto;
+global.document = {
+  addEventListener: function () {},
+  getElementById: function () {
+    return { addEventListener: function () {}, classList: { add: function () {}, remove: function () {} } };
+  },
+  createElement: function () { return { classList: { add: function () {} }, style: {} }; },
+  createElementNS: function () { return {}; },
+  body: { appendChild: function () {}, removeChild: function () {} },
+};
+"""
 
 
-def test_offline_minting_hash_consistency():
-    """Test that the offline page's hash function produces the same result as the CLI."""
+def _extract_script(html: str, script_id: str) -> str:
+    match = re.search(rf'<script id="{script_id}">(.*?)</script>', html, re.DOTALL)
+    assert match, f'<script id="{script_id}"> not found in offline-minting.html'
+    return match.group(1)
 
-    # This test verifies the core functionality:
-    # 1. The offline page uses Web Crypto API for SHA-256
-    # 2. It should produce the same hashes as the CLI
-    # 3. The hashing algorithm is the same (SHA-256)
-    # 4. The encoding is the same (hex)
 
-    # We'll verify by testing that the basic hashing approach works
-    # and matches the CLI approach
+def _run_node(js: str) -> str:
+    result = subprocess.run(
+        ["node", "-e", js], check=False, capture_output=True, text=True, timeout=30
+    )
+    assert result.returncode == 0, result.stderr
+    return result.stdout
 
-    # Test a simple case - the offline page should have a function that
-    # produces the same result as hash_token_cli()
 
-    # Read the offline page to extract the hashing function
-    offline_page_path = Path("offline-minting.html")
-    with open(offline_page_path, "r") as f:
-        content = f.read()
+@pytest.fixture(scope="module")
+def page_html() -> str:
+    return PAGE_PATH.read_text()
 
-    # Verify that the hash function in the page is the same as the CLI
-    # The offline page has:
-    # async function sha256(message) {
-    #   const msgBuffer = new TextEncoder().encode(message);
-    #   const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-    #   const hashArray = Array.from(new Uint8Array(hashBuffer));
-    #   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    # }
 
-    # This should match CLI hash_token_cli() function which does:
-    # return hashlib.sha256(token.encode("utf-8")).hexdigest()
+@pytest.fixture(scope="module")
+def qrcode_lib_script(page_html: str) -> str:
+    return _extract_script(page_html, "qrcode-lib")
 
-    # Test with a known value
-    test_token = "test-token-12345"
-    hash_token_cli(test_token)
 
-    # The test will be structured to validate this behavior in the browser
-    # but since we're just checking the structure, we'll assert basic functionality
-    assert "sha256" in content
-    assert "crypto.subtle.digest" in content
+@pytest.fixture(scope="module")
+def app_logic_script(page_html: str) -> str:
+    return _extract_script(page_html, "app-logic")
 
-    # The important assertion is that this matches the CLI approach
-    # The test will actually be run in the browser environment to verify this
+
+def test_offline_minting_page_exists(page_html: str) -> None:
+    assert "Offline Minting Page" in page_html
+    assert "generateToken" in page_html
+    assert "sha256" in page_html
+    assert "Download Roster CSV" in page_html
+    assert "Registration" in page_html
+
+
+def test_offline_minting_vendors_qrcode_library(page_html: str) -> None:
+    """The MIT-licensed qrcode-generator library is vendored inline, licence notice intact."""
+    assert "Copyright (c) 2009 Kazuhiko Arase" in page_html
+    assert "Licensed under the MIT license" in page_html
+    # The actual library code, not just a notice: its constructor and SVG renderer.
+    assert "createSvgTag" in page_html
+    assert "getModuleCount" in page_html
+
+
+def test_offline_minting_hash_matches_cli(app_logic_script: str) -> None:
+    """The page's sha256() must produce the same hex digest as the server's hash_token()."""
+    token = "test-token-12345"
+    js = f"""
+{NODE_STUB_DOCUMENT}
+{app_logic_script}
+(async () => {{
+  const h = await sha256({json.dumps(token)});
+  process.stdout.write(h);
+}})();
+"""
+    page_hash = _run_node(js).strip()
+    assert page_hash == hash_token(token)
+
+
+def test_offline_minting_hash_matches_cli_for_generated_token(
+    app_logic_script: str,
+) -> None:
+    """generateToken() output, hashed by the page, must also match the server's hash_token()."""
+    js = f"""
+{NODE_STUB_DOCUMENT}
+{app_logic_script}
+(async () => {{
+  const token = await generateToken();
+  const h = await sha256(token);
+  process.stdout.write(JSON.stringify({{token, hash: h}}));
+}})();
+"""
+    payload = json.loads(_run_node(js))
+    assert payload["hash"] == hash_token(payload["token"])
+
+
+def test_offline_minting_qr_code_encodes_the_token(
+    qrcode_lib_script: str, app_logic_script: str
+) -> None:
+    """generateQRCodeSVG() renders a real QR code (from the vendored library), not a stub."""
+    js = f"""
+{NODE_STUB_DOCUMENT}
+{qrcode_lib_script}
+{app_logic_script}
+const svg = generateQRCodeSVG('a-token');
+process.stdout.write(svg);
+"""
+    svg = _run_node(js)
+    assert svg.startswith("<svg")
+    assert "path" in svg
+
+
+def test_offline_minting_upload_carries_no_roster_data(app_logic_script: str) -> None:
+    """The Registration payload must carry Tokens and Card numbers, never Roster (student) data."""
+    js = f"""
+{NODE_STUB_DOCUMENT}
+{app_logic_script}
+(async () => {{
+  const result = await generateCards(3, 'Period 3', 90);
+  process.stdout.write(JSON.stringify(result.registrationPayload));
+}})();
+"""
+    payload = json.loads(_run_node(js))
+    assert set(payload.keys()) == {"cards", "expires_at", "class_label"}
+    for card in payload["cards"]:
+        assert set(card.keys()) == {"token", "card_number"}
+    assert "students" not in json.dumps(payload)
+
+
+def test_offline_minting_sealed_roster_sheet_has_no_token_or_hash(
+    app_logic_script: str,
+) -> None:
+    """The sealed Roster sheet lists Card numbers only, never a Token or its hash."""
+    js = f"""
+{NODE_STUB_DOCUMENT}
+{app_logic_script}
+(async () => {{
+  const result = await generateCards(4, 'Period 3', 90);
+  const cardNumbers = result.cards.map(c => c.cardNumber);
+  const sheet = generateSealedRosterSheet(
+    cardNumbers, 'Period 3', dateStamp(result.startDate), dateStamp(result.expiresAt)
+  );
+  process.stdout.write(JSON.stringify({{sheet, tokens: result.cards.map(c => c.token), hashes: result.cards.map(c => c.tokenHash)}}));
+}})();
+"""
+    payload = json.loads(_run_node(js))
+    sheet = payload["sheet"]
+    assert "shred" in sheet.lower()
+    assert "fold and seal" in sheet.lower()
+    assert "opening log" in sheet.lower()
+    for token in payload["tokens"]:
+        assert token not in sheet
+    for digest in payload["hashes"]:
+        assert digest not in sheet
+
+
+def test_offline_minting_only_one_network_call(page_html: str) -> None:
+    """Only the Registration upload (fetch) ever leaves the machine; no other script src/href."""
+    assert page_html.count("fetch(") == 1
+    assert "<script src=" not in page_html
+    assert '<link rel="stylesheet" href="http' not in page_html
