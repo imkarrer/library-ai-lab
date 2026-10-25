@@ -216,11 +216,11 @@ number. The Roster lives on the Teacher's own computer.
    law or the crisis plan requires. Federal student privacy law allows disclosure in a health or
    safety emergency to people who need it to protect the Student or others (34 CFR 99.36).
 
-If the Teacher cannot be reached (absent, on a field trip): `[BLANK: the backup arrangement the
-school chooses, for example the administrator contacts the Teacher by phone]`. `[VERIFY]` with
-administration and the Librarian whether a backup copy of the Roster is allowed and where it is
-kept; the product design currently says the Roster never leaves the Teacher's machine (see
-"Open questions" at the end).
+If the Teacher cannot be reached (absent, on a field trip): an administrator opens the sealed
+Roster envelope for that Class label and date, kept in `[BLANK: where the office keeps sealed
+Rosters]`, reads only the Card number needed, logs who opened it, when, and why, and reseals it
+(ADR-0002, "a sealed printed Roster"). The office shreds each envelope when its Batch expires,
+unless a Hold or an open Flag still needs it.
 
 In imminent danger, the Student is often still in the room: a supervised class in the library,
 with the Teacher present. Look first, ask the Teacher at once.
@@ -341,19 +341,15 @@ The Flag queue shows which source raised each Flag and when.
 same. The Student may be in another class: the Counselor or administrator fetches them; do not
 pull them out in front of the class with the reason.
 
-**Oversight Flag, after the Student has gone home:** high severity or imminent means the
-administrator on duty decides now, using the school's after-hours procedure:
-`[BLANK: after-hours procedure, for example the administrator calls the parent or guardian, or
-asks police for a welfare check]`. If abuse is suspected, the reporter calls CPS's after-hours
-number now; do not wait for morning. Lower severity: first thing the next school day.
-
-**Oversight Flag found the next morning:** the Flag kept its exchange through the Purge because
-it is open. Act on it first thing, before Student sessions start.
-
-The Librarian is not expected to watch the queue at night or at weekends. That is why the
-school decides now what an after-hours Oversight Flag means for it: `[BLANK: whether this
-Install runs Oversight after the school day, and if so who checks its Flags, and when]`.
+**Oversight Flags arrive while the class is still here.** Oversight, when configured, screens
+each message as the Student sends it, and the Student's next message waits for that screen
+(ADR-0004). Cards last one school day at most and Sessions run only while someone is on Watch
+(ADR-0010), so an Oversight Flag reaches the person on Watch within seconds, not overnight.
 `[VERIFY]` with the Librarian whether Oversight on this Install is configured at all.
+
+**If a Flag is raised after the Watch lapsed** (a dropped connection, not a schedule), it is
+marked *raised unwatched* and its Alarm replays at the next Start watch. Treat it as section 4
+says, starting with whether the Student is still in the building.
 
 ## 9. Record keeping
 
@@ -533,8 +529,8 @@ should settle. They are listed so nobody assumes the assistant handles them.
 
 - The assistant does not alert anyone. A Flag waits until someone looks. Section 3 covers this
   with people and a schedule.
-- The Roster lives only on the Teacher's computer. When that Teacher is absent, Identification may
-  be slow (section 5).
+- When the Teacher is absent, Identification uses the sealed printed Roster in the office
+  (section 5).
 - The Supportive reply is one fixed text, built around suicide and self-harm (988). It may not fit
   an abuse disclosure or a threat of violence equally well. Check its wording (section 7).
 - Closing a Flag lets the next Purge delete the exchange. The school must copy what it needs

@@ -46,7 +46,8 @@ The per-Batch sequence printed on a Card ("card 14"). How adults refer to a Sess
 naming anyone.
 
 **Batch**:
-The set of Cards minted together for one Class label, sharing one expiry.
+The set of Cards minted together for one Class label, sharing one expiry no later than the
+end of the school day it is registered on.
 _Avoid_: sheet, set
 
 **Class label**:
@@ -68,8 +69,8 @@ assistant knows which Teacher registered a Batch.
 _Avoid_: API key, token, password
 
 **Roster**:
-The Teacher's record of which Student holds which Card number. It never leaves the Teacher's
-machine.
+The Teacher's record of which Student holds which Card number, kept on the Teacher's machine
+with a sealed printed copy in the office. It never reaches the assistant.
 _Avoid_: mapping, class list
 
 **Session**:

@@ -99,39 +99,29 @@ conceivable, but it needs its own ADR naming the system and what it may carry. U
 Watch rule is what makes an in-page Alarm enough: if no adult has the page open, Students are
 not chatting.
 
-## Oversight Flags after the class leaves
+## Every exchange is screened while someone is on Watch
 
-The Watch gates Student Sessions, not Oversight. ADR-0004 lets Oversight drain its backlog
-after class. So an Oversight Flag can arrive when nobody is on Watch, and then it is marked
-*raised unwatched* and replays at the next Start watch. Who must see it, and how soon, is
-**lib-wpg, which is not decided here**. The design works with each option:
+Decided 2026-10-25 (lib-wpg): screening is real time. Every chat interaction is checked and,
+when it may involve harm to a Student, reported while the adults who will act on it are
+present. Three rules make that hold without an after-hours procedure:
 
-1. **Next-morning check (protocol section 8 as written).** Oversight drains whenever it can.
-   Unwatched Flags wait for the first Start watch of the next school day, and the Alarm
-   replays first thing.
-   *Consequence:* nothing new to build, but a Flag about a Student who has gone home can wait
-   about 15 hours overnight and about 60 hours over a weekend. The school's
-   after-hours procedure never starts, because nobody knows yet.
-2. **Hold Oversight to Watch hours.** A setting (`oversight.run_while = "watch"`) keeps the
-   Oversight worker idle unless someone is on Watch. Every Oversight Flag then reaches an adult
-   who is present. The Librarian can stay on Watch for a while after the last class so the
-   backlog drains.
-   *Consequence:* no Flag ever lands on an empty room, and the delay for a 3 p.m. exchange is
-   the same as option 1 or longer. On a shared box it loses the after-class drain that ADR-0004
-   counts on, so the backlog carried through the Purge (lib-f24.10) grows. More transcripts are
-   kept overnight, which is ADR-0001 exposure.
-3. **An after-hours Watch.** A named adult, such as the administrator on duty, holds a
-   Stand-in Watch from a school device on the intranet until a set time, and the Alarm reaches
-   them. The Watch gate does not care what time it is. Student Sessions would open during that
-   Watch too, so this option also needs a setting that lets an after-hours Watch cover Oversight
-   only.
-   *Consequence:* the after-hours procedure can start the same evening. But it needs a
-   person on duty, and it only works from home if the district treats its VPN as the
-   intranet, which ADR-0006 would have to say. Weekends stay uncovered unless someone is
-   rostered.
+1. **Cards last one school day at most.** Staff issue them, and Registration refuses an
+   expiry later than the end of the school day it is registered on. No Session outlives the
+   day, so no Student is chatting after the adults have gone.
+2. **Sessions run only on Watch** (above), so every exchange happens while an adult is on the
+   Live view or Flag queue. The Watchlist screens each message before the model is called.
+3. **Each message is screened before the next one runs.** Oversight screens a message in
+   parallel with its answer, and the Session's next message waits for that verdict (ADR-0004,
+   "Screening is real time and ordered per Session"). So at most one message per Session is
+   ever unscreened, and only for seconds. End watch, and the last watcher signing out, wait
+   for those in-flight screens to finish; a lapsed heartbeat still ends the Watch, and any
+   Flag that lands after it is marked *raised unwatched* and replays its Alarm at the next
+   Start watch. That is a failure path, not a schedule.
 
-Whichever is chosen, each Flag records `raised_at`, whether it was raised unwatched, and who
-Acknowledged it and when. The Flag queue shows all three.
+Each Flag still records `raised_at`, whether it was raised unwatched, and who Acknowledged it
+and when, and the Flag queue shows all three. The options considered were a next-morning
+check, holding Oversight to Watch hours, and an after-hours Stand-in Watch; real-time
+screening inside the Watch replaces all three.
 
 ## Considered options
 
