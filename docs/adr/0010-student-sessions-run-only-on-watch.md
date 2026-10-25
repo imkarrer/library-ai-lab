@@ -42,6 +42,8 @@ is involved (ADR-0006).
 - **No off switch.** No Install setting runs Student Sessions without a Watch. A developer or a
   demo presenter signs in as the Librarian and presses Start watch. Tests start a Watch
   through a fixture.
+  *Superseded by "Amendment: supervision mode", below: Live is now the default, not the only
+  mode.*
 
 ## What a Student sees when nobody is on Watch
 
@@ -148,3 +150,38 @@ screening inside the Watch replaces all three.
   and the Students' paused page is how the adult finds out.
 - Sound is tested by hand once, when an Install is set up: the Start watch chime is the test.
   CI cannot hear.
+
+## Amendment: supervision mode
+
+Decided 2026-10-25 by the owner (lib-f24.77): "make all of these guardrails like watch
+configurable; the librarian may not care, or may want to check every 2 hr". This supersedes
+"No off switch" above. A school knows its own supervision better than the product does, and
+a Librarian who runs the queue on a schedule shouldn't have to sit on a heartbeat to keep a
+class chatting.
+
+**The Librarian sets a supervision mode.** Every change is recorded with the account and the
+time.
+
+| Mode | Students can chat | Adults are expected to |
+|---|---|---|
+| **Live** (the default for a new Install) | Only while someone is on Watch, as above | Stay on the Live view or Flag queue |
+| **Periodic review** | Any time in the school day. Optionally, they pause when a review is more than a set time overdue (default: never) | Review the Flag queue every `review_every_minutes` (default 120) and press Mark reviewed |
+| **Off** | Any time in the school day | Whatever the school's own policy says |
+
+**Also settings now:** the heartbeat grace period (`watch_grace_seconds`, 90), the Alarm chime
+(on or off) and how often it repeats (30 s), what happens when Oversight is down (carry on
+or pause, ADR-0004 addendum), and the Session idle limit (default none, since Students use
+their own Chromebooks).
+
+**Not settings, in any mode:**
+- the Watchlist, and the Supportive reply on a high-severity match (ADR-0004, ADR-0011);
+- every Flag is recorded, and an unacknowledged high-severity Alarm sounds on the next staff
+  page anyone opens, as it replays at Start watch;
+- Cards last at most one school day, and a Card has at most one message in flight;
+- the privacy decisions: ADR-0002, ADR-0003, ADR-0006.
+
+**What it costs.** In periodic or off mode, a disclosure can sit unseen until the next
+review. The Student still gets the Supportive reply at once; the adults learn of it later.
+Rule 2 of "Every exchange is screened while someone is on Watch" above then holds only in
+Live mode, and the escalation protocol's Rule 1 becomes school policy rather than something
+the product enforces. The template says who reviews and how often in each mode (lib-f24.80).

@@ -74,8 +74,9 @@ with a sealed printed copy in the office. It never reaches the assistant.
 _Avoid_: mapping, class list
 
 **Session**:
-One Card's conversation with the assistant, from first scan until the Batch expires or is
-Revoked.
+One Card's conversation with the assistant on one device, from a scan until the Batch
+expires, the Card is Revoked, the Student ends it, another Card signs in on that device, or it
+sits idle past a limit the Librarian may set.
 _Avoid_: chat, login
 
 **Revoke**:
@@ -96,7 +97,9 @@ The seam that lets the assistant search one kind of Catalog.
 _Avoid_: connector, plugin, integration
 
 **Grounded answer**:
-A reply built from Records and carrying Citations to them.
+A research reply in two parts: an overview of the subject from what the model knows, which
+can be wrong, then Records from the Catalog found with the model's search terms, each with a
+Citation, to check it against. The Records come from the Catalog, never from the model.
 
 **Citation**:
 A reference in a Grounded answer to the Record it came from.
@@ -157,9 +160,15 @@ _Avoid_: download, backup, save
 
 **Watch**:
 A Librarian's or Stand-in's deliberate, heartbeat-confirmed presence on the Live view or Flag
-queue, from Start watch until End watch, sign-out, or a missed heartbeat. Student Sessions
-start and continue only while at least one Watch is on.
+queue, from Start watch until End watch, sign-out, or a missed heartbeat. In Live supervision
+mode, Student Sessions start and continue only while at least one Watch is on.
 _Avoid_: shift, duty, monitoring, online
+
+**Supervision mode**:
+The Librarian's setting for when Students may chat: Live (only while someone is on Watch, the
+default), Periodic review (any time, with the Flag queue reviewed on a set interval), or Off.
+The Watchlist and the Supportive reply run in every mode.
+_Avoid_: monitoring level, strictness
 
 **Alarm**:
 The banner, tab title, and repeating chime a high-severity Flag raises on every watching page
