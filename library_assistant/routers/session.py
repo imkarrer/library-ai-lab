@@ -50,11 +50,11 @@ CHAT_PAGE_HTML = """<!DOCTYPE html>
     <button>Ask</button>
   </form>
   <div id="answer"></div>
-  <p><button id="finish">Finished</button></p>
+  <p><button id="finish">End session</button></p>
   <script>
     document.getElementById("finish").addEventListener("click", () => {{
       fetch("/card/finish", {{ method: "POST", credentials: "same-origin" }}).then(() => {{
-        document.body.textContent = "Finished. You can close this page.";
+        document.body.textContent = "Session ended. You can close this page.";
       }});
     }});
     const form = document.getElementById("ask");
