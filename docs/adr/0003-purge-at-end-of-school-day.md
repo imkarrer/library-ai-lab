@@ -84,7 +84,8 @@ The Purge is only as good as the copies it cannot see.
   Flag, or Hold refers to them.
 - **Tokens never reach the server in a URL.** A Card's URL carries the Token in the fragment
   (`/card#t=...`), which browsers do not send. The page posts it once, gets an HttpOnly,
-  SameSite=Strict cookie with no Max-Age, and strips the fragment. So no access log, proxy log,
+  SameSite=Strict cookie that expires with the Card (amended 2026-10-25, lib-f24.82; it was
+  "no Max-Age"), and strips the fragment. So no access log, proxy log,
   or Referer can hold a raw Token. The device's browser history may keep the Card URL; the
   Batch's expiry makes it useless.
 - **The app controls, and tests**: no log line carries a Token, a hash, or message text (its
