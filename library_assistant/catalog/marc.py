@@ -97,7 +97,9 @@ def to_record(marc_record: MarcRecord) -> Record:
         "050", "b"
     ) or marc_record.subfields("090", "a") + marc_record.subfields("090", "b")
     return Record(
-        id=marc_record.control_fields.get("001", ""),
+        # LoC pads the 001 control number with spaces; a Record id is used in Citations
+        # and lookups, so it carries none.
+        id=marc_record.control_fields.get("001", "").strip(),
         title=" ".join(title_parts),
         author=" ".join(author_parts),
         subjects="; ".join(marc_record.subfields("650", "a")),

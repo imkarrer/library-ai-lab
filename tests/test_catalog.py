@@ -12,10 +12,10 @@ LOC_SAMPLE = FIXTURES / "loc-books-2016-sample.xml"
 # Hand-written: the only way to put patron fields into MARC input.
 SYNTHETIC_PATRON_FIELDS = FIXTURES / "synthetic-patron-fields.xml"
 
-# LoC's 001 is the LCCN as distributed: space-padded, kept verbatim by to_record.
-WRINGER_ID = "   00042606 "
-FERDINAND_ID = "   00057791 "
-RUBEN_WOLFE_ID = "   00042817 "
+# LoC's 001 is the LCCN as distributed, space-padded; to_record strips it.
+WRINGER_ID = "00042606"
+FERDINAND_ID = "00057791"
+RUBEN_WOLFE_ID = "00042817"
 
 
 def _load_catalog() -> SqliteCatalog:
@@ -101,3 +101,15 @@ def test_get_returns_record_by_id():
     assert record.call_number == "PZ7.Z837 Fi 2001"
 
     assert catalog.get("no-such-id") is None
+
+
+def test_record_ids_carry_no_padding():
+    raw_ids = [
+        marc_record.control_fields["001"]
+        for marc_record in parse_marcxml(str(LOC_SAMPLE))
+    ]
+    assert any(raw != raw.strip() for raw in raw_ids)
+    catalog = _load_catalog()
+    record = catalog.get(WRINGER_ID)
+    assert record is not None
+    assert record.id == WRINGER_ID

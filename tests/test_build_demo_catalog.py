@@ -26,12 +26,12 @@ def test_load_juvenile_records_keeps_only_juvenile_and_adolescent(tmp_path):
     count = load_juvenile_records(LOC_SAMPLE, catalog)
     assert count == LOC_SAMPLE_JUVENILE_COUNT
     # The three questions (j) and Fighting Ruben Wolfe (d) are kept.
-    assert catalog.get("   00049673 ") is not None
-    assert catalog.get("   00042817 ") is not None
+    assert catalog.get("00049673") is not None
+    assert catalog.get("00042817") is not None
     # How to be a domestic goddess (e) and Botanical materia medica (blank) are not.
-    assert catalog.get("   00456254 ") is None
-    assert catalog.get("   00000002 ") is None
-    assert "   00456254 " not in [r.id for r in catalog.search("domestic goddess", k=5)]
+    assert catalog.get("00456254") is None
+    assert catalog.get("00000002") is None
+    assert "00456254" not in [r.id for r in catalog.search("domestic goddess", k=5)]
 
 
 def test_check_disk_space_refuses_when_free_space_is_below_estimate(
@@ -83,7 +83,7 @@ def test_load_juvenile_records_reads_gzipped_marcxml(tmp_path):
     part.write_bytes(gzip.compress(LOC_SAMPLE.read_bytes()))
     catalog = SqliteCatalog(sqlite3.connect(":memory:"))
     assert load_juvenile_records(part, catalog) == LOC_SAMPLE_JUVENILE_COUNT
-    assert catalog.get("   00057791 ").title == "The story of Ferdinand /"
+    assert catalog.get("00057791").title == "The story of Ferdinand /"
 
 
 class _FakeResponse(io.BytesIO):
