@@ -7,6 +7,7 @@ MARC. `target_audience` is pure and used by both the fixture loader and
 
 from __future__ import annotations
 
+import gzip
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from xml.etree import ElementTree as ET
@@ -38,8 +39,20 @@ class MarcRecord:
 
 
 def parse_marcxml(path: str) -> Iterator[MarcRecord]:
-    """Stream <record> elements from a MARCXML file, one at a time."""
-    for _, element in ET.iterparse(path, events=("end",)):
+    """Stream <record> elements from a MARCXML file, one at a time.
+
+    A path ending in .gz is read through gzip, as the LoC distribution ships.
+    """
+    if path.endswith(".gz"):
+        with gzip.open(path, "rb") as source:
+            yield from _iter_records(source)
+    else:
+        with open(path, "rb") as source:
+            yield from _iter_records(source)
+
+
+def _iter_records(source) -> Iterator[MarcRecord]:
+    for _, element in ET.iterparse(source, events=("end",)):
         if element.tag != _tag("record"):
             continue
         marc_record = MarcRecord()

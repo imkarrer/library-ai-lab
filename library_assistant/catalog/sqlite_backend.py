@@ -2,12 +2,54 @@
 
 from __future__ import annotations
 
+import re
 import sqlite3
 from collections.abc import Iterable
 
 from library_assistant.catalog import Record
 
 _FIELDS = ("id", "title", "author", "subjects", "summary", "call_number")
+
+# Words a Student's question carries that say nothing about the collection. Without
+# this, "books about friendship?" matches any Record containing "books" or "about".
+_FILLER_WORDS = frozenset(
+    [
+        "a",
+        "about",
+        "an",
+        "and",
+        "any",
+        "are",
+        "book",
+        "books",
+        "can",
+        "do",
+        "find",
+        "for",
+        "give",
+        "have",
+        "i",
+        "in",
+        "is",
+        "it",
+        "like",
+        "me",
+        "my",
+        "of",
+        "on",
+        "or",
+        "recommend",
+        "show",
+        "some",
+        "something",
+        "the",
+        "to",
+        "want",
+        "what",
+        "with",
+        "you",
+    ]
+)
 
 
 class SqliteCatalog:
@@ -42,10 +84,20 @@ class SqliteCatalog:
         self._connection.commit()
 
     def search(self, query: str, k: int) -> list[Record]:
+        # A Student's question is not FTS5 syntax: quote each word so punctuation,
+        # quotes, and words like AND or NEAR are matched as text, never parsed.
+        terms = [
+            term
+            for term in re.findall(r"\w+", query)
+            if term.lower() not in _FILLER_WORDS
+        ]
+        if not terms:
+            return []
+        match = " OR ".join(f'"{term}"' for term in terms)
         rows = self._connection.execute(
             "SELECT id, title, author, subjects, summary, call_number "
             "FROM records WHERE records MATCH ? ORDER BY rank LIMIT ?",
-            (query, k),
+            (match, k),
         ).fetchall()
         return [Record(*row) for row in rows]
 
