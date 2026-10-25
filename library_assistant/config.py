@@ -16,6 +16,9 @@ from library_assistant.catalog.sqlite_backend import SqliteCatalog
 class Settings:
     catalog_backend: str = "sqlite"
     catalog_path: str = "catalog.db"
+    openai_endpoint: str = "http://localhost:11434"  # Default to local Ollama
+    openai_api_key: str = "no-key-needed"  # For compatibility with OpenAI client
+    openai_model: str = "llama3"  # Default model
 
 
 def build_catalog(settings: Settings) -> Catalog:
