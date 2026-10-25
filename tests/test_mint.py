@@ -80,7 +80,7 @@ def test_round_trip_registration_lets_each_card_start_a_session(client):
     assert stored_hashes == {hash_token(card.token) for card in result.cards}
 
     for card in result.cards:
-        sign_in = tc.get(f"/cards/{card.token}")
+        sign_in = tc.post("/card", json={"token": card.token})
         assert sign_in.status_code == 200
         assert "Period 3" in sign_in.text
         assert card.card_number in sign_in.text

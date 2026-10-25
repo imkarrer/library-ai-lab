@@ -4,6 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from library_assistant.access import (
+    SESSION_COOKIE,
     connect,
     get_clock,
     get_db,
@@ -69,10 +70,60 @@ def test_db_holds_only_hash_card_number_expiry_class_label(client):
 def test_valid_token_starts_session(client):
     tc, _db = client
     _register(tc, datetime.now(UTC) + timedelta(days=1))
-    response = tc.get("/cards/token-1")
+    response = tc.post("/card", json={"token": "token-1"})
     assert response.status_code == 200
     assert "Period 3" in response.text
     assert "14" in response.text
+    assert SESSION_COOKIE in response.cookies
+
+
+def test_session_cookie_is_httponly_strict_with_no_max_age(client):
+    tc, _db = client
+    _register(tc, datetime.now(UTC) + timedelta(days=1))
+    response = tc.post("/card", json={"token": "token-1"})
+    set_cookie = response.headers["set-cookie"]
+    assert "HttpOnly" in set_cookie
+    assert "samesite=strict" in set_cookie.lower()
+    assert "Max-Age" not in set_cookie
+
+
+def test_token_in_path_refused(client):
+    tc, _db = client
+    _register(tc, datetime.now(UTC) + timedelta(days=1))
+    response = tc.get("/cards/token-1")
+    assert response.status_code == 403
+    assert "ask your teacher" in response.text
+
+
+def test_token_in_query_refused(client):
+    tc, _db = client
+    _register(tc, datetime.now(UTC) + timedelta(days=1))
+    response = tc.post("/card?token=token-1", json={"token": "token-1"})
+    assert response.status_code == 403
+
+
+def test_card_page_has_no_token(client):
+    tc, _db = client
+    _register(tc, datetime.now(UTC) + timedelta(days=1))
+    response = tc.get("/card")
+    assert response.status_code == 200
+    assert "token-1" not in response.text
+
+
+def test_finish_clears_cookie_without_revoking_card(client):
+    tc, db = client
+    _register(tc, datetime.now(UTC) + timedelta(days=1))
+    tc.post("/card", json={"token": "token-1"})
+
+    response = tc.post("/card/finish")
+    assert response.status_code == 200
+    set_cookie = response.headers["set-cookie"]
+    assert "Max-Age=0" in set_cookie
+
+    rows = db.execute("SELECT * FROM cards").fetchall()
+    assert len(rows) == 1
+    again = tc.post("/card", json={"token": "token-1"})
+    assert again.status_code == 200
 
 
 def test_expired_token_refused_via_fake_clock(client):
@@ -81,14 +132,14 @@ def test_expired_token_refused_via_fake_clock(client):
     _register(tc, expires_at)
 
     app.dependency_overrides[get_clock] = lambda: expires_at + timedelta(hours=1)
-    response = tc.get("/cards/token-1")
+    response = tc.post("/card", json={"token": "token-1"})
     assert response.status_code == 403
     assert "ask your teacher" in response.text
 
 
 def test_unknown_token_refused(client):
     tc, _db = client
-    response = tc.get("/cards/no-such-token")
+    response = tc.post("/card", json={"token": "no-such-token"})
     assert response.status_code == 403
     assert "ask your teacher" in response.text
 
@@ -108,7 +159,7 @@ def test_revoked_card_refused(client):
         },
     )
     assert response.status_code == 200
-    assert tc.get("/cards/token-1").status_code == 403
+    assert tc.post("/card", json={"token": "token-1"}).status_code == 403
 
 
 def test_revoked_batch_refused(client):
@@ -136,6 +187,6 @@ def test_revoked_batch_refused(client):
         },
     )
     assert response.status_code == 200
-    assert tc.get("/cards/token-1").status_code == 403
-    assert tc.get("/cards/token-2").status_code == 403
+    assert tc.post("/card", json={"token": "token-1"}).status_code == 403
+    assert tc.post("/card", json={"token": "token-2"}).status_code == 403
     assert db.execute("SELECT * FROM cards").fetchall() == []
