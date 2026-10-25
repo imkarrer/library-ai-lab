@@ -18,6 +18,9 @@ be committed here".
 `flox activate -- bash scripts/check.sh` is the one gate: CI runs it, bead-loop runs it on
 every worktree. A new kind of check goes into that script, never beside it.
 
+Adding or editing a waiver (`scripts/confidentiality-waivers.toml`) is a design change: stop
+and ask.
+
 ## Gotchas no config confesses
 
 - In `bd dep add A B`, **A is blocked by B**. Confirm with `bd show` after wiring an edge.
