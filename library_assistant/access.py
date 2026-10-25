@@ -19,7 +19,7 @@ from pydantic import BaseModel
 
 DB_PATH = os.environ.get("LIBRARY_ASSISTANT_DB", "library_assistant.db")
 
-REFUSAL_TEXT = "this card no longer works, ask your teacher"
+REFUSAL_TEXT = "This card has stopped working. Ask your teacher for a new one."
 
 SESSION_COOKIE = "session"
 
@@ -31,7 +31,7 @@ CARD_PAGE_HTML = """<!DOCTYPE html>
 </head>
 <body>
   <p id="status">Signing in...</p>
-  <button id="finish" style="display:none">Finished</button>
+  <button id="finish" style="display:none">End session</button>
   <script>
     const statusEl = document.getElementById("status");
     const finishButton = document.getElementById("finish");
@@ -49,7 +49,7 @@ CARD_PAGE_HTML = """<!DOCTYPE html>
         if (response.ok) {
           window.location.replace("/chat");
         } else {
-          statusEl.textContent = "This card no longer works, ask your teacher.";
+          statusEl.textContent = "This card has stopped working. Ask your teacher for a new one.";
         }
       });
     } else {
@@ -58,7 +58,7 @@ CARD_PAGE_HTML = """<!DOCTYPE html>
 
     finishButton.addEventListener("click", () => {
       fetch("/card/finish", { method: "POST", credentials: "same-origin" }).then(() => {
-        statusEl.textContent = "Finished.";
+        statusEl.textContent = "Session ended. You can close this page.";
         finishButton.style.display = "none";
       });
     });
