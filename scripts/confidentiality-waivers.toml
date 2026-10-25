@@ -1,0 +1,42 @@
+# Waivers for scripts/confidentiality.py false positives.
+#
+# Each entry suppresses one (path, rule) pair, only while the file's sha256
+# still matches. Every key is required; `path` must be an exact repo-relative
+# path, never a glob. Editing the waived file invalidates the waiver.
+#
+#   [[waiver]]
+#   path = "docs/example.md"
+#   rule = "private-address"
+#   sha256 = "..."
+#   bead = "lib-xxx"
+#   reason = "why this is not a real finding"
+#
+# Adding or editing a waiver is a design change: stop and ask (AGENTS.md).
+
+[[waiver]]
+path = "docs/research/pii-scan.md"
+rule = "private-address"
+sha256 = "c9df1aa7da7ba2d3e15d6f76d59fb25b979f7fc1d8ade31e8a9e64633d90a3b5"
+bead = "lib-ds3.1"
+reason = "Design doc quotes example private/link-local addresses as future test fixtures, not real network data."
+
+[[waiver]]
+path = "docs/research/pii-scan.md"
+rule = "network-config"
+sha256 = "c9df1aa7da7ba2d3e15d6f76d59fb25b979f7fc1d8ade31e8a9e64633d90a3b5"
+bead = "lib-ds3.1"
+reason = "Design doc quotes example network config syntax as future test fixtures, not a real Install's config."
+
+[[waiver]]
+path = "docs/research/pii-scan.md"
+rule = "email-address"
+sha256 = "c9df1aa7da7ba2d3e15d6f76d59fb25b979f7fc1d8ade31e8a9e64633d90a3b5"
+bead = "lib-ds3.1"
+reason = "Design doc quotes an example non-reserved email address as a future test fixture, not a real address."
+
+[[waiver]]
+path = "docs/research/pii-scan.md"
+rule = "inline-allow"
+sha256 = "c9df1aa7da7ba2d3e15d6f76d59fb25b979f7fc1d8ade31e8a9e64633d90a3b5"
+bead = "lib-ds3.1"
+reason = "Design doc discusses the gitleaks allow-pragma by name; it is prose about the rule, not an attempt to waive a finding."
