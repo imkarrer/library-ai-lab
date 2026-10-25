@@ -29,8 +29,8 @@ From that one part, using `library_assistant/catalog/marc.py` to read each recor
 The chosen records are written in the part's own order (by LCCN). Each `<record>` element
 is the source text, byte for byte; nothing was removed or edited. The LoC files carry no
 holdings, circulation, or patron fields (no 852 or 9XX), so none appear here. Note that
-LoC's 001 is the LCCN as distributed, space-padded (`"   00042606 "`), and the Record id
-keeps that padding.
+LoC's 001 is the LCCN as distributed, space-padded (`"   00042606 "`); the file keeps it, and
+`to_record` strips it, so the Record id is `"00042606"`.
 
 ### Terms of reuse
 
