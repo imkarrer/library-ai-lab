@@ -1,6 +1,9 @@
 import gzip
 import io
+import os
 import sqlite3
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -116,3 +119,20 @@ def test_download_resumable_restarts_when_range_is_ignored(tmp_path, monkeypatch
     )
     download_resumable("https://example.org/part.xml.gz", dest)
     assert dest.read_bytes() == b"abcdef"
+
+
+def test_builder_runs_as_the_readme_documents():
+    # The README runs `python3 scripts/build_demo_catalog.py` from the repo root, where
+    # Python puts scripts/, not the root, on the import path. --help imports everything
+    # and touches no network.
+    repo_root = Path(__file__).resolve().parent.parent
+    result = subprocess.run(
+        [sys.executable, "scripts/build_demo_catalog.py", "--help"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        env={"PATH": os.environ.get("PATH", "")},
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "--download-dir" in result.stdout
