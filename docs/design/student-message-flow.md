@@ -4,9 +4,10 @@ What happens to one Student message, from the chat box to the reply, the Live vi
 Flag queue. Binding: ADR-0003 (Purge), ADR-0004 (Watchlist and Oversight), ADR-0006
 (intranet only), ADR-0010 (Watch and Alarm), ADR-0011 (Supportive reply).
 
-**Short answer to "can they keep prompting?"** Yes, in every case except three: nobody is on
-Watch, Oversight hasn't yet returned its verdict on their previous message, or the Session
-has ended. A Flag never stops a Session. Not even a high-severity one does that: ADR-0010
+**Short answer to "can they keep prompting?"** Yes, one message at a time, in every case except
+three: nobody is on Watch, their previous message is still in flight (being answered, or
+with Oversight on, awaiting its verdict), or the Session has ended. A Card has at most one
+message in flight, so one Student can't crowd out the rest of the class (lib-f24.65). A Flag never stops a Session. Not even a high-severity one does that: ADR-0010
 rejected pausing on an Alarm because it would punish the other Students and tell the room
 something happened. An adult acts in person instead. The [table below](#can-a-student-keep-prompting)
 gives every case.
@@ -22,17 +23,17 @@ flowchart TD
     B -- no --> B1[Card refusal or<br/>'scan your card again']
     B -- yes --> C{Anyone on Watch?}
     C -- no --> C1[Watchlist still runs.<br/>Otherwise the paused message.<br/>No model call]
-    C -- yes --> D{Oversight on, and the previous<br/>message not yet screened?}
+    C -- yes --> D{This Card already has a message<br/>in flight? Answering, or with<br/>Oversight on, awaiting its verdict}
     D -- yes --> D1[409 'one moment'<br/>Nothing is checked or recorded]
     D -- no --> E[Record the exchange<br/>Live view shows the question]
     E --> F{Watchlist match?}
-    F -- high --> F1[Supportive reply + Flag + Alarm<br/>No Catalog, no model]
-    F -- low --> F2[Flag, silent to the Student]
+    F -- high --> F1[Supportive reply + Flag + Alarm<br/>A repeat: Supportive reply only<br/>No Catalog, no model]
+    F -- low --> F2[Flag, silent to the Student<br/>or a repeat on the open Flag]
     F -- none --> G
     F2 --> G[Catalog search + Answer lane<br/>Grounded answer streams back]
     G --> H{Oversight on?}
-    H -- yes --> H1[Verdict recorded. A concern<br/>raises a Flag, silent to the Student.<br/>The next message is admitted]
-    H -- no --> I[Done. The next message<br/>is admitted at once]
+    H -- yes --> H1[Verdict recorded. A concern<br/>raises a Flag or a repeat,<br/>silent to the Student.<br/>The next message is admitted]
+    H -- no --> I[Done. The next message<br/>is admitted]
 ```
 
 | Gate | Built by | On main? |
@@ -40,9 +41,10 @@ flowchart TD
 | Session cookie, Card expiry and Revoke | lib-f24.1, lib-75j.3 | yes |
 | Idle limit | lib-f24.60, lib-f24.61 | no |
 | Watch gate | lib-793.2, lib-793.3 | no |
-| "One moment" while screening | lib-f24.54, lib-f24.56 | no |
+| One message in flight per Card ("one moment") | lib-f24.68, lib-f24.56; lib-f24.54 extends it to the verdict | no: today a Student can send several at once |
 | Exchange recorded on arrival | lib-f24.34 | no: today it is recorded after the answer |
 | Watchlist, Flag, Supportive reply | lib-f24.35, lib-f24.36, lib-f24.37 | no |
+| Repeat on an open Flag | lib-f24.69 | no |
 | Catalog search and Grounded answer | lib-f24.3, lib-f24.4 | yes |
 | Oversight verdict | lib-f24.52 to lib-f24.55 | no |
 | Alarm | lib-ppv.1 | no |
@@ -68,6 +70,7 @@ sequenceDiagram
     P->>A: POST /ask with the HttpOnly session cookie
     A->>DB: Session and Card still valid? Anyone on Watch?
     DB-->>A: yes, yes
+    A->>A: Card has no message in flight: mark it in flight
     A->>DB: start_exchange: question, Class label, Card number
     DB-->>LV: new row appears (SSE), Class label and Card number, never a name
     A->>W: match(question)
@@ -81,8 +84,9 @@ sequenceDiagram
     end
     A-->>P: Citation lines
     A->>DB: finish_exchange: answer, Citations
+    A->>A: release the Card (in a finally, so an error or a hang-up releases it too)
     P-->>S: answer with Citations, under "This can be wrong, check the source."
-    Note over S,P: The Ask box is free again: the next message starts at step 1
+    Note over S,P: Ask was disabled while the answer streamed.<br/>Now it is free again: the next message starts at step 1
 ```
 
 ## 2. Low-severity match
@@ -104,7 +108,7 @@ sequenceDiagram
     A->>DB: start_exchange
     A->>W: match(question)
     W-->>A: entry "x", low severity
-    A->>DB: raise_flag(source=watchlist, entry x, Watchlist version)
+    A->>DB: raise_or_repeat(source=watchlist, entry x, Watchlist version)
     DB-->>FQ: open-Flag count +1, no exchange text in the queue
     A->>AL: Catalog search, then the Grounded answer as in flow 1
     AL-->>S: normal answer
@@ -117,7 +121,8 @@ The Supportive reply replaces the answer: no Catalog search and no model call. E
 matching entry raises its own Flag, and the Student gets one reply chosen by ADR-0011's
 order: self-harm, threats of violence, abuse, bullying. An Alarm sounds on every watching
 page. **The Session carries on.** The Student can keep typing, and each message goes through
-the same checks again.
+the same checks again. The same words from the same Card, while their Flag is open, are
+marked a **repeat** on that Flag rather than raising a new Flag and Alarm (lib-f24.66).
 
 ```mermaid
 sequenceDiagram
@@ -133,7 +138,7 @@ sequenceDiagram
     A->>DB: start_exchange
     A->>W: match(question)
     W-->>A: entry "y", high severity, category self-harm
-    A->>DB: raise_flag(source=watchlist, entry y)
+    A->>DB: raise_or_repeat(source=watchlist, entry y): a new Flag
     A-->>S: Supportive reply for self-harm: an adult in the building, 988, 911
     A->>DB: finish_exchange: the Supportive reply is the answer
     DB-->>WP: Alarm: banner, tab title, chime every 30 s<br/>category, Class label, Card number, no Student words
@@ -141,7 +146,14 @@ sequenceDiagram
     WP->>DB: who and when. The Flag stays open
     WP-->>WP: Alarm silenced on every page
     Note over L,S: The adult goes to "card 14" in person (escalation protocol).<br/>The product never pauses the Session for this
-    S->>A: next message: the full checks again, from the top
+    S->>A: the same words again
+    A->>DB: start_exchange
+    A->>W: match(question)
+    W-->>A: entry "y" again
+    A->>DB: raise_or_repeat: an open Flag has the same Card, message hash and category
+    DB-->>DB: repeat on that Flag: count + 1, time, this exchange kept with it
+    A-->>S: the Supportive reply again (every time)
+    Note over WP: No new Flag, no new Alarm
 ```
 
 ## 4. With Oversight configured
@@ -174,19 +186,19 @@ sequenceDiagram
     end
     S->>P: message 2, before the verdict
     P->>A: POST /ask
-    A->>DB: message 1 screened yet?
-    DB-->>A: no
+    A->>A: Card in flight? yes: message 1 still awaits its verdict
     A-->>P: 409 "one moment": not checked, not recorded
     P-->>S: "One moment..." with their text still in the box
     OL-->>A: verdict on message 1
     A->>DB: store verdict, screened_at
     alt verdict names a category
-        A->>DB: raise_flag(source=oversight, reason)
-        DB-->>FQ: Flag (Alarm if high), marked as raised by Oversight with its time
+        A->>DB: raise_or_repeat(source=oversight, reason)
+        DB-->>FQ: a new Flag (Alarm if high), marked as raised by Oversight with its time,<br/>or a repeat on an open Flag for the same Card, message and category
         Note over S: No Supportive reply: the answer has already streamed (ADR-0004)
     else no concern
         Note over A: nothing more
     end
+    A->>A: release the Card
     P->>A: retry message 2 (every 2 s)
     A-->>P: admitted: the full checks from the top
 ```
@@ -268,9 +280,11 @@ sequenceDiagram
 
 | Situation | Next message | Why |
 |---|---|---|
-| No match | Admitted at once (once the verdict lands, with Oversight on) | Flow 1 |
+| No match | Admitted once the answer ends (once the verdict lands, with Oversight on) | Flow 1 |
+| Previous message still being answered | "One moment" until it ends. The same Card on a second device waits too | Flow 1, lib-f24.65 |
 | Low-severity Watchlist Flag | Admitted. The Student never learns of the Flag | Flow 2 |
 | High-severity Watchlist Flag | Admitted. Every message is checked again | Flow 3. ADR-0010 rejected pausing on an Alarm |
+| The same words again, while their Flag is open | Admitted. Marked a repeat on that Flag, no new Alarm. A Supportive reply every time | Flow 3, lib-f24.66 |
 | Oversight Flag | Admitted once the verdict is recorded, which is the moment the Flag is raised | Flow 4 |
 | Oversight still screening the previous message | "One moment" until the verdict | Flow 4, ADR-0004 |
 | Oversight down | Waits. After 30 s the Librarian chooses pause or Watchlist alone | Flow 5 |
@@ -279,21 +293,25 @@ sequenceDiagram
 | Idle past the Librarian's limit (default 20 min) | Refused: "scan your card again". The Card still works | [Session lifecycle](session-lifecycle.md) |
 | Student pressed Finished | That device's Session ends. The Card still works | [Session lifecycle](session-lifecycle.md) |
 
-## Open questions found while drafting
+## Questions found while drafting
 
-Each one needs a decision before the bead that meets it is built.
+### Decided 2026-10-25
 
-1. **Two messages at once without Oversight.** Today the chat page doesn't disable Ask while
-   an answer streams, and `/ask` will start a second answer for the same Session in
-   parallel. With Oversight off, nothing in the design orders a Session's messages. Should a
-   Session have at most one message in flight whether or not Oversight is on? That would
-   also stop one Card from hogging the box ADR-0009 sizes for a class.
-2. **The same high-severity phrase, repeated.** A Student who types it three times raises
-   three Flags and, under lib-ppv.1 as written, three Alarms. Does an open, unacknowledged
-   Alarm for the same Card absorb the next one, or does each Flag chime?
-3. **Oversight on a message that already got a Supportive reply.** lib-f24.54 still screens
-   it, so ordering stays uniform, which may raise a second Flag on the same exchange. Keep
-   that, or skip Oversight when the Watchlist already matched high?
+1. **One message in flight per Card** (lib-f24.65), so that one Student can't crowd out the
+   others. This holds whether or not Oversight is on. It's keyed on the Card rather than the
+   Session, so two devices don't get around it. A second message gets "one moment", unchecked
+   and unrecorded. Built by lib-f24.68 and lib-f24.56; lib-f24.54 extends it until the verdict.
+2. **A repeat, not a new Flag** (lib-f24.66). The same Card (Class label, Card number, Batch
+   expiry) and the same normalized message, while a Flag in that category is open, count as a
+   repeat on that Flag: a count, a time, and the exchange kept with it. No new Alarm. The
+   message hash is cleared when the Flag closes, so nothing derived from the words outlives
+   the exchange. Built by lib-f24.69.
+3. **Supportive-reply messages are still screened** (lib-f24.67): they need human attention
+   too. An Oversight verdict in the same category as the open Watchlist Flag is a repeat on it.
+
+### Still open
+
 4. **What "one moment" looks like when it lasts.** With Oversight down, a Student can sit at
    "one moment" for up to `unavailable_seconds` before the Librarian is even asked. Should the
-   page say more after some seconds, or is the paused message the only other state?
+   page say more after some seconds? Should the Student wait for the Librarian's choice at
+   all, given that human attention is asynchronous anyway?
