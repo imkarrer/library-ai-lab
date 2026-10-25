@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>{{ class_label }} - Sealed Roster</title>
+<style>
+  body { font-family: sans-serif; }
+  .header { text-align: center; margin-bottom: 1em; }
+  .class-label { font-size: 1.5em; font-weight: bold; }
+  .dates { font-size: 1.1em; }
+  .roster { margin: 1em 0; }
+  .card-row { margin: 0.5em 0; }
+  .card-number { font-weight: bold; display: inline-block; width: 5em; }
+  .name-line { border-bottom: 1px solid #000; width: 12em; display: inline-block; }
+  .instructions { margin-top: 2em; padding: 1em; border: 1px solid #ccc; background: #f9f9f9; }
+  .log { margin-top: 1em; }
+  .expiration { margin-top: 1em; font-size: 0.9em; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div class="class-label">{{ class_label }}</div>
+    <div class="dates">Batch dates: {{ start_date }} to {{ end_date }}</div>
+  </div>
+
+  <div class="roster">
+    {% for card in cards %}
+    <div class="card-row">
+      <span class="card-number">Card {{ card.card_number }}</span>
+      <span class="name-line"></span>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="instructions">
+    <h2>Sealed Roster Instructions</h2>
+    <p>1. Fold this sheet along the dotted line.</p>
+    <p>2. Place the sealed Roster in a secure container.</p>
+    <p>3. Do not open or read this Roster until a student needs to sign in.</p>
+    <p>4. The Roster may be opened to verify Card numbers only.</p>
+    <p>5. When this Batch expires, shred this Roster.</p>
+  </div>
+
+  <div class="log">
+    <h2>Opening Log</h2>
+    <p>Who: <span class="who"></span></p>
+    <p>When: <span class="when"></span></p>
+    <p>Why: <span class="why"></span></p>
+  </div>
+
+  <div class="expiration">
+    <p>This Batch expires on {{ end_date }}.</p>
+  </div>
+</body>
+</html>
