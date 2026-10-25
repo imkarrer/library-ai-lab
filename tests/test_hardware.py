@@ -1,0 +1,97 @@
+"""Tests for the hardware detection module."""
+
+from pathlib import Path
+
+import pytest
+
+from library_assistant.hardware import (
+    HardwareReport,
+    parse_amdgpu_sysfs,
+    parse_meminfo,
+    parse_nvidia_smi_csv,
+)
+
+
+def test_parse_meminfo():
+    """Test parsing /proc/meminfo content."""
+    meminfo_text = """MemTotal:        8123456 kB
+MemAvailable:    6543210 kB
+MemFree:         1234567 kB
+"""
+    result = parse_meminfo(meminfo_text)
+    # Use approximate equality due to floating point precision
+    assert abs(result["total"] - 7.74713134765625) < 0.001
+    assert abs(result["available"] - 6.240234375) < 0.001
+
+
+def test_parse_nvidia_smi_csv_single_card():
+    """Test parsing nvidia-smi CSV output for a single card."""
+    nvidia_text = """name,memory.total,memory.free
+GeForce RTX 4080,16384,15000
+"""
+    result = parse_nvidia_smi_csv(nvidia_text)
+    assert len(result) == 1
+    assert result[0]["name"] == "GeForce RTX 4080"
+    assert result[0]["memory.total"] == 16384.0
+    assert result[0]["memory.free"] == 15000.0
+
+
+def test_parse_nvidia_smi_csv_two_cards():
+    """Test parsing nvidia-smi CSV output for two cards."""
+    nvidia_text = """name,memory.total,memory.free
+GeForce RTX 4080,16384,15000
+GeForce RTX 4090,24576,23000
+"""
+    result = parse_nvidia_smi_csv(nvidia_text)
+    assert len(result) == 2
+    assert result[0]["name"] == "GeForce RTX 4080"
+    assert result[0]["memory.total"] == 16384.0
+    assert result[1]["name"] == "GeForce RTX 4090"
+    assert result[1]["memory.total"] == 24576.0
+
+
+def test_parse_nvidia_smi_csv_empty():
+    """Test parsing empty nvidia-smi CSV output."""
+    result = parse_nvidia_smi_csv("")
+    assert result == []
+
+
+def test_parse_nvidia_smi_csv_invalid():
+    """Test parsing invalid nvidia-smi CSV output."""
+    nvidia_text = """name,memory.total,memory.free
+GeForce RTX 4080,invalid,15000
+"""
+    result = parse_nvidia_smi_csv(nvidia_text)
+    # Should handle invalid numeric values gracefully
+    assert len(result) == 1
+    assert result[0]["memory.total"] == 0.0  # Invalid value converted to 0.0
+
+
+def test_parse_amdgpu_sysfs_success():
+    """Test parsing AMDGPU sysfs successfully."""
+    # This test would require creating a mock filesystem
+    # For now, just verify the function exists and doesn't crash
+    result = parse_amdgpu_sysfs(Path("/nonexistent"))
+    assert result is None
+
+
+def test_hardware_report_dataclass():
+    """Test that HardwareReport dataclass works correctly."""
+    report = HardwareReport(
+        platform="linux",
+        ram_gb=16.0,
+        accelerators=[],
+        pool_gb=16.0,
+        pool_source="ram",
+        problems=[],
+    )
+    assert report.platform == "linux"
+    assert report.ram_gb == 16.0
+    assert report.accelerators == []
+    assert report.pool_gb == 16.0
+    assert report.pool_source == "ram"
+    assert report.problems == []
+
+
+if __name__ == "__main__":
+    pytest.main([__file__])
