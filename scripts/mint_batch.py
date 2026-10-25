@@ -20,6 +20,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from jinja2 import Template
+
 from library_assistant.mint import mint_cards, qr_sheet_html, roster_csv
 
 
@@ -41,10 +43,25 @@ def write_batch_files(
         "html": out_dir / f"{slug}-cards.html",
         "csv": out_dir / f"{slug}-roster.csv",
         "json": out_dir / f"{slug}-registration.json",
+        "roster": out_dir / f"{slug}-roster-printable.html",
     }
     paths["html"].write_text(qr_sheet_html(cards, class_label, base_url=base_url))
     paths["csv"].write_text(roster_csv(roster_rows))
     paths["json"].write_text(json.dumps(registration_payload, indent=2))
+
+    # Generate the printable roster sheet
+    roster_template_path = Path("templates/roster_sheet.html")
+    if roster_template_path.exists():
+        with roster_template_path.open() as f:
+            template = Template(f.read())
+        roster_html = template.render(
+            class_label=class_label,
+            start_date=registration_payload["expires_at"].split("T")[0],
+            end_date=registration_payload["expires_at"].split("T")[0],
+            cards=cards,
+        )
+        paths["roster"].write_text(roster_html)
+
     return paths
 
 
@@ -68,6 +85,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out-dir", type=Path, default=Path("."))
     parser.add_argument("--url", help="Registration endpoint, e.g. http://host/batches")
     parser.add_argument("--registration-key")
+    parser.add_argument("--print", action="store_true", help="Print the roster sheet")
     args = parser.parse_args(argv)
 
     expires_at = datetime.now(UTC) + timedelta(days=args.days)
@@ -82,6 +100,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     for name, path in paths.items():
         print(f"wrote {name}: {path}")
+
+    if args.print:
+        if "roster" in paths:
+            print(paths["roster"].read_text())
+        else:
+            print("Roster template not found")
 
     if args.url and args.registration_key:
         upload_payload(args.url, args.registration_key, result.registration_payload)
