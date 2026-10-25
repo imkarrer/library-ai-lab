@@ -36,10 +36,11 @@ USER_AGENT = (
 
 # Each part is about 70 MB compressed (checked 2026-10-25; 43 parts for 2016,
 # about 3 GB in all). Only one part is on disk at a time, so the build needs
-# room for the largest part plus the growing Catalog. The measured figures
-# from one real run belong in README.md (lib-f24.19), not here.
+# room for the largest part plus the growing Catalog. One real run
+# (lib-f24.19, 2026-10-25; full figures in README.md) produced a 157,335,552
+# byte Catalog; the estimate below is that figure with about 2x headroom.
 ESTIMATED_LARGEST_PART_BYTES = 100_000_000
-ESTIMATED_CATALOG_BYTES = 1_000_000_000
+ESTIMATED_CATALOG_BYTES = 300_000_000
 
 
 def estimate_required_bytes() -> int:

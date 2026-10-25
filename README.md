@@ -61,15 +61,19 @@ download, keep only juvenile and adolescent titles (the MARC 008 target-audience
 delete. It checks free disk against an estimate before starting, and a re-run with the same
 `--download-dir` skips loaded parts and resumes a partial one.
 
-Measured from one real run against the live LoC distribution. A loop worker has no network
-access to produce these; `lib-f24.19` (a human bead, blocked by this one) runs the builder
-once and fills them in:
+Measured from one real run against the live LoC distribution (`lib-f24.19`), on 2026-10-25,
+on an x86_64 AMD Ryzen 7 9800X3D (8 cores / 16 threads) with 30 GiB RAM, under WSL2 on a home
+broadband connection. All 43 parts of the 2016 distribution loaded in one run, with no resume:
 
 | Metric | Value |
 | --- | --- |
-| Download size | pending lib-f24.19 |
-| On-disk Catalog size | pending lib-f24.19 |
-| Record count (post-filter) | pending lib-f24.19 |
+| Download size | 2.91 GiB (3,129,774,145 bytes, 43 parts) |
+| On-disk Catalog size | 150 MiB (157,335,552 bytes) |
+| Record count (post-filter) | 385,409 records |
+| Wall-clock time | 20 min 53 s (1,253 s), including download, filter, and load |
+
+The run used `PYTHONPATH=.` in front of the command above. Without it, Python cannot import
+`library_assistant` from `scripts/` and the builder exits with `ModuleNotFoundError`.
 
 ## Working with the tracker
 
