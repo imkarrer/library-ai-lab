@@ -15,7 +15,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends
 from fastapi.responses import HTMLResponse, StreamingResponse
 
-from library_assistant.access import get_clock, get_db
+from library_assistant.access import REFUSAL_TEXT, get_clock, get_db
 from library_assistant.catalog import Catalog
 from library_assistant.config import Settings
 from library_assistant.dependencies import (
@@ -30,6 +30,8 @@ from library_assistant.models import AskRequest, Citation
 
 # Quoted word for word by the AI literacy unit (docs/curriculum/ai-literacy-unit.md).
 BANNER_TEXT = "This can be wrong, check the source."
+
+ERROR_TEXT = "Something went wrong. Ask the librarian."
 
 CHAT_PAGE_HTML = """<!DOCTYPE html>
 <html>
@@ -59,6 +61,8 @@ CHAT_PAGE_HTML = """<!DOCTYPE html>
     }});
     const form = document.getElementById("ask");
     const answer = document.getElementById("answer");
+    const REFUSAL_TEXT = {refusal_text};
+    const ERROR_TEXT = {error_text};
     form.addEventListener("submit", async (event) => {{
       event.preventDefault();
       const question = document.getElementById("question").value;
@@ -69,6 +73,16 @@ CHAT_PAGE_HTML = """<!DOCTYPE html>
         credentials: "same-origin",
         body: JSON.stringify({{ question: question }}),
       }});
+      if (response.status === 403) {{
+        const data = await response.json();
+        answer.textContent = data.detail;
+        document.getElementById("question").disabled = true;
+        return;
+      }}
+      if (response.status !== 200) {{
+        answer.textContent = ERROR_TEXT;
+        return;
+      }}
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       for (;;) {{
@@ -93,6 +107,8 @@ def chat_page(session: SessionDep) -> HTMLResponse:
             banner=BANNER_TEXT,
             class_label=html.escape(session.class_label),
             card_number=html.escape(session.card_number),
+            refusal_text=json.dumps(REFUSAL_TEXT),
+            error_text=json.dumps(ERROR_TEXT),
         ),
         headers={"Cache-Control": "no-store"},
     )
