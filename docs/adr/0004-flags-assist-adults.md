@@ -131,6 +131,7 @@ and reported while the adults who will act on it are present (ADR-0010):
   is unavailable, and after `oversight.unavailable_seconds` (default 30) the Librarian chooses
   between pausing Sessions and continuing on the Watchlist alone, recorded on every exchange
   admitted that way. Oversight not configured at all means the Watchlist alone, as before.
+  *Superseded by "Oversight down does not hold Students", below.*
 
 So the shared-box rules above that let Oversight yield, wait for an idle Answer lane, be
 cancelled by a Student's arrival, or drain after class no longer apply. The in-process count of
@@ -146,3 +147,30 @@ interval log. One test uses a real loopback socket (uvicorn on port 0) to prove 
 cancelling the Oversight task closes the connection, because only a closed connection frees
 the server's slot. The real-server bound (≤ 2 s) is measured once by hand on the target
 Install hardware, not in CI.
+
+## Addendum: Oversight down does not hold Students
+
+Decided 2026-10-25 by the owner (lib-f24.70): "human intervention is async". This supersedes
+the "When Oversight is down" rule above. Making Students wait at "one moment" until a
+Librarian notices and chooses ties the class to the slowest step, an adult's reaction, while
+the Watchlist, the floor every Install has, keeps running regardless.
+
+- **Carry on at once with the Watchlist alone.** When a screen fails (a connection error, a
+  timeout, or two unparseable replies), that message is released and marked
+  `screening = watchlist_alone`, and so is every exchange admitted while Oversight stays down.
+  The Card's next message is admitted as soon as its answer ends, as it would be with
+  Oversight off.
+- **The adults are told, and act when they can.** The Live view shows that screening is
+  unavailable and since when. A Librarian or Stand-in can pause Sessions from there whenever
+  they choose, and resume them. Pausing is never automatic.
+- **Screening catches up.** The assistant keeps probing the Oversight endpoint. When it
+  answers again, the exchanges admitted while it was down are screened, oldest first, and
+  each Flag that results shows its raised time against the exchange's time. Until it is
+  screened, such an exchange survives the Purge, like any other unscreened exchange. Live
+  Students take priority over the catch-up, which runs only while no Card is awaiting a
+  verdict.
+- **ADR-0010 rule 3** ("each message is screened before the next one runs") therefore holds
+  only while Oversight is up. While it is down, the Watchlist still screens every message
+  before the model is called, as it does on every Install without Oversight.
+
+`oversight.unavailable_seconds` goes away.

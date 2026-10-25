@@ -208,39 +208,45 @@ writing an answer. An Oversight call is never cancelled to make room for another
 
 ## 5. Oversight configured but down
 
-The next message waits instead of going unscreened. After `oversight.unavailable_seconds`
-(default 30), the Librarian decides.
+The class carries on with the Watchlist alone. The adults are told and act when they can,
+because human attention is asynchronous (ADR-0004 addendum, "Oversight down does not hold
+Students"). Screening catches up when Oversight is back.
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor S as Student
     participant A as Assistant /ask
+    participant DB as SQLite
     participant OL as Oversight lane
     participant LV as Live view
-    actor L as Librarian
+    actor L as Librarian or Stand-in
 
     A->>OL: screen(message 1)
     OL--xA: connection error or timeout (after one retry)
-    A->>LV: "Screening is unavailable"
+    A->>DB: message 1: screening = watchlist_alone, not yet screened
+    A->>A: release the Card
+    A->>LV: "Screening is unavailable since 10:42", with a Pause Sessions button
     S->>A: message 2
-    A-->>S: 409 "one moment" (message 1 is still unscreened)
-    Note over A,LV: unavailable_seconds pass on the clock
-    A->>LV: offer: pause Sessions, or continue on the Watchlist alone
-    alt Librarian chooses pause
-        L->>LV: pause
-        S->>A: message 2 retry
-        A-->>S: 503 paused message
-    else Librarian chooses Watchlist alone
-        L->>LV: Watchlist alone
-        S->>A: message 2 retry
-        A-->>S: admitted. The exchange is marked screening = watchlist_alone
+    Note over A: Watchlist first, as always. No Oversight call
+    A-->>S: answered. Marked screening = watchlist_alone
+    opt whenever an adult gets to it
+        L->>LV: Pause Sessions
+        S->>A: message 3
+        A-->>S: 503 paused message (the Watchlist still runs)
+        L->>LV: Resume
     end
-    OL-->>A: first verdict after recovery
-    A->>LV: back to normal
+    loop probe
+        A->>OL: are you back?
+    end
+    OL-->>A: answers again
+    A->>LV: screening restored
+    A->>OL: screen message 1, then message 2, oldest first, behind live Students
+    OL-->>A: verdicts
+    A->>DB: store verdicts. A concern raises a Flag or a repeat,<br/>its raised time showing how late it came
 ```
 
-Message 1 stays unscreened until Oversight recovers. The Purge keeps it until then
+Until they're screened, the exchanges admitted while Oversight was down survive the Purge
 (lib-f24.58).
 
 ## 6. Nobody on Watch
@@ -287,7 +293,7 @@ sequenceDiagram
 | The same words again, while their Flag is open | Admitted. Marked a repeat on that Flag, no new Alarm. A Supportive reply every time | Flow 3, lib-f24.66 |
 | Oversight Flag | Admitted once the verdict is recorded, which is the moment the Flag is raised | Flow 4 |
 | Oversight still screening the previous message | "One moment" until the verdict | Flow 4, ADR-0004 |
-| Oversight down | Waits. After 30 s the Librarian chooses pause or Watchlist alone | Flow 5 |
+| Oversight down | Admitted at once on the Watchlist alone. An adult can pause Sessions when they choose. Screening catches up later | Flow 5, ADR-0004 addendum |
 | Nobody on Watch | Paused message. Watchlist and Supportive reply still run | Flow 6, ADR-0010 |
 | Card Revoked, or Batch expired (end of the school day at the latest) | Refused: "this card no longer works, ask your teacher" | [Session lifecycle](session-lifecycle.md) |
 | Idle past the Librarian's limit (default 20 min) | Refused: "scan your card again". The Card still works | [Session lifecycle](session-lifecycle.md) |
@@ -308,10 +314,7 @@ sequenceDiagram
    the exchange. Built by lib-f24.69.
 3. **Supportive-reply messages are still screened** (lib-f24.67): they need human attention
    too. An Oversight verdict in the same category as the open Watchlist Flag is a repeat on it.
-
-### Still open
-
-4. **What "one moment" looks like when it lasts.** With Oversight down, a Student can sit at
-   "one moment" for up to `unavailable_seconds` before the Librarian is even asked. Should the
-   page say more after some seconds? Should the Student wait for the Librarian's choice at
-   all, given that human attention is asynchronous anyway?
+4. **Oversight down does not hold Students** (lib-f24.70): human attention is asynchronous.
+   The class carries on with the Watchlist alone, the Live view tells the adults, who can
+   pause whenever they choose, and screening catches up when Oversight returns. Recorded as
+   an ADR-0004 addendum. Built by lib-f24.55.
