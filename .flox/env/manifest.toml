@@ -3,6 +3,7 @@ schema-version = "1.16.0"
 [install]
 python.pkg-path = "python312"
 uv.pkg-path = "uv"
+nodejs.pkg-path = "nodejs"
 
 [vars]
 UV_PYTHON_DOWNLOADS = "never"
