@@ -41,6 +41,35 @@ This repo is public, which is right for the code, the templates, and the reasoni
 Templates and legal reasoning belong here; filled-in versions belong in a
 district-controlled store.
 
+## Demo Catalog
+
+The shipped Catalog adapter is SQLite over MARC
+([ADR-0005](docs/adr/0005-catalog-behind-an-adapter.md)). A tiny fixture Catalog
+(`tests/fixtures/catalog/fixture.xml`) ships in the repo so a fresh checkout can search a
+Catalog with no network. For a demo with a realistic collection, build one from the Library
+of Congress open-access MARC distribution — a separate, one-time setup step, never run by the
+assistant and never run in CI ([ADR-0006](docs/adr/0006-intranet-only.md)'s demo exception):
+
+```bash
+flox activate -- python3 scripts/build_demo_catalog.py --dest catalog.db
+```
+
+It reads the Library of Congress "Books All" page, takes the newest year's MARCXML parts
+(43 parts of about 70 MB each for 2016, about 3 GB in all), and handles one part at a time:
+download, keep only juvenile and adolescent titles (the MARC 008 target-audience byte), load,
+delete. It checks free disk against an estimate before starting, and a re-run with the same
+`--download-dir` skips loaded parts and resumes a partial one.
+
+Measured from one real run against the live LoC distribution. A loop worker has no network
+access to produce these; `lib-f24.19` (a human bead, blocked by this one) runs the builder
+once and fills them in:
+
+| Metric | Value |
+| --- | --- |
+| Download size | pending lib-f24.19 |
+| On-disk Catalog size | pending lib-f24.19 |
+| Record count (post-filter) | pending lib-f24.19 |
+
 ## Working with the tracker
 
 Issues live in [beads](https://github.com/steveyegge/beads) (prefix `lib-`). The embedded Dolt
