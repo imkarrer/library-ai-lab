@@ -32,9 +32,7 @@ class Settings:
     openai_endpoint: str = "http://localhost:11434"  # Default to local Ollama
     openai_api_key: str = "no-key-needed"  # For compatibility with OpenAI client
     openai_model: str = "llama3"  # Default model
-    school_timezone: str = (
-        "America/Chicago"  # IANA name, for the Purge and Registration
-    )
+    school_timezone: str = "America/Chicago"  # IANA name
     school_day_end: str = "15:30"  # HH:MM, local to school_timezone
 
     @classmethod
