@@ -72,9 +72,6 @@ broadband connection. All 43 parts of the 2016 distribution loaded in one run, w
 | Record count (post-filter) | 385,409 records |
 | Wall-clock time | 20 min 53 s (1,253 s), including download, filter, and load |
 
-The run used `PYTHONPATH=.` in front of the command above. Without it, Python cannot import
-`library_assistant` from `scripts/` and the builder exits with `ModuleNotFoundError`.
-
 ## Working with the tracker
 
 Issues live in [beads](https://github.com/steveyegge/beads) (prefix `lib-`). The embedded Dolt
