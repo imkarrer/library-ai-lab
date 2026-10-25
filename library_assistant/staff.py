@@ -206,8 +206,21 @@ FIRST_RUN_SETUP_HTML = """
 """
 
 
+# Global connection variable
+_connection: sqlite3.Connection | None = None
+
+
+def get_db() -> sqlite3.Connection:
+    global _connection
+    if _connection is None:
+        _connection = connect()
+    return _connection
+
+
 # Staff session middleware to check authentication
-def require_staff_auth(request: Request) -> StaffSession:
+def require_staff_auth(
+    request: Request, db: sqlite3.Connection = Depends(get_db)
+) -> StaffSession:
     """Check if staff is authenticated."""
     session_cookie = request.cookies.get(STAFF_SESSION_COOKIE)
     if not session_cookie:
