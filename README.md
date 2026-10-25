@@ -88,5 +88,23 @@ bd dolt push      # after making changes
 
 ## License
 
-Apache License 2.0: see [`LICENSE`](LICENSE). The templates in `docs/templates/` and the
-curriculum in `docs/curriculum/` are covered by the same license.
+The code is source-available under the Business Source License 1.1 (see [`LICENSE`](LICENSE)).
+In short:
+
+- A school, a school district, or another public or non-profit educational institution can
+  run it in production free of charge, for its own students and staff, installed and
+  operated by its own employees.
+- Anyone can read, copy, modify, and test it, which is non-production use.
+- Any other production use, including installing, configuring, hosting, or supporting it
+  for a school as a paid service, needs a commercial license from the Licensor.
+- Each version becomes available under the Apache License 2.0 four years after it is
+  published.
+
+The snapshot at commit `afdba6e` was published under the Apache License 2.0 and stays
+available under it. Later versions are under the Business Source License.
+
+The templates in `docs/templates/` and the curriculum in `docs/curriculum/` are under CC BY
+4.0 instead (see [`docs/LICENSE.md`](docs/LICENSE.md)), so districts, counsel, and teachers
+can adapt and share them freely.
+
+This summary is not legal advice. The text in `LICENSE` governs.
