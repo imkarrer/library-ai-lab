@@ -3,7 +3,7 @@
 the Registration payload. With --url and --registration-key, also registers the Batch
 through Card sign-in's endpoint.
 
-    python3 scripts/mint_batch.py --count 24 --class-label "Period 3" --days 90 --out-dir out
+    python3 scripts/mint_batch.py --count 24 --class-label "Period 3" --until 15:30 --out-dir out
 
 Binding: ADR-0002. The Roster CSV and the QR sheet (which carries each Card's Token) stay
 on this machine; only the Registration payload is ever sent anywhere.
@@ -15,7 +15,7 @@ import argparse
 import json
 import re
 import sys
-from datetime import UTC, datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -71,12 +71,16 @@ def upload_payload(
     response.raise_for_status()
 
 
+def _now() -> datetime:
+    return datetime.now().astimezone()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--count", type=int, required=True)
     parser.add_argument("--class-label", required=True)
     parser.add_argument(
-        "--days", type=int, default=90, help="Batch expiry, days from now"
+        "--until", default="15:30", help="Batch expiry, HH:MM today, local time"
     )
     parser.add_argument("--out-dir", type=Path, default=Path("."))
     parser.add_argument("--url", help="Registration endpoint, e.g. http://host/batches")
@@ -84,8 +88,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--print", action="store_true", help="Print the roster sheet")
     args = parser.parse_args(argv)
 
-    minted_at = datetime.now(UTC)
-    expires_at = minted_at + timedelta(days=args.days)
+    now = _now()
+    until_time = datetime.strptime(args.until, "%H:%M").time()
+    expires_at = datetime.combine(now.date(), until_time, tzinfo=now.tzinfo)
+    if expires_at <= now:
+        print("--until is already past for today", file=sys.stderr)
+        return 2
+    minted_at = now
+
     result = mint_cards(args.count, args.class_label, expires_at)
     paths = write_batch_files(
         args.out_dir,
