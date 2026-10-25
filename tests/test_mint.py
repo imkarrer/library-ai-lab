@@ -8,7 +8,12 @@ from fastapi.testclient import TestClient
 
 from library_assistant.access import connect, get_db, get_registration_key, hash_token
 from library_assistant.app import app
-from library_assistant.mint import mint_cards, qr_sheet_html, roster_csv
+from library_assistant.mint import (
+    mint_cards,
+    qr_sheet_html,
+    roster_csv,
+    roster_sheet_html,
+)
 from scripts.mint_batch import upload_payload, write_batch_files
 
 REGISTRATION_KEY = "s3cret-registration-key"
@@ -120,6 +125,8 @@ def test_cli_writes_html_csv_and_json(tmp_path):
         result.roster_rows,
         result.registration_payload,
         base_url=None,
+        minted_at=datetime.now(UTC),
+        expires_at=_expiry(),
     )
 
     html = paths["html"].read_text()
@@ -140,3 +147,56 @@ def test_qr_sheet_encodes_sign_in_url_when_base_url_given():
     result = mint_cards(1, "Period 3", _expiry())
     html = qr_sheet_html(result.cards, "Period 3", base_url="http://intranet")
     assert "<svg" in html
+
+
+def _sheet(count: int = 3, class_label: str = "Period 3") -> tuple[str, list]:
+    minted_at = datetime(2026, 11, 2, 8, 0, tzinfo=UTC)
+    expires_at = datetime(2026, 11, 2, 15, 30, tzinfo=UTC)
+    result = mint_cards(count, class_label, expires_at)
+    sheet = roster_sheet_html(result.cards, class_label, minted_at, expires_at)
+    return sheet, result.cards
+
+
+def test_roster_sheet_lists_every_card_number_and_no_token_or_hash():
+    sheet, cards = _sheet(24)
+    for card in cards:
+        assert f"Card {card.card_number}<" in sheet
+        assert card.token not in sheet
+        assert hash_token(card.token) not in sheet
+
+
+def test_roster_sheet_shows_minting_and_expiry_dates():
+    minted_at = datetime(2026, 11, 2, 8, 0, tzinfo=UTC)
+    expires_at = datetime(2026, 11, 6, 15, 30, tzinfo=UTC)
+    result = mint_cards(1, "Period 3", expires_at)
+    sheet = roster_sheet_html(result.cards, "Period 3", minted_at, expires_at)
+    assert "Minted 2026-11-02" in sheet
+    assert "expires 2026-11-06" in sheet
+
+
+def test_roster_sheet_escapes_the_class_label():
+    sheet, _ = _sheet(1, class_label="<script>x</script>")
+    assert "<script>x</script>" not in sheet
+    assert "&lt;script&gt;" in sheet
+
+
+def test_cli_writes_the_roster_sheet_wherever_it_runs(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)  # no templates/ here: the sheet must not depend on cwd
+    minted_at = datetime.now(UTC)
+    expires_at = minted_at + timedelta(hours=6)
+    result = mint_cards(2, "Period 3", expires_at)
+    paths = write_batch_files(
+        tmp_path / "out",
+        "Period 3",
+        result.cards,
+        result.roster_rows,
+        result.registration_payload,
+        base_url=None,
+        minted_at=minted_at,
+        expires_at=expires_at,
+    )
+    sheet = paths["roster"].read_text()
+    assert "Card 1<" in sheet and "Card 2<" in sheet
+    payload = json.loads(paths["json"].read_text())
+    assert payload == result.registration_payload
+    assert "Sealed Roster" not in json.dumps(payload)

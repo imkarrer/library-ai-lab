@@ -20,7 +20,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from library_assistant.mint import mint_cards, qr_sheet_html, roster_csv
+from library_assistant.mint import (
+    mint_cards,
+    qr_sheet_html,
+    roster_csv,
+    roster_sheet_html,
+)
 
 
 def _slug(class_label: str) -> str:
@@ -34,6 +39,8 @@ def write_batch_files(
     roster_rows,
     registration_payload: dict[str, object],
     base_url: str | None,
+    minted_at: datetime,
+    expires_at: datetime,
 ) -> dict[str, Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     slug = _slug(class_label)
@@ -41,10 +48,16 @@ def write_batch_files(
         "html": out_dir / f"{slug}-cards.html",
         "csv": out_dir / f"{slug}-roster.csv",
         "json": out_dir / f"{slug}-registration.json",
+        "roster": out_dir / f"{slug}-roster-printable.html",
     }
     paths["html"].write_text(qr_sheet_html(cards, class_label, base_url=base_url))
     paths["csv"].write_text(roster_csv(roster_rows))
     paths["json"].write_text(json.dumps(registration_payload, indent=2))
+
+    paths["roster"].write_text(
+        roster_sheet_html(cards, class_label, minted_at, expires_at)
+    )
+
     return paths
 
 
@@ -68,9 +81,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out-dir", type=Path, default=Path("."))
     parser.add_argument("--url", help="Registration endpoint, e.g. http://host/batches")
     parser.add_argument("--registration-key")
+    parser.add_argument("--print", action="store_true", help="Print the roster sheet")
     args = parser.parse_args(argv)
 
-    expires_at = datetime.now(UTC) + timedelta(days=args.days)
+    minted_at = datetime.now(UTC)
+    expires_at = minted_at + timedelta(days=args.days)
     result = mint_cards(args.count, args.class_label, expires_at)
     paths = write_batch_files(
         args.out_dir,
@@ -79,9 +94,14 @@ def main(argv: list[str] | None = None) -> int:
         result.roster_rows,
         result.registration_payload,
         base_url=args.url.rsplit("/batches", 1)[0] if args.url else None,
+        minted_at=minted_at,
+        expires_at=expires_at,
     )
     for name, path in paths.items():
         print(f"wrote {name}: {path}")
+
+    if args.print:
+        print(paths["roster"].read_text())
 
     if args.url and args.registration_key:
         upload_payload(args.url, args.registration_key, result.registration_payload)
