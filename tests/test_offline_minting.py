@@ -129,7 +129,7 @@ def test_offline_minting_upload_carries_no_roster_data(app_logic_script: str) ->
 {NODE_STUB_DOCUMENT}
 {app_logic_script}
 (async () => {{
-  const result = await generateCards(3, 'Period 3', 90);
+  const result = await generateCards(3, 'Period 3', '23:59');
   process.stdout.write(JSON.stringify(result.registrationPayload));
 }})();
 """
@@ -148,7 +148,7 @@ def test_offline_minting_sealed_roster_sheet_has_no_token_or_hash(
 {NODE_STUB_DOCUMENT}
 {app_logic_script}
 (async () => {{
-  const result = await generateCards(4, 'Period 3', 90);
+  const result = await generateCards(4, 'Period 3', '23:59');
   const cardNumbers = result.cards.map(c => c.cardNumber);
   const sheet = generateSealedRosterSheet(
     cardNumbers, 'Period 3', dateStamp(result.startDate), dateStamp(result.expiresAt)
@@ -172,3 +172,44 @@ def test_offline_minting_only_one_network_call(page_html: str) -> None:
     assert page_html.count("fetch(") == 1
     assert "<script src=" not in page_html
     assert '<link rel="stylesheet" href="http' not in page_html
+
+
+def test_page_has_until_time_input_default_1530(page_html: str) -> None:
+    """ADR-0010 rule 1: a Card lasts at most one school day, so Expiry is a time today."""
+    assert 'id="until"' in page_html
+    assert 'type="time" id="until"' in page_html
+    assert 'value="15:30"' in page_html
+    assert "Cards stop working at (today)" in page_html
+
+
+def test_page_has_no_days_input(page_html: str) -> None:
+    """The old "Expiry (days from now)" number input is gone, not left alongside `until`."""
+    assert 'id="days"' not in page_html
+    assert "Expiry (days from now)" not in page_html
+
+
+def test_generate_uses_until_not_days(app_logic_script: str) -> None:
+    """generateCards computes expiresAt from today's date and the until time, and mints
+    nothing when that time has already passed."""
+    js = f"""
+{NODE_STUB_DOCUMENT}
+{app_logic_script}
+(async () => {{
+  const future = await generateCards(2, 'Period 3', '23:59');
+  const past = await generateCards(2, 'Period 3', '00:00');
+  const now = new Date();
+  process.stdout.write(JSON.stringify({{
+    futureCardCount: future.cards ? future.cards.length : null,
+    futureExpiresSameDay: future.expiresAt
+      ? new Date(future.expiresAt).toDateString() === now.toDateString()
+      : null,
+    pastHasError: Boolean(past.error),
+    pastHasCards: Boolean(past.cards),
+  }}));
+}})();
+"""
+    payload = json.loads(_run_node(js))
+    assert payload["futureCardCount"] == 2
+    assert payload["futureExpiresSameDay"] is True
+    assert payload["pastHasError"] is True
+    assert payload["pastHasCards"] is False
