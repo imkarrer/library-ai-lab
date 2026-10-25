@@ -134,7 +134,18 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
             watchlist_version TEXT,
             reason TEXT,
             raised_at TEXT NOT NULL,
-            closed_at TEXT
+            closed_at TEXT,
+            repeat_count INTEGER NOT NULL DEFAULT 0,
+            last_repeat_at TEXT
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS flag_repeats (
+            flag_id INTEGER NOT NULL,
+            transcript_id INTEGER NOT NULL,
+            repeated_at TEXT NOT NULL
         )
         """
     )

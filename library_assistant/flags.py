@@ -27,6 +27,8 @@ class FlagRow:
     reason: str | None
     raised_at: str
     closed_at: str | None
+    repeat_count: int
+    last_repeat_at: str | None
 
 
 def raise_flag(
@@ -81,6 +83,82 @@ def raise_flag(
     return cursor.lastrowid
 
 
+def raise_or_repeat(
+    db: sqlite3.Connection,
+    transcript_id: int,
+    class_label: str,
+    card_number: str,
+    batch_expires_at: str,
+    message_hash: str | None,
+    category: str,
+    severity: str,
+    source: str,
+    raised_at: str,
+    entry_id: str | None = None,
+    watchlist_version: str | None = None,
+    reason: str | None = None,
+) -> tuple[int, bool]:
+    """Raise a new flag or increment repeat count if same flag already exists.
+
+    Returns (flag_id, is_repeat) where is_repeat is True if this was a repeat.
+    """
+    # Check if there's an existing open flag with the same criteria
+    existing_flag = db.execute(
+        """
+        SELECT id, repeat_count, last_repeat_at FROM flags
+        WHERE class_label = ? AND card_number = ? AND batch_expires_at = ? 
+        AND message_hash = ? AND category = ? AND closed_at IS NULL
+        """,
+        (
+            class_label,
+            card_number,
+            batch_expires_at,
+            message_hash,
+            category,
+        ),
+    ).fetchone()
+
+    if existing_flag:
+        flag_id, repeat_count, _last_repeat_at = existing_flag
+        # Update the repeat count and last repeat time
+        db.execute(
+            """
+            UPDATE flags 
+            SET repeat_count = ?, last_repeat_at = ? 
+            WHERE id = ?
+            """,
+            (repeat_count + 1, raised_at, flag_id),
+        )
+        # Add a record to flag_repeats table
+        db.execute(
+            """
+            INSERT INTO flag_repeats (flag_id, transcript_id, repeated_at) 
+            VALUES (?, ?, ?)
+            """,
+            (flag_id, transcript_id, raised_at),
+        )
+        db.commit()
+        return (flag_id, True)
+    else:
+        # No existing flag, raise a new one
+        flag_id = raise_flag(
+            db,
+            transcript_id,
+            class_label,
+            card_number,
+            batch_expires_at,
+            message_hash,
+            category,
+            severity,
+            source,
+            raised_at,
+            entry_id,
+            watchlist_version,
+            reason,
+        )
+        return (flag_id, False)
+
+
 def open_flags(db: sqlite3.Connection) -> list[FlagRow]:
     """Get all open flags (where closed_at is NULL), newest first."""
     rows = db.execute(
@@ -99,7 +177,9 @@ def open_flags(db: sqlite3.Connection) -> list[FlagRow]:
             watchlist_version,
             reason,
             raised_at,
-            closed_at
+            closed_at,
+            repeat_count,
+            last_repeat_at
         FROM flags
         WHERE closed_at IS NULL
         ORDER BY raised_at DESC
@@ -127,7 +207,9 @@ def get_flag(db: sqlite3.Connection, flag_id: int) -> FlagRow | None:
             watchlist_version,
             reason,
             raised_at,
-            closed_at
+            closed_at,
+            repeat_count,
+            last_repeat_at
         FROM flags
         WHERE id = ?
         """,
