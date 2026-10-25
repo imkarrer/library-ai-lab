@@ -97,7 +97,7 @@ sequenceDiagram
     A-->>Scr: Alarm banner (no words), Flag marker on card 2's tile
     P->>Scr: Acknowledge, then Revoke card 2 from its Session page
     V2->>A: one more question
-    A-->>V2: "this card no longer works, ask your teacher"
+    A-->>V2: "This card has stopped working. Ask your teacher for a new one."
 ```
 
 Two volunteers is about what the M5 serves comfortably (the owner's estimate).
