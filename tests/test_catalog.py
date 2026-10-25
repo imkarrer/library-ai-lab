@@ -49,6 +49,29 @@ def test_search_returns_known_title_with_all_six_fields():
     assert record.call_number == "PZ7.S47 Wh"
 
 
+def test_search_treats_a_students_question_as_text_not_query_syntax():
+    catalog = _load_catalog()
+    for question in [
+        "books like Where the Wild Things Are?",
+        'the "wild things" book!',
+        "wild AND OR NOT things NEAR(",
+        "wild-things*",
+    ]:
+        results = catalog.search(question, k=5)
+        assert results, question
+        assert results[0].id == "loc0001"
+
+
+def test_search_with_no_words_returns_nothing():
+    assert _load_catalog().search("?!  ...", k=5) == []
+
+
+def test_search_ignores_question_filler_words():
+    catalog = _load_catalog()
+    assert catalog.search("can you recommend some books about it?", k=5) == []
+    assert catalog.search("books about time", k=5)[0].id == "loc0002"
+
+
 def test_get_returns_record_by_id():
     catalog = _load_catalog()
     record = catalog.get("loc0002")
