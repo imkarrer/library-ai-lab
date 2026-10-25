@@ -2,35 +2,38 @@
 marp: true
 theme: handout
 paginate: true
-footer: 'Library Assistant · a take-home summary for school librarians'
+footer: 'Library Assistant · for school librarians'
 ---
 
 # Library Assistant
 
-<p class="lede">An AI research helper for students that lives on one computer in your
-building. Students stay anonymous, you see what they ask, and nothing is sent to a
-company.</p>
+<p class="lede">A research helper for students that runs on one computer in your school.
+Students don't sign in with their names, you can see what they ask, and their questions stay
+in the building.</p>
 
-## The idea in one minute
+## What it does
 
-- **Students ask it anything** they're researching: snow leopards, the Dust Bowl, how
-  fractions work. It gives a short, plain-language overview, then lists **books in your own
-  library** on that subject, with call numbers.
-- **It runs inside the school.** One computer on the school network does all the work. Once
-  it's set up, it needs no internet, and student questions never leave the building.
-- **No student accounts, no names.** Students sign in by scanning a QR card that carries a
-  number, not a name. Only the teacher knows which student holds which card.
-- **The adults stay in the loop.** You see every question as it's asked. Messages that
-  suggest a student may be at risk are flagged for an adult the moment they arrive.
+Students type a question about whatever they're researching: snow leopards, the Dust Bowl,
+fractions. The assistant writes a short overview in plain language, then lists books on that
+subject from your own catalog, with call numbers.
 
-## What a class period looks like
+It runs on a computer on your school network. After setup it doesn't need the internet, and
+it never sends student questions to an outside company.
 
-1. **The teacher prints a sheet of QR cards** for the class on their own computer. Each card
-   has a number ("card 14"). The teacher keeps the list of who has which card, and a sealed
-   copy goes to the office. **That list never goes into the assistant.**
-2. **Students scan their card** on their Chromebook and start asking.
-3. **Each answer has two parts:** what the AI knows about the subject, and the books in
-   your library to check it against. Every answer carries the reminder:
+Students sign in by scanning a QR card with a number on it instead of a name. The teacher
+keeps the list of who has which card.
+
+You see every question as students ask it, and the assistant flags messages that suggest a
+student may be at risk.
+
+## A class period
+
+1. The teacher prints a sheet of QR cards on their own computer. Each card has a number,
+   like "card 14". The teacher keeps the list of names and numbers and gives a sealed copy to
+   the office. That list never goes into the assistant.
+2. Students scan their cards on their Chromebooks and start asking questions.
+3. Each answer comes in two parts: what the AI knows about the topic, then books in your
+   library that cover it. Every answer ends with this reminder:
 
 <div class="quote">
 
@@ -38,129 +41,129 @@ This can be wrong, check the source.
 
 </div>
 
-4. **Cards stop working by the end of the school day.** Tomorrow's class gets new cards.
+4. The cards stop working at the end of the school day. The next class gets new ones.
 
 <div class="box">
 
-**Why the two parts?** The overview is a starting point, and AI can be confidently wrong.
-The books are how students check it, which turns every question into a lesson in verifying
-sources and a trip to the shelves.
+We split the answer in two on purpose. AI can sound sure of itself and still be wrong, so the
+overview is only a starting point. Students check it against the books, and that sends them
+to the shelves.
 
 </div>
 
 ---
 
-## What you see as the librarian
+## What you see
 
-**The Live view** shows one tile for each student who is chatting, labelled by class and
-card number ("Period 3 · card 14"), never by name. Each tile shows their latest question.
-Click a tile to watch that conversation as it happens, answers and all.
+The Live view gives you a tile for each student who's chatting. A tile shows the class, the
+card number ("Period 3 · card 14"), and the latest question. It never shows a name. Click a
+tile to follow that conversation as it happens.
 
-From a student's page you can **turn off their card** ("Revoke"), or the whole class's
-cards. The student just sees *"This card has stopped working. Ask your teacher for a new
-one."* They aren't told an adult switched it off.
+To stop a student, turn off their card from their page, or turn off every card in the class.
+The student sees "This card has stopped working. Ask your teacher for a new one." Nothing
+tells them an adult did it.
 
-## Keeping students safe
+## Safety
 
-**Every message is checked before the AI sees it** against a list of warning phrases for
-self-harm, abuse, bullying, and threats of violence. The list is written for how middle
-schoolers actually talk (slang, misspellings, "kms"), and your school's counselor can review
-it. Each flag says which phrase matched, so it can always be explained.
+Before the AI sees a message, the assistant checks it against a list of warning phrases for
+self-harm, abuse, bullying, and threats of violence. We wrote the list for the way middle
+schoolers actually write, slang and misspellings included ("kms"), and your counselor can
+review it. Every flag shows the phrase that triggered it.
 
-| If a message… | The student gets… | The adults get… |
+| When a message has… | The student sees… | Adults see… |
 |---|---|---|
-| matches nothing | the normal answer | the question on the Live view |
-| matches a lower-concern phrase | the normal answer | a **Flag** waiting in the Flag queue |
-| matches a serious phrase | a **supportive reply** instead of an answer: talk to a counselor or trusted adult, and the **988** line for self-harm | a Flag, and an **alarm** on the librarian's screen: a banner and a chime, showing the class and card number but **never the student's words** |
+| no warning phrase | the normal answer | the question on the Live view |
+| a lower-concern phrase | the normal answer | a flag in the Flag queue |
+| a serious phrase | a supportive reply instead of an answer, pointing them to a counselor or another adult they trust, and to the 988 line for self-harm | a flag, plus an alarm on your screen (a banner and a chime) that shows the class and card number but not the student's words |
 
-The supportive reply is written for 11-to-13-year-olds, and different for each kind of
-concern. The flags **help the adults do their duty of care; they don't replace it.** An adult
-follows up in person, using the school's own escalation steps.
+We wrote the supportive replies for 11-to-13-year-olds, with a different one for each kind
+of concern. The flags tell you who needs an adult. Someone still follows up in person, using
+your school's own escalation steps.
 
-### You choose how closely to supervise
+### How closely you supervise
 
-- **Live** (the default): students can chat only while you, or another adult you've
-  named, has the Live view open and has pressed **Start watch**.
-- **Periodic review:** students can chat any time in the school day, and you review the
+You pick one of three settings:
+
+- **Live** (the default). Students can chat only while you, or another adult you've named,
+  have the Live view open and have pressed Start watch.
+- **Periodic review.** Students can chat any time during the school day, and you check the
   flags on a schedule you set, such as every two hours.
-- **Off:** supervision is left to your school's own policy.
+- **Off.** Your school's own supervision policy applies.
 
-In every mode, the warning-phrase check and the supportive reply stay on.
+The phrase check and the supportive reply run under all three.
 
 ---
 
-## Student privacy, by design
+## Student privacy
 
 <div class="box">
 
-The assistant is built so that it **never knows which student is which.** "We never had it"
-is a promise a board, a parent, or the state can check. "We deleted it" is not.
+The assistant never learns which student is which. A board, a parent, or the state can check
+a claim that we never had students' names. Nobody can check a claim that we deleted them.
 
 </div>
 
-- **No names anywhere in the system.** Cards carry a number. The list linking numbers to
-  students stays with the teacher, with a sealed copy in the office.
-- **Conversations are deleted at the end of every school day.** The only exceptions: an
-  exchange attached to an open flag, which an adult is still working on; and records under a
-  legal hold, for example while a records request is pending.
-- **Nothing leaves the building.** The AI model runs on the school's own computer. No
-  student question is sent to an AI company, a cloud service, or an advertiser.
-- **Nothing to track students with.** There are no student accounts, no email addresses,
-  and no history that follows a student from day to day.
+- No names go into the system. Cards carry numbers, and the teacher keeps the list that
+  matches numbers to students.
+- The assistant deletes every conversation at the end of the school day. It keeps one longer
+  only while an adult is still working on a flag about it, or while a legal hold applies,
+  such as an open records request.
+- The AI model runs on the school's computer. The assistant doesn't send questions to an AI
+  company, a cloud service, or an advertiser.
+- Students have no accounts or email addresses in the system, and nothing connects one day's
+  questions to the next.
 
-## What it takes to run
+## What you need
 
-- **One capable computer in the building.** The demo you saw runs on a single laptop
-  (an Apple Silicon Mac). How many students can ask at once depends on the machine; a
-  built-in tool will help pick the right AI model for the hardware you have.
-- **Your district's IT team,** to put it on the school network. Students need no internet
-  for it to work.
-- **Flox,** a free tool that installs the assistant the same way on any computer, so it
-  doesn't depend on the one person who set it up.
-- **No license fees and no per-student pricing.** The assistant is free.
+- A capable computer in the building. Our demo runs on one Apple Silicon laptop. How many
+  students it can serve at once depends on the machine, and a setup tool helps you pick an
+  AI model that fits it.
+- Help from your district's IT staff to put it on the school network. Students don't need
+  internet access to use it.
+- Flox, a free tool that installs the assistant the same way on any computer, so the setup
+  doesn't depend on one person.
+- No license fees and no per-student cost.
 
-## The paperwork kit
+## Templates for your district
 
-Your board and counsel will have questions. The project comes with **draft templates** to
-adapt with your district's own counsel:
+Your board and legal counsel will have questions, so the project includes draft templates
+you can adapt with them:
 
 - a privacy impact assessment
-- a retention rule (why one school day is enough)
-- an acceptable-use policy insert
-- an escalation protocol: what adults do with a flag, step by step
-- an AI literacy unit for grades 6 to 8: teaching students to follow the citation, catch the
-  AI being wrong, and know that adults can see what's asked
+- a retention policy that explains why one school day is enough
+- an insert for your acceptable-use policy
+- an escalation protocol that walks adults through what to do with a flag
+- an AI literacy unit for grades 6 to 8, where students follow citations to the shelf, catch
+  the AI making mistakes, and learn that adults can see what they ask
 
 ---
 
 ## Questions to ask about any AI tool for students
 
-Whether or not you ever use this assistant, these questions are worth asking of any AI
-product a vendor offers your students:
+Ask these of any AI product a vendor offers your students, including this one.
 
-1. **Where do students' questions go?** To whose servers, in which country? Are they used to
-   train the vendor's AI?
-2. **Who can read them?** Can school staff see what students ask? Can the vendor's staff?
-3. **How long are they kept,** and can the school delete them on its own schedule?
-4. **Can a student be identified** from what's stored: by account, email, device, or
-   school login?
-5. **What happens when a student says something worrying?** Does an adult in the building
-   find out, how fast, and can anyone explain why it was flagged?
-6. **Who reviews the safety rules,** and can your counselor see and change them?
-7. **What do students see** when the AI might be wrong? Does it point them to sources they
-   can check?
+1. Where do students' questions go? Whose servers, and in which country? Does the vendor
+   use them to train its AI?
+2. Who can read the questions? Can school staff? Can the vendor's staff?
+3. How long does the vendor keep them, and can your school delete them when it wants to?
+4. Could someone identify a student from what's stored, through an account, an email
+   address, a device, or a school login?
+5. If a student writes something worrying, does an adult in the building find out? How
+   quickly? Can someone explain why it was flagged?
+6. Who decides the safety rules, and can your counselor see and change them?
+7. What does the tool tell students about its own mistakes? Does it point them to sources
+   they can check?
 
-## Where things stand
+## Where the project is
 
-The Library Assistant is new and still being built. What you saw today is a working demo
-on one laptop. A first pilot in a Wisconsin middle school library is planned. The templates
-are drafts waiting for legal review: treat them as a starting point, not legal advice.
+We're still building the Library Assistant. Today's demo ran on one laptop, and we're
+planning a first pilot in a Wisconsin middle school library. The templates are drafts that
+still need legal review, so treat them as a starting point rather than legal advice.
 
-## Get in touch
+## Contact
 
 <!-- CONTACT: replace this paragraph with how librarians reach the project (an email
 address, a web page, or a QR code to one). Do not print without it. -->
 **Contact details to be added before printing.**
 
-Bring this sheet to your district's technology and privacy conversations. The questions on
-this page work for any AI tool, not just this one.
+Share this sheet with your district's technology and privacy staff.
