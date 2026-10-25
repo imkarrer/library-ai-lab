@@ -67,4 +67,4 @@
 
 export.auto: true
 sync:
-    remote: "git+https://github.com/imkarrer/library-ai-lab"
+    remote: "git+ssh://git@github.com/imkarrer/library-ai-lab.git"
