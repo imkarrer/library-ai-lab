@@ -85,3 +85,8 @@ bd dolt push      # after making changes
 ```
 
 `.beads/issues.jsonl` is a committed, human-readable export, not the source of truth.
+
+## License
+
+Apache License 2.0: see [`LICENSE`](LICENSE). The templates in `docs/templates/` and the
+curriculum in `docs/curriculum/` are covered by the same license.
