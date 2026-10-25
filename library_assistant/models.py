@@ -1,37 +1,21 @@
-"""Data models for the Library Assistant."""
+"""Request and answer shapes for Grounded answers. A Session itself is
+library_assistant.access.Session."""
 
 from __future__ import annotations
-
-from datetime import datetime
 
 from pydantic import BaseModel
 
 
-# Session models
-class Session(BaseModel):
-    """A student's conversation session."""
-
-    session_id: str
-    card_number: str
-    class_label: str
-    started_at: datetime
-    expires_at: datetime
-
-
 class Citation(BaseModel):
-    """A reference to a Record in a Grounded answer."""
+    """A reference in a Grounded answer to the Record it came from."""
 
+    record_id: str
+    title: str
     call_number: str
+
+    def line(self) -> str:
+        return f"Citation: {self.title} ({self.call_number})"
 
 
 class AskRequest(BaseModel):
-    """Request to ask a question in a session."""
-
     question: str
-
-
-class GroundedAnswer(BaseModel):
-    """A streamed answer with citations."""
-
-    answer: str
-    citations: list[Citation]
