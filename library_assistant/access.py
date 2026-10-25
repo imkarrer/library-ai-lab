@@ -118,6 +118,26 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
         )
         """
     )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS flags (
+            id INTEGER PRIMARY KEY,
+            transcript_id INTEGER NOT NULL,
+            class_label TEXT NOT NULL,
+            card_number TEXT NOT NULL,
+            batch_expires_at TEXT NOT NULL,
+            message_hash TEXT,
+            category TEXT NOT NULL,
+            severity TEXT NOT NULL,
+            source TEXT NOT NULL CHECK (source IN ('watchlist','oversight')),
+            entry_id TEXT,
+            watchlist_version TEXT,
+            reason TEXT,
+            raised_at TEXT NOT NULL,
+            closed_at TEXT
+        )
+        """
+    )
     # Staff accounts and their sessions (library_assistant.staff). As with a Student's
     # Session, only the hash of the staff session id is stored.
     conn.execute(
