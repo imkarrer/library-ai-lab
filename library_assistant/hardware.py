@@ -88,14 +88,12 @@ def parse_amdgpu_sysfs(path: Path) -> dict[str, float] | None:
         if not total_path.exists():
             return None
 
-        total = int(total_path.read_text().strip()) / (1024 * 1024)  # Convert KB to GB
+        total = int(total_path.read_text().strip()) / (1024**3)  # Convert bytes to GB
 
         # Read used memory if available
         used = 0.0
         if used_path.exists():
-            used = int(used_path.read_text().strip()) / (
-                1024 * 1024
-            )  # Convert KB to GB
+            used = int(used_path.read_text().strip()) / (1024**3)  # Convert bytes to GB
 
         return {
             "total": total,
@@ -105,76 +103,9 @@ def parse_amdgpu_sysfs(path: Path) -> dict[str, float] | None:
         return None
 
 
-def get_macos_pool() -> tuple[float, str]:
-    """Get the Metal pool size on macOS using ctypes.
-
-    Returns a tuple of (pool_gb, source) where source indicates how the pool was determined.
-    """
-    try:
-        import ctypes
-        import ctypes.util
-
-        # Try to load the Objective-C runtime and Metal framework
-        try:
-            # Load Foundation framework
-            foundation = ctypes.util.find_library("Foundation")
-            if foundation:
-                ctypes.CDLL(foundation, mode=ctypes.RTLD_GLOBAL)
-
-            # Load Metal framework
-            metal = ctypes.util.find_library("Metal")
-            if metal:
-                ctypes.CDLL(metal, mode=ctypes.RTLD_GLOBAL)
-
-            # Try to get recommendedMaxWorkingSetSize via ctypes
-            # This is a simplified approach - in practice we'd need more complex Objective-C interop
-            # For now, we'll fall back to sysctl for compatibility
-            result = subprocess.run(
-                ["sysctl", "-n", "hw.memsize"],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-            total_mem = int(result.stdout.strip()) / (
-                1024 * 1024
-            )  # Convert bytes to MB then GB
-            return (total_mem, "hw.memsize fallback")
-
-        except (OSError, subprocess.CalledProcessError):
-            # If we can't get Metal info, fall back to sysctl
-            try:
-                result = subprocess.run(
-                    ["sysctl", "-n", "hw.memsize"],
-                    capture_output=True,
-                    text=True,
-                    check=True,
-                )
-                total_mem = int(result.stdout.strip()) / (
-                    1024 * 1024
-                )  # Convert bytes to MB then GB
-                return (
-                    total_mem * 0.7,
-                    "estimated from hw.memsize",
-                )  # Conservative estimate
-            except (OSError, subprocess.CalledProcessError):
-                # If everything fails, return a default
-                return (8.0, "default fallback")
-
-    except ImportError:
-        # If ctypes is not available, fall back to sysctl
-        try:
-            result = subprocess.run(
-                ["sysctl", "-n", "hw.memsize"],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-            total_mem = int(result.stdout.strip()) / (
-                1024 * 1024
-            )  # Convert bytes to MB then GB
-            return (total_mem * 0.7, "estimated from hw.memsize fallback")
-        except (OSError, subprocess.CalledProcessError):
-            return (8.0, "default fallback")
+def parse_sysctl_memsize(text: str) -> float:
+    """Parse the byte count printed by `sysctl -n hw.memsize` into GB."""
+    return int(text.strip()) / (1024**3)
 
 
 def detect() -> HardwareReport:
@@ -198,7 +129,7 @@ def detect() -> HardwareReport:
                 text=True,
                 check=True,
             )
-            ram_gb = int(result.stdout.strip()) / (1024 * 1024)  # Convert bytes to GB
+            ram_gb = parse_sysctl_memsize(result.stdout)
         except (OSError, subprocess.CalledProcessError, ValueError):
             ram_gb = 8.0  # Default fallback
             problems.append("Failed to determine RAM on macOS")
@@ -216,9 +147,11 @@ def detect() -> HardwareReport:
     # Initialize accelerators list
     accelerators = []
 
-    # Detect NVIDIA GPUs
+    # Detect NVIDIA GPUs. A missing binary means no entry (no GPU); a binary
+    # that exists but exits non-zero (e.g. WSL's missing libnvidia-ml.so)
+    # must still produce an accelerator entry, marked failed with its stderr.
     try:
-        result = subprocess.run(
+        nvidia_result = subprocess.run(
             [
                 "nvidia-smi",
                 "--query-gpu=name,memory.total,memory.free",
@@ -226,51 +159,36 @@ def detect() -> HardwareReport:
             ],
             capture_output=True,
             text=True,
-            check=True,
+            check=False,
         )
-        nvidia_data = parse_nvidia_smi_csv(result.stdout)
-        for gpu in nvidia_data:
+    except OSError:
+        nvidia_result = None
+
+    if nvidia_result is not None:
+        if nvidia_result.returncode == 0:
+            for gpu in parse_nvidia_smi_csv(nvidia_result.stdout):
+                memory_mib = gpu.get("memory.total", 0.0)
+                accelerators.append(
+                    {
+                        "type": "nvidia",
+                        "name": gpu.get("name", "Unknown"),
+                        "memory_gb": memory_mib / 1024,  # memory.total is MiB
+                        "status": "ok",
+                        "stderr": None,
+                    }
+                )
+        else:
             accelerators.append(
                 {
                     "type": "nvidia",
-                    "name": gpu.get("name", "Unknown"),
-                    "memory_gb": gpu.get("memory.total", 0.0),
-                    "status": "ok",
-                    "stderr": None,
+                    "name": "Unknown",
+                    "memory_gb": 0.0,
+                    "status": "failed",
+                    "stderr": nvidia_result.stderr.strip()
+                    if nvidia_result.stderr
+                    else "",
                 }
             )
-    except (OSError, subprocess.CalledProcessError):
-        # NVIDIA detection failed - this is expected on non-NVIDIA systems
-        # If nvidia-smi exists but fails, mark it as failed
-        try:
-            subprocess.run(["nvidia-smi"], capture_output=True, check=True)
-            # If nvidia-smi exists but failed, mark it as failed
-            try:
-                result = subprocess.run(
-                    [
-                        "nvidia-smi",
-                        "--query-gpu=name,memory.total,memory.free",
-                        "--format=csv,noheader,nounits",
-                    ],
-                    capture_output=True,
-                    text=True,
-                    check=False,  # This is expected to fail
-                )
-                if result.stderr:
-                    accelerators.append(
-                        {
-                            "type": "nvidia",
-                            "name": "Unknown",
-                            "memory_gb": 0.0,
-                            "status": "failed",
-                            "stderr": result.stderr.strip(),
-                        }
-                    )
-            except (OSError, subprocess.CalledProcessError):
-                pass
-        except (OSError, subprocess.CalledProcessError):
-            # nvidia-smi not available, which is fine
-            pass
 
     # Detect AMD GPUs via sysfs
     try:
@@ -309,15 +227,6 @@ def detect() -> HardwareReport:
         if total_accelerator_memory > 0:
             pool_gb = total_accelerator_memory
             pool_source = "accelerator_memory"
-
-    # On macOS, try to get the Metal pool
-    if platform == "darwin":
-        try:
-            metal_pool, source = get_macos_pool()
-            pool_gb = metal_pool
-            pool_source = source
-        except (OSError, subprocess.CalledProcessError):
-            pass
 
     # Return the HardwareReport
     return HardwareReport(

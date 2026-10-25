@@ -1,14 +1,18 @@
 """Tests for the hardware detection module."""
 
+import subprocess
 from pathlib import Path
 
 import pytest
 
+from library_assistant import hardware
 from library_assistant.hardware import (
     HardwareReport,
+    detect,
     parse_amdgpu_sysfs,
     parse_meminfo,
     parse_nvidia_smi_csv,
+    parse_sysctl_memsize,
 )
 
 
@@ -67,12 +71,61 @@ GeForce RTX 4080,invalid,15000
     assert result[0]["memory.total"] == 0.0  # Invalid value converted to 0.0
 
 
-def test_parse_amdgpu_sysfs_success():
-    """Test parsing AMDGPU sysfs successfully."""
-    # This test would require creating a mock filesystem
-    # For now, just verify the function exists and doesn't crash
+def test_parse_amdgpu_sysfs_missing():
+    """A sysfs path without the expected files yields None."""
     result = parse_amdgpu_sysfs(Path("/nonexistent"))
     assert result is None
+
+
+def test_parse_amdgpu_sysfs_success(tmp_path):
+    """Parsing a real AMDGPU sysfs fixture converts bytes to GB."""
+    (tmp_path / "mem_info_vram_total").write_text("17179869184\n")  # 16 GiB
+    (tmp_path / "mem_info_vram_used").write_text("1073741824\n")  # 1 GiB
+    result = parse_amdgpu_sysfs(tmp_path)
+    assert result is not None
+    assert abs(result["total"] - 16.0) < 0.001
+    assert abs(result["used"] - 1.0) < 0.001
+
+
+def test_parse_sysctl_memsize():
+    """Parsing sysctl's byte count yields GB."""
+    result = parse_sysctl_memsize("17179869184\n")
+    assert abs(result - 16.0) < 0.001
+
+
+def test_detect_reports_failed_not_absent_for_errored_tool(monkeypatch):
+    """A tool that exists but errors (WSL's missing libnvidia-ml.so) yields
+    a 'failed' accelerator with stderr, never silent absence."""
+
+    def fake_run(cmd, **kwargs):
+        assert cmd[0] == "nvidia-smi"
+        return subprocess.CompletedProcess(
+            cmd,
+            returncode=9,
+            stdout="",
+            stderr=("NVIDIA-SMI has failed because it couldn't find libnvidia-ml.so\n"),
+        )
+
+    monkeypatch.setattr(hardware.subprocess, "run", fake_run)
+    report = detect()
+    nvidia_accelerators = [a for a in report.accelerators if a["type"] == "nvidia"]
+    assert len(nvidia_accelerators) == 1
+    assert nvidia_accelerators[0]["status"] == "failed"
+    assert "libnvidia-ml.so" in nvidia_accelerators[0]["stderr"]
+
+
+def test_detect_only_spawns_nvidia_smi_and_sysctl(monkeypatch):
+    """The runner spawns no subprocess other than nvidia-smi and sysctl."""
+    real_run = subprocess.run
+    spawned = []
+
+    def spy_run(cmd, *args, **kwargs):
+        spawned.append(cmd[0])
+        return real_run(cmd, *args, **kwargs)
+
+    monkeypatch.setattr(hardware.subprocess, "run", spy_run)
+    detect()
+    assert set(spawned) <= {"nvidia-smi", "sysctl"}
 
 
 def test_hardware_report_dataclass():
