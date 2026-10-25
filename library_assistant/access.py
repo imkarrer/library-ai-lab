@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import hashlib
 import os
+import secrets
 import sqlite3
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -45,8 +47,7 @@ CARD_PAGE_HTML = """<!DOCTYPE html>
       }).then((response) => {
         history.replaceState(null, "", window.location.pathname);
         if (response.ok) {
-          statusEl.textContent = "Session active.";
-          finishButton.style.display = "inline";
+          window.location.replace("/chat");
         } else {
           statusEl.textContent = "This card no longer works, ask your teacher.";
         }
@@ -88,6 +89,30 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
             card_number TEXT NOT NULL,
             expires_at TEXT NOT NULL,
             class_label TEXT NOT NULL
+        )
+        """
+    )
+    # A Session is one Card's conversation. Only the hash of its id is stored, so the
+    # database alone cannot be replayed as a cookie; the Card row is checked on every
+    # request, so a Revoke or the Batch's expiry ends the Session at once.
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS sessions (
+            session_hash TEXT PRIMARY KEY,
+            token_hash TEXT NOT NULL,
+            started_at TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS transcripts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_hash TEXT NOT NULL,
+            question TEXT NOT NULL,
+            answer TEXT NOT NULL,
+            citations TEXT NOT NULL,
+            asked_at TEXT NOT NULL
         )
         """
     )
@@ -222,9 +247,10 @@ def post_sign_in(
 ) -> PlainTextResponse:
     if "token" in request.query_params:
         return PlainTextResponse(REFUSAL_TEXT, status_code=403)
+    token_hash = hash_token(payload.token)
     row = db.execute(
         "SELECT card_number, expires_at, class_label FROM cards WHERE token_hash = ?",
-        (hash_token(payload.token),),
+        (token_hash,),
     ).fetchone()
     if row is None:
         return PlainTextResponse(REFUSAL_TEXT, status_code=403)
@@ -232,12 +258,18 @@ def post_sign_in(
     expires_at_dt = datetime.fromisoformat(expires_at)
     if clock > expires_at_dt:
         return PlainTextResponse(REFUSAL_TEXT, status_code=403)
+    session_id = secrets.token_urlsafe(32)
+    db.execute(
+        "INSERT INTO sessions (session_hash, token_hash, started_at) VALUES (?, ?, ?)",
+        (hash_token(session_id), token_hash, clock.isoformat()),
+    )
+    db.commit()
     sign_in_response = PlainTextResponse(
         f"{class_label} / card {card_number}: session active"
     )
     sign_in_response.set_cookie(
         key=SESSION_COOKIE,
-        value=hash_token(payload.token),
+        value=session_id,
         httponly=True,
         samesite="strict",
     )
@@ -245,7 +277,65 @@ def post_sign_in(
 
 
 @router.post("/card/finish")
-def finish_session(response: Response) -> dict[str, str]:
-    """Clears this device's session cookie. The Card itself is not Revoked."""
+def finish_session(
+    request: Request,
+    response: Response,
+    db: sqlite3.Connection = Depends(get_db),
+) -> dict[str, str]:
+    """Ends this device's Session and clears its cookie. The Card itself is not Revoked."""
+    session_id = request.cookies.get(SESSION_COOKIE)
+    if session_id:
+        db.execute(
+            "DELETE FROM sessions WHERE session_hash = ?", (hash_token(session_id),)
+        )
+        db.commit()
     response.delete_cookie(SESSION_COOKIE, httponly=True, samesite="strict")
     return {"status": "finished"}
+
+
+@dataclass(frozen=True)
+class Session:
+    """One Card's conversation, as the rest of the app sees it.
+
+    `ref` is the hash of the cookie's Session id: safe to store beside transcripts,
+    useless as a cookie.
+    """
+
+    ref: str
+    card_number: str
+    class_label: str
+    expires_at: datetime
+
+
+def current_session(
+    request: Request,
+    db: sqlite3.Connection = Depends(get_db),
+    clock: datetime = Depends(get_clock),
+) -> Session:
+    """The Session this request's cookie names, or 403 with the Card refusal.
+
+    The Card row is re-read every time, so Revoking a Card or Batch, or the Batch
+    expiring, ends its Sessions immediately.
+    """
+    session_id = request.cookies.get(SESSION_COOKIE)
+    if not session_id:
+        raise HTTPException(status_code=403, detail=REFUSAL_TEXT)
+    session_hash = hash_token(session_id)
+    row = db.execute(
+        "SELECT cards.card_number, cards.class_label, cards.expires_at "
+        "FROM sessions JOIN cards ON cards.token_hash = sessions.token_hash "
+        "WHERE sessions.session_hash = ?",
+        (session_hash,),
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=403, detail=REFUSAL_TEXT)
+    card_number, class_label, expires_at = row
+    expires_at_dt = datetime.fromisoformat(expires_at)
+    if clock > expires_at_dt:
+        raise HTTPException(status_code=403, detail=REFUSAL_TEXT)
+    return Session(
+        ref=session_hash,
+        card_number=card_number,
+        class_label=class_label,
+        expires_at=expires_at_dt,
+    )
