@@ -9,3 +9,7 @@
 __pycache__/
 .pytest_cache/
 .ruff_cache/
+
+# Demo Catalog build output (scripts/build_demo_catalog.py defaults)
+catalog.db
+marc-dist-download/
