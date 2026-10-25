@@ -13,16 +13,25 @@ from scripts.build_demo_catalog import (
     parse_index_links,
 )
 
-FIXTURE = Path(__file__).parent / "fixtures" / "catalog" / "fixture.xml"
+# Real Library of Congress records; see fixtures/catalog/README.md.
+LOC_SAMPLE = (
+    Path(__file__).parent / "fixtures" / "catalog" / "loc-books-2016-sample.xml"
+)
+# 250 of the sample's 270 records carry a juvenile or adolescent 008/22 code.
+LOC_SAMPLE_JUVENILE_COUNT = 250
 
 
 def test_load_juvenile_records_keeps_only_juvenile_and_adolescent(tmp_path):
     catalog = SqliteCatalog(sqlite3.connect(":memory:"))
-    count = load_juvenile_records(FIXTURE, catalog)
-    assert count == 2
-    assert catalog.get("loc0001") is not None
-    assert catalog.get("loc0002") is not None
-    assert catalog.get("loc0003") is None
+    count = load_juvenile_records(LOC_SAMPLE, catalog)
+    assert count == LOC_SAMPLE_JUVENILE_COUNT
+    # The three questions (j) and Fighting Ruben Wolfe (d) are kept.
+    assert catalog.get("00049673") is not None
+    assert catalog.get("00042817") is not None
+    # How to be a domestic goddess (e) and Botanical materia medica (blank) are not.
+    assert catalog.get("00456254") is None
+    assert catalog.get("00000002") is None
+    assert "00456254" not in [r.id for r in catalog.search("domestic goddess", k=5)]
 
 
 def test_check_disk_space_refuses_when_free_space_is_below_estimate(
@@ -71,9 +80,10 @@ def test_parse_index_links_finds_nothing_on_an_unrelated_page():
 
 def test_load_juvenile_records_reads_gzipped_marcxml(tmp_path):
     part = tmp_path / "BooksAll.2016.part01.xml.gz"
-    part.write_bytes(gzip.compress(FIXTURE.read_bytes()))
+    part.write_bytes(gzip.compress(LOC_SAMPLE.read_bytes()))
     catalog = SqliteCatalog(sqlite3.connect(":memory:"))
-    assert load_juvenile_records(part, catalog) == 2
+    assert load_juvenile_records(part, catalog) == LOC_SAMPLE_JUVENILE_COUNT
+    assert catalog.get("00057791").title == "The story of Ferdinand /"
 
 
 class _FakeResponse(io.BytesIO):
