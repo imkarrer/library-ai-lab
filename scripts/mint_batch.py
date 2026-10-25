@@ -20,9 +20,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from jinja2 import Template
-
-from library_assistant.mint import mint_cards, qr_sheet_html, roster_csv
+from library_assistant.mint import (
+    mint_cards,
+    qr_sheet_html,
+    roster_csv,
+    roster_sheet_html,
+)
 
 
 def _slug(class_label: str) -> str:
@@ -36,6 +39,8 @@ def write_batch_files(
     roster_rows,
     registration_payload: dict[str, object],
     base_url: str | None,
+    minted_at: datetime,
+    expires_at: datetime,
 ) -> dict[str, Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     slug = _slug(class_label)
@@ -49,18 +54,9 @@ def write_batch_files(
     paths["csv"].write_text(roster_csv(roster_rows))
     paths["json"].write_text(json.dumps(registration_payload, indent=2))
 
-    # Generate the printable roster sheet
-    roster_template_path = Path("templates/roster_sheet.html")
-    if roster_template_path.exists():
-        with roster_template_path.open() as f:
-            template = Template(f.read())
-        roster_html = template.render(
-            class_label=class_label,
-            start_date=registration_payload["expires_at"].split("T")[0],
-            end_date=registration_payload["expires_at"].split("T")[0],
-            cards=cards,
-        )
-        paths["roster"].write_text(roster_html)
+    paths["roster"].write_text(
+        roster_sheet_html(cards, class_label, minted_at, expires_at)
+    )
 
     return paths
 
@@ -88,7 +84,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--print", action="store_true", help="Print the roster sheet")
     args = parser.parse_args(argv)
 
-    expires_at = datetime.now(UTC) + timedelta(days=args.days)
+    minted_at = datetime.now(UTC)
+    expires_at = minted_at + timedelta(days=args.days)
     result = mint_cards(args.count, args.class_label, expires_at)
     paths = write_batch_files(
         args.out_dir,
@@ -97,15 +94,14 @@ def main(argv: list[str] | None = None) -> int:
         result.roster_rows,
         result.registration_payload,
         base_url=args.url.rsplit("/batches", 1)[0] if args.url else None,
+        minted_at=minted_at,
+        expires_at=expires_at,
     )
     for name, path in paths.items():
         print(f"wrote {name}: {path}")
 
     if args.print:
-        if "roster" in paths:
-            print(paths["roster"].read_text())
-        else:
-            print("Roster template not found")
+        print(paths["roster"].read_text())
 
     if args.url and args.registration_key:
         upload_payload(args.url, args.registration_key, result.registration_payload)
