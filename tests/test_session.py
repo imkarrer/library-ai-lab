@@ -224,7 +224,7 @@ def test_chat_page_shows_the_banner_and_needs_a_session(client):
     assert BANNER_TEXT == "This can be wrong, check the source."
     assert BANNER_TEXT in page.text
     assert "Period 3" in page.text and "card 14" in page.text
-    assert "Finished" in page.text
+    assert "End session" in page.text
 
 
 def test_question_is_recorded_on_arrival(client, monkeypatch):
@@ -305,3 +305,23 @@ def test_model_error_still_finishes_the_exchange_with_what_was_shown(
     assert db.execute(
         "SELECT question, answer, citations FROM transcripts"
     ).fetchall() == [("a book about bulls?", "", "")]
+
+
+def test_chat_page_has_end_session_button(client):
+    """Test that the chat page has the new 'End session' button."""
+    test_client, _ = client
+    _sign_in(test_client)
+    page = test_client.get("/chat")
+    assert page.status_code == 200
+    assert "End session" in page.text
+
+
+def test_card_page_has_end_session_button(client):
+    """Test that the card page has the new 'End session' button."""
+    tc, _db = client
+    from tests.test_card_sign_in import _register
+
+    _register(tc, datetime.now(UTC) + timedelta(days=1))
+    response = tc.get("/card")
+    assert response.status_code == 200
+    assert "End session" in response.text

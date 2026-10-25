@@ -92,7 +92,10 @@ def test_token_in_path_refused(client):
     _register(tc, datetime.now(UTC) + timedelta(days=1))
     response = tc.get("/cards/token-1")
     assert response.status_code == 403
-    assert "ask your teacher" in response.text
+    assert (
+        "This card has stopped working. Ask your teacher for a new one."
+        in response.text
+    )
 
 
 def test_token_in_query_refused(client):
@@ -134,14 +137,20 @@ def test_expired_token_refused_via_fake_clock(client):
     app.dependency_overrides[get_clock] = lambda: expires_at + timedelta(hours=1)
     response = tc.post("/card", json={"token": "token-1"})
     assert response.status_code == 403
-    assert "ask your teacher" in response.text
+    assert (
+        "This card has stopped working. Ask your teacher for a new one."
+        in response.text
+    )
 
 
 def test_unknown_token_refused(client):
     tc, _db = client
     response = tc.post("/card", json={"token": "no-such-token"})
     assert response.status_code == 403
-    assert "ask your teacher" in response.text
+    assert (
+        "This card has stopped working. Ask your teacher for a new one."
+        in response.text
+    )
 
 
 def test_revoked_card_refused(client):
@@ -190,3 +199,26 @@ def test_revoked_batch_refused(client):
     assert tc.post("/card", json={"token": "token-1"}).status_code == 403
     assert tc.post("/card", json={"token": "token-2"}).status_code == 403
     assert db.execute("SELECT * FROM cards").fetchall() == []
+
+
+def test_refusal_text_says_ask_for_a_new_card(client):
+    """Test that the refusal text has been updated to mention asking for a new card."""
+    tc, _db = client
+    # Register a batch with a valid token, then try to use a different token
+    _register(tc, datetime.now(UTC) + timedelta(days=1))
+    # Try to sign in with a different token that doesn't exist
+    response = tc.post("/card", json={"token": "non-existent-token"})
+    assert response.status_code == 403
+    assert (
+        "This card has stopped working. Ask your teacher for a new one."
+        in response.text
+    )
+
+
+def test_card_page_has_end_session_button(client):
+    """Test that the card page has the new 'End session' button."""
+    tc, _db = client
+    _register(tc, datetime.now(UTC) + timedelta(days=1))
+    response = tc.get("/card")
+    assert response.status_code == 200
+    assert "End session" in response.text
