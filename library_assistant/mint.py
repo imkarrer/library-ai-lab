@@ -98,7 +98,7 @@ def qr_sheet_html(
     cells = []
     for card in cards:
         sign_in_value = (
-            f"{base_url.rstrip('/')}/cards/{card.token}" if base_url else card.token
+            f"{base_url.rstrip('/')}/card#t={card.token}" if base_url else card.token
         )
         cells.append(
             f"""

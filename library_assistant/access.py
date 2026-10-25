@@ -11,13 +11,60 @@ import os
 import sqlite3
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import PlainTextResponse
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi.responses import HTMLResponse, PlainTextResponse
 from pydantic import BaseModel
 
 DB_PATH = os.environ.get("LIBRARY_ASSISTANT_DB", "library_assistant.db")
 
 REFUSAL_TEXT = "this card no longer works, ask your teacher"
+
+SESSION_COOKIE = "session"
+
+CARD_PAGE_HTML = """<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Library Assistant</title>
+</head>
+<body>
+  <p id="status">Signing in...</p>
+  <button id="finish" style="display:none">Finished</button>
+  <script>
+    const statusEl = document.getElementById("status");
+    const finishButton = document.getElementById("finish");
+
+    const match = window.location.hash.match(/t=([^&]+)/);
+    if (match) {
+      const token = decodeURIComponent(match[1]);
+      fetch("/card", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ token: token }),
+      }).then((response) => {
+        history.replaceState(null, "", window.location.pathname);
+        if (response.ok) {
+          statusEl.textContent = "Session active.";
+          finishButton.style.display = "inline";
+        } else {
+          statusEl.textContent = "This card no longer works, ask your teacher.";
+        }
+      });
+    } else {
+      statusEl.textContent = "No card token found.";
+    }
+
+    finishButton.addEventListener("click", () => {
+      fetch("/card/finish", { method: "POST", credentials: "same-origin" }).then(() => {
+        statusEl.textContent = "Finished.";
+        finishButton.style.display = "none";
+      });
+    });
+  </script>
+</body>
+</html>
+"""
 
 
 def hash_token(token: str) -> str:
@@ -83,6 +130,10 @@ class RevokeBatch(BaseModel):
     expires_at: datetime
 
 
+class TokenPayload(BaseModel):
+    token: str
+
+
 router = APIRouter()
 
 
@@ -146,14 +197,34 @@ def revoke_batch(
 
 
 @router.get("/cards/{token}")
-def sign_in(
-    token: str,
+def sign_in_token_in_path_refused(token: str) -> PlainTextResponse:
+    """A Token in the URL path reaches server logs, so it is always refused.
+
+    Binding: ADR-0003 addendum. Cards carry their Token in the `/card#t=...` fragment,
+    which browsers never send; this route exists only to refuse any Token the server does see.
+    """
+    return PlainTextResponse(REFUSAL_TEXT, status_code=403)
+
+
+@router.get("/card", response_model=None)
+def card_page(request: Request) -> HTMLResponse | PlainTextResponse:
+    if "token" in request.query_params:
+        return PlainTextResponse(REFUSAL_TEXT, status_code=403)
+    return HTMLResponse(CARD_PAGE_HTML)
+
+
+@router.post("/card")
+def post_sign_in(
+    payload: TokenPayload,
+    request: Request,
     db: sqlite3.Connection = Depends(get_db),
     clock: datetime = Depends(get_clock),
 ) -> PlainTextResponse:
+    if "token" in request.query_params:
+        return PlainTextResponse(REFUSAL_TEXT, status_code=403)
     row = db.execute(
         "SELECT card_number, expires_at, class_label FROM cards WHERE token_hash = ?",
-        (hash_token(token),),
+        (hash_token(payload.token),),
     ).fetchone()
     if row is None:
         return PlainTextResponse(REFUSAL_TEXT, status_code=403)
@@ -161,4 +232,20 @@ def sign_in(
     expires_at_dt = datetime.fromisoformat(expires_at)
     if clock > expires_at_dt:
         return PlainTextResponse(REFUSAL_TEXT, status_code=403)
-    return PlainTextResponse(f"{class_label} / card {card_number}: session active")
+    sign_in_response = PlainTextResponse(
+        f"{class_label} / card {card_number}: session active"
+    )
+    sign_in_response.set_cookie(
+        key=SESSION_COOKIE,
+        value=hash_token(payload.token),
+        httponly=True,
+        samesite="strict",
+    )
+    return sign_in_response
+
+
+@router.post("/card/finish")
+def finish_session(response: Response) -> dict[str, str]:
+    """Clears this device's session cookie. The Card itself is not Revoked."""
+    response.delete_cookie(SESSION_COOKIE, httponly=True, samesite="strict")
+    return {"status": "finished"}
