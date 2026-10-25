@@ -7,4 +7,5 @@ cd "$(dirname "$0")/.."
 
 ruff check .
 ruff format --check .
+python scripts/confidentiality.py
 pytest
