@@ -13,13 +13,19 @@ Flag queue. Owns the install.
 _Avoid_: admin, operator
 
 **Teacher**:
-A staff member who mints Batches for a class and keeps that class's Roster.
+A staff member who mints Batches for a class, registers them with their own Registration key,
+and keeps that class's Roster.
 _Avoid_: issuer
 
 **Counselor**:
 An optional staff role that receives Escalations. When there is none, the Librarian wears
-this hat.
+this hat. A Counselor alone cannot hold a Watch, because they see only Escalated Flags.
 _Avoid_: reviewer, moderator
+
+**Stand-in**:
+A role the Librarian grants to any staff account so it can open the Live view and Flag queue
+and hold a Watch in the Librarian's place. It cannot manage accounts, keys, or settings.
+_Avoid_: backup, deputy, substitute
 
 **Student**:
 Anyone chatting through a Card. The assistant never knows which student; only the Roster does.
@@ -53,7 +59,13 @@ hashes to register.
 
 **Registration**:
 Sending a Batch's Token hashes with their Card numbers, the expiry, and the Class label to the
-assistant. Nothing else about the Batch ever reaches it.
+assistant, under the minting Teacher's Registration key. Nothing about any Student ever
+reaches it.
+
+**Registration key**:
+A staff account's own secret for Registration, shown once and stored as a hash. It is how the
+assistant knows which Teacher registered a Batch.
+_Avoid_: API key, token, password
 
 **Roster**:
 The Teacher's record of which Student holds which Card number. It never leaves the Teacher's
@@ -142,9 +154,26 @@ files in its own records. The assistant keeps no copy, and the school's pupil-re
 govern the file.
 _Avoid_: download, backup, save
 
+**Watch**:
+A Librarian's or Stand-in's deliberate, heartbeat-confirmed presence on the Live view or Flag
+queue, from Start watch until End watch, sign-out, or a missed heartbeat. Student Sessions
+start and continue only while at least one Watch is on.
+_Avoid_: shift, duty, monitoring, online
+
+**Alarm**:
+The banner, tab title, and repeating chime a high-severity Flag raises on every watching page
+until an adult Acknowledges it. It shows no Student words and never leaves the page.
+_Avoid_: alert (a Flag is not an alert), notification, page
+
+**Acknowledge**:
+An adult saying "I'm on it" to an Alarm: it records who and when and silences the Alarm. It
+does not close the Flag.
+_Avoid_: dismiss, resolve
+
 **Supportive reply**:
-The fixed reply a Student gets when an exchange raises a high-severity Flag: talk to a
-counselor or trusted adult, and the 988 line.
+The reply a Student gets instead of an answer when a message matches a high-severity Watchlist
+entry: written for its Rubric category, naming an adult in the building, and for self-harm the
+988 line. An Install may adjust it within fixed guard rails.
 _Avoid_: refusal, canned response
 
 **Escalation**:
