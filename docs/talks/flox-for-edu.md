@@ -59,8 +59,8 @@ local AI assistant for a middle school library." Both presenters' names (from th
 form). The repo URL.
 
 **Notes (Engineer, 30 s):** Introduce each presenter in one sentence. "I work at Flox, so weigh
-what I say about it accordingly. Everything you'll see is open source, and the repo is
-public."
+what I say about it accordingly. The code is public, and schools can run it
+free of charge."
 
 ### Slide 2: The tool that left with its builder
 
