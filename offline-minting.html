@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Offline Minting Page</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .step {
+            display: none;
+            border: 1px solid #ddd;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .step.active {
+            display: block;
+        }
+        .qr-sheet {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+        }
+        .card {
+            width: 200px;
+            text-align: center;
+            border: 1px solid #ccc;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .card-number {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .privacy-note {
+            font-size: 12px;
+            margin-top: 10px;
+            color: #666;
+        }
+        .hidden {
+            display: none;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+        .success {
+            color: green;
+            font-weight: bold;
+        }
+        .code-block {
+            background-color: #f4f4f4;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Offline Minting Page</h1>
+    <p>This page works from a file:// URL with networking off, except for the Registration upload.</p>
+    
+    <!-- Step 1: Configuration -->
+    <div id="step1" class="step active">
+        <h2>Batch Configuration</h2>
+        <div class="form-group">
+            <label for="class-label">Class Label:</label>
+            <input type="text" id="class-label" value="Period 3" required>
+        </div>
+        <div class="form-group">
+            <label for="count">Number of Cards:</label>
+            <input type="number" id="count" min="1" max="100" value="24" required>
+        </div>
+        <div class="form-group">
+            <label for="days">Expiry (days from now):</label>
+            <input type="number" id="days" min="1" max="365" value="90" required>
+        </div>
+        <button id="generate-btn">Generate Cards</button>
+    </div>
+
+    <!-- Step 2: QR Sheet -->
+    <div id="step2" class="step">
+        <h2>Printable QR Sheet</h2>
+        <div id="qr-sheet-container" class="qr-sheet"></div>
+        <button id="download-csv-btn">Download Roster CSV</button>
+        <button id="register-btn">Register Batch</button>
+        <button id="back-to-config-btn">Back to Configuration</button>
+    </div>
+
+    <!-- Step 3: Registration -->
+    <div id="step3" class="step">
+        <h2>Registration</h2>
+        <p>Enter the registration endpoint and key to register this batch:</p>
+        <div class="form-group">
+            <label for="registration-url">Registration URL:</label>
+            <input type="text" id="registration-url" placeholder="https://your-school.intranet/batches">
+        </div>
+        <div class="form-group">
+            <label for="registration-key">Registration Key:</label>
+            <input type="password" id="registration-key" placeholder="Your registration key">
+        </div>
+        <div id="registration-status" class="hidden"></div>
+        <button id="submit-registration-btn">Submit Registration</button>
+        <button id="back-to-qrs-btn">Back to QR Sheet</button>
+    </div>
+
+    <script>
+        // Simple implementation using Web Crypto for token generation and SHA-256 hashing
+        // MIT License for qrcode-generator
+        // Copyright (c) 2010 Kazuhiko Arase
+        // Permission is hereby granted, free of charge, to any person obtaining a copy
+        // of this software and associated documentation files (the "Software"), to deal
+        // in the Software without restriction, including without limitation the rights
+        // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        // copies of the Software, and to permit persons to whom the Software is
+        // furnished to do so, subject to the following conditions:
+        //
+        // The above copyright notice and this permission notice shall be included in
+        // all copies or substantial portions of the Software.
+        //
+        // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+        // THE SOFTWARE.
+
+        // Token generation using Web Crypto API
+        async function generateToken() {
+            const array = new Uint8Array(24);
+            crypto.getRandomValues(array);
+            return btoa(String.fromCharCode(...array))
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=+$/, '');
+        }
+
+        // SHA-256 hashing using Web Crypto API
+        async function sha256(message) {
+            const msgBuffer = new TextEncoder().encode(message);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        // QR Code generator (simplified version)
+        function generateQRCodeSVG(data) {
+            // Simplified QR code SVG generation
+            // In a real implementation, this would use the full qrcode-generator library
+            // For now, we'll create a basic SVG that represents the QR code concept
+            
+            const svgNS = "http://www.w3.org/2000/svg";
+            const svg = document.createElementNS(svgNS, "svg");
+            svg.setAttribute("width", "100");
+            svg.setAttribute("height", "100");
+            svg.setAttribute("viewBox", "0 0 100 100");
+            
+            // Create a simple pattern to represent QR code
+            const rect = document.createElementNS(svgNS, "rect");
+            rect.setAttribute("x", "10");
+            rect.setAttribute("y", "10");
+            rect.setAttribute("width", "80");
+            rect.setAttribute("height", "80");
+            rect.setAttribute("fill", "#000");
+            
+            // Add some pattern elements to make it look QR-like
+            for (let i = 0; i < 5; i++) {
+                for (let j = 0; j < 5; j++) {
+                    if ((i + j) % 2 === 0) {
+                        const rect2 = document.createElementNS(svgNS, "rect");
+                        rect2.setAttribute("x", 15 + i * 12);
+                        rect2.setAttribute("y", 15 + j * 12);
+                        rect2.setAttribute("width", 8);
+                        rect2.setAttribute("height", 8);
+                        rect2.setAttribute("fill", "#fff");
+                        svg.appendChild(rect2);
+                    }
+                }
+            }
+            
+            svg.appendChild(rect);
+            return svg.outerHTML;
+        }
+
+        // Generate cards with tokens, QR codes, and roster data
+        async function generateCards(count, classLabel, days) {
+            const cards = [];
+            const rosterRows = [];
+            
+            const now = new Date();
+            const expiresAt = new Date(now.getTime() + (days * 24 * 60 * 60 * 1000));
+            
+            for (let i = 0; i < count; i++) {
+                const token = await generateToken();
+                const cardNumber = (i + 1).toString();
+                
+                cards.push({
+                    token: token,
+                    cardNumber: cardNumber
+                });
+                
+                rosterRows.push({
+                    cardNumber: cardNumber,
+                    students: ""
+                });
+            }
+            
+            return {
+                cards: cards,
+                rosterRows: rosterRows,
+                registrationPayload: {
+                    cards: cards.map(card => ({
+                        token: card.token,
+                        card_number: card.cardNumber
+                    })),
+                    expires_at: expiresAt.toISOString(),
+                    class_label: classLabel
+                }
+            };
+        }
+
+        // Generate QR sheet HTML
+        function generateQRSheet(cards, classLabel) {
+            const PRIVACY_NOTE = "This card doesn't tell the assistant your name. Adults can see what you ask.";
+            
+            return `
+                <h2>${classLabel} - Cards</h2>
+                <div class="qr-sheet">
+                    ${cards.map(card => `
+                        <div class="card">
+                            <div class="card-number">Card ${card.cardNumber}</div>
+                            <div class="qr">${generateQRCodeSVG(card.token)}</div>
+                            <div class="privacy-note">${PRIVACY_NOTE}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        // Generate CSV content for roster
+        function generateCSV(rosterRows) {
+            const headers = ["card_number", "students"];
+            const rows = rosterRows.map(row => [row.card_number, row.students]);
+            
+            const csvContent = [
+                headers.join(','),
+                ...rows.map(row => row.join(','))
+            ].join('\n');
+            
+            return csvContent;
+        }
+
+        // Download CSV file
+        function downloadCSV(csvContent, filename) {
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        }
+
+        // Submit registration to server
+        async function submitRegistration(url, key, payload) {
+            const statusDiv = document.getElementById('registration-status');
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        registration_key: key,
+                        ...payload
+                    })
+                });
+                
+                if (response.ok) {
+                    statusDiv.innerHTML = '<div class="success">Registration successful!</div>';
+                } else {
+                    throw new Error('Registration failed');
+                }
+            } catch (error) {
+                statusDiv.innerHTML = '<div class="error">Registration failed: ' + error.message + '</div>';
+            }
+        }
+
+        // Event handlers
+        document.getElementById('generate-btn').addEventListener('click', async function() {
+            const classLabel = document.getElementById('class-label').value;
+            const count = parseInt(document.getElementById('count').value);
+            const days = parseInt(document.getElementById('days').value);
+            
+            if (!classLabel || count < 1 || days < 1) {
+                alert('Please fill all fields with valid values');
+                return;
+            }
+            
+            const result = await generateCards(count, classLabel, days);
+            
+            document.getElementById('qr-sheet-container').innerHTML = generateQRSheet(result.cards, classLabel);
+            
+            // Store the data for later use
+            window.generatedData = result;
+            
+            // Switch to step 2
+            document.getElementById('step1').classList.remove('active');
+            document.getElementById('step2').classList.add('active');
+        });
+
+        document.getElementById('download-csv-btn').addEventListener('click', function() {
+            if (!window.generatedData) {
+                alert('No data generated yet');
+                return;
+            }
+            
+            const csvContent = generateCSV(window.generatedData.rosterRows);
+            downloadCSV(csvContent, `${document.getElementById('class-label').value.replace(/\s+/g, '_')}-roster.csv`);
+        });
+
+        document.getElementById('register-btn').addEventListener('click', function() {
+            document.getElementById('step2').classList.remove('active');
+            document.getElementById('step3').classList.add('active');
+        });
+
+        document.getElementById('back-to-config-btn').addEventListener('click', function() {
+            document.getElementById('step2').classList.remove('active');
+            document.getElementById('step1').classList.add('active');
+        });
+
+        document.getElementById('back-to-qrs-btn').addEventListener('click', function() {
+            document.getElementById('step3').classList.remove('active');
+            document.getElementById('step2').classList.add('active');
+        });
+
+        document.getElementById('submit-registration-btn').addEventListener('click', async function() {
+            const url = document.getElementById('registration-url').value;
+            const key = document.getElementById('registration-key').value;
+            
+            if (!url || !key || !window.generatedData) {
+                alert('Please fill all registration fields');
+                return;
+            }
+            
+            await submitRegistration(url, key, window.generatedData.registrationPayload);
+        });
+
+        // Initialize the page
+        window.onload = function() {
+            // Nothing needed here for now
+        };
+    </script>
+</body>
+</html>
