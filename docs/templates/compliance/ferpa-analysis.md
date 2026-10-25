@@ -66,9 +66,9 @@ entry to another adult. The Roster is therefore an education record too.
 
 **How the ADRs answer it.** ADR-0002 keeps the link off the server, so a breach of the server
 exposes no names. ADR-0003 keeps the record set small: most days, a parent request finds
-nothing left except open Flags. What remains for the district: a hold on the Purge for records
-named in a pending request (the product does not have one yet), and the annual FERPA notice
-covering this record type.
+nothing left except open Flags. What remains for the district: setting a Hold on the Purge for
+records named in a pending request (designed in ADR-0003's addendum, not yet built), and the
+annual FERPA notice covering this record type.
 
 ## Wis. Stat. 118.125 (pupil records)
 
@@ -175,7 +175,7 @@ PI 8.01(2)(h) and a long-range library plan as conditions `[VERIFY]`.
 
 | Rule | What it needs | Design answer | Left to the district |
 |---|---|---|---|
-| FERPA | Access within 45 days; no destruction during a request; internal disclosure only for legitimate interest | Names never on the server; daily Purge | A Purge hold; annual notice |
+| FERPA | Access within 45 days; no destruction during a request; internal disclosure only for legitimate interest | Names never on the server; daily Purge; Holds (ADR-0003 addendum) | Setting Holds; annual notice |
 | 118.125 | Confidentiality; board-adopted written retention rule | Same; Identification only between licensed staff | Adopt `retention-policy.md` as a rule; class 1 notice |
 | 43.30 (if it applies) | Identity-revealing use records disclosed only on listed grounds | The server holds no identity | Counsel's view on Identification |
 | COPPA | Applies to commercial operators | No vendor; intranet only | Keep it that way |

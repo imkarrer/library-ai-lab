@@ -89,7 +89,14 @@ A reply built from Records and carrying Citations to them.
 A reference in a Grounded answer to the Record it came from.
 
 **Purge**:
-The end-of-school-day deletion of every transcript except those attached to an open Flag.
+The end-of-school-day deletion of every transcript except those attached to an open Flag or
+under a Hold. It also deletes expired Token hashes and Flag histories past their time.
+
+**Hold**:
+A pause on the Purge for every record in a scope (Class labels, a date range, and optionally
+Card numbers), set by the Librarian when a records request, court order, or preservation
+request arrives, and lifted only by the Librarian. It never expires on its own.
+_Avoid_: legal hold, freeze, lock
 
 ## Safety
 
@@ -122,6 +129,18 @@ _Avoid_: worker, backend, provider
 
 **Flag queue**:
 Open Flags waiting for an adult.
+
+**Flag history**:
+The append-only account of what happened to one Flag: raised, viewed, escalated, exported,
+closed, reopened, each with the staff account and the time, and a reason where one is
+required. Kept for a while after the exchange is purged.
+_Avoid_: audit log, trail
+
+**Export**:
+A staff action that copies a Flag's exchange, or a Hold's transcripts, into a file the school
+files in its own records. The assistant keeps no copy, and the school's pupil-records rules
+govern the file.
+_Avoid_: download, backup, save
 
 **Supportive reply**:
 The fixed reply a Student gets when an exchange raises a high-severity Flag: talk to a
