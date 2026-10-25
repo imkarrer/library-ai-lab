@@ -122,7 +122,8 @@ a claim that we never had students' names. Nobody can check a claim that we dele
   internet access to use it.
 - Flox, a free tool that installs the assistant the same way on any computer, so the setup
   doesn't depend on one person.
-- No license fees and no per-student cost.
+- No license fees and no per-student cost. The assistant is open source, under the Apache 2.0
+  license, so anyone can read exactly what it does with student questions.
 
 ## Templates for your district
 
