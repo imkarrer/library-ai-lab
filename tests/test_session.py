@@ -158,12 +158,15 @@ def test_the_cookie_is_a_fresh_session_id_never_the_token_or_its_stored_hash(cli
     assert session_id not in stored
 
 
-def test_two_sign_ins_are_two_sessions(client):
+def test_two_sign_ins_are_one_session(client):
+    """When signing in twice with the same card on the same device,
+    the second sign-in replaces the first session."""
     test_client, db = client
     first = _sign_in(test_client)
     second = _sign_in(test_client)
     assert first != second
-    assert db.execute("SELECT count(*) FROM sessions").fetchone()[0] == 2
+    # Second sign-in should replace the first session, not create a new one
+    assert db.execute("SELECT count(*) FROM sessions").fetchone()[0] == 1
 
 
 def test_revoking_the_card_ends_its_session(client, model_calls):
