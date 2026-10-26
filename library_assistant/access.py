@@ -174,6 +174,14 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
         )
         """
     )
+    # Track purge runs to avoid running multiple times per day
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS purge_runs (
+            ran_at TEXT NOT NULL
+        )
+        """
+    )
     conn.commit()
     return conn
 
