@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -14,6 +15,8 @@ from library_assistant.routers.live import router as live_router
 from library_assistant.routers.session import router as session_router
 from library_assistant.staff import StaffSignInRequired, sign_in_required_handler
 from library_assistant.staff import router as staff_router
+
+logger = logging.getLogger(__name__)
 
 # Keeps the oversight lock file open for the process's life.
 _oversight_lock_file = None
@@ -40,7 +43,10 @@ async def lifespan(app: FastAPI):
     yield
 
     if _oversight_lock_file is not None:
-        _oversight_lock_file.close()
+        try:
+            _oversight_lock_file.close()
+        except OSError as e:
+            logger.warning(f"Failed to close oversight lock file: {e}")
         _oversight_lock_file = None
 
 

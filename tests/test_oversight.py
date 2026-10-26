@@ -110,17 +110,17 @@ def test_second_lock_fails_and_logs():
     """Test that second lock acquisition fails and logs a warning."""
     # Create a temporary database path
     import tempfile
-    
+
     with tempfile.NamedTemporaryFile() as tmp:
         db_path = tmp.name
-        
+
         # First acquisition should succeed
         lock_file1 = acquire_oversight_lock(db_path)
         assert lock_file1 is not None
         # Close it so the second test can try to acquire
         lock_file1.close()
-        
-        # Second acquisition should fail (if using the same file, but we don't have 
+
+        # Second acquisition should fail (if using the same file, but we don't have
         # a way to test true process locking in unit tests)
         # The important thing is that we're not crashing
         acquire_oversight_lock(db_path)
@@ -134,14 +134,14 @@ def test_lock_file_beside_db():
     """Test that the lock file is created beside the database file."""
     import os
     import tempfile
-    
+
     with tempfile.NamedTemporaryFile() as tmp:
         db_path = tmp.name
         # Get the directory of the database
         db_dir = os.path.dirname(db_path)
         # The lock file should be in the same directory
         os.path.join(db_dir, "oversight.lock")
-        
+
         # Acquire lock and verify the path (should be successful, not None)
         lock_file = acquire_oversight_lock(db_path)
         # This test just verifies the path construction, not the actual locking
