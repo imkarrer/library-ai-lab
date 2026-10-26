@@ -215,6 +215,87 @@ def test_refusal_text_says_ask_for_a_new_card(client):
     )
 
 
+def test_new_sign_in_ends_the_devices_previous_session(client):
+    """Test that signing in with a new card ends the previous session on the same device."""
+    tc, db = client
+    # Register two cards
+    expires_at = datetime.now(UTC) + timedelta(days=1)
+    _register(tc, expires_at)
+
+    # Sign in with first card
+    response1 = tc.post("/card", json={"token": "token-1"})
+    assert response1.status_code == 200
+    assert SESSION_COOKIE in response1.cookies
+    session1_id = response1.cookies[SESSION_COOKIE]
+
+    # Verify session exists
+    session_count = db.execute("SELECT count(*) FROM sessions").fetchone()[0]
+    assert session_count == 1
+
+    # Sign in with second card (same device)
+    response2 = tc.post("/card", json={"token": "token-1"})
+    assert response2.status_code == 200
+    assert SESSION_COOKIE in response2.cookies
+
+    # Verify old session is deleted
+    session_count = db.execute("SELECT count(*) FROM sessions").fetchone()[0]
+    assert session_count == 1
+
+    # Verify the new session is different from the old one
+    session2_id = response2.cookies[SESSION_COOKIE]
+    assert session1_id != session2_id
+
+
+def test_other_devices_sessions_untouched(client):
+    """Test that signing in with a new card doesn't affect sessions on other devices."""
+    tc, db = client
+    # Register a card
+    expires_at = datetime.now(UTC) + timedelta(days=1)
+    _register(tc, expires_at)
+
+    # Sign in with first card on device 1
+    response1 = tc.post("/card", json={"token": "token-1"})
+    assert response1.status_code == 200
+    session1_id = response1.cookies[SESSION_COOKIE]
+
+    # Sign in with same card on device 2 (different TestClient)
+    tc2 = TestClient(app)
+    tc2.app.dependency_overrides[get_db] = lambda: db
+    tc2.app.dependency_overrides[get_registration_key] = lambda: REGISTRATION_KEY
+
+    response2 = tc2.post("/card", json={"token": "token-1"})
+    assert response2.status_code == 200
+    session2_id = response2.cookies[SESSION_COOKIE]
+
+    # Both sessions should exist (different devices)
+    session_count = db.execute("SELECT count(*) FROM sessions").fetchone()[0]
+    assert session_count == 2
+
+    # Verify they are different sessions
+    assert session1_id != session2_id
+
+
+def test_cookie_expires_with_the_card(client):
+    """Test that the session cookie expires with the card's expiry."""
+    tc, db = client
+    # Register a card with a specific expiry time
+    expires_at = datetime.now(UTC) + timedelta(hours=1)
+    _register(tc, expires_at)
+
+    # Sign in with the card
+    response = tc.post("/card", json={"token": "token-1"})
+    assert response.status_code == 200
+    assert SESSION_COOKIE in response.cookies
+
+    # Check that cookie has the right expiry (should be the card's expiry)
+    set_cookie_header = response.headers["set-cookie"]
+    assert "expires=" in set_cookie_header.lower()
+
+    # Verify the session exists in the database
+    session_count = db.execute("SELECT count(*) FROM sessions").fetchone()[0]
+    assert session_count == 1
+
+
 def test_card_page_has_end_session_button(client):
     """Test that the card page has the new 'End session' button."""
     tc, _db = client
