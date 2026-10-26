@@ -19,16 +19,18 @@ def acquire_oversight_lock(db_path: str) -> IO | None:
     lock_file_path = os.path.join(os.path.dirname(db_path), "oversight.lock")
 
     try:
-        # Open the lock file (create if it doesn't exist) using context manager
-        with open(lock_file_path, "w") as lock_file:
-            # Try to acquire an exclusive non-blocking lock
-            try:
-                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-                return lock_file
-            except BlockingIOError:
-                # Another process holds the lock
-                logger.warning(f"Oversight off: another process holds {lock_file_path}")
-                return None
+        # Open the lock file (create if it doesn't exist) without context manager
+        lock_file = open(lock_file_path, "w")
+        # Try to acquire an exclusive non-blocking lock
+        try:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return lock_file
+        except BlockingIOError:
+            # Another process holds the lock
+            # Close the file before returning None
+            lock_file.close()
+            logger.warning(f"Oversight off: another process holds {lock_file_path}")
+            return None
     except OSError:
         # Handle file system errors (permissions, non-existent directory, etc.)
         return None
