@@ -114,7 +114,10 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
             question TEXT NOT NULL,
             answer TEXT NOT NULL,
             citations TEXT NOT NULL,
-            asked_at TEXT NOT NULL
+            asked_at TEXT NOT NULL,
+            verdict TEXT,
+            screened_at TEXT,
+            screening TEXT NOT NULL DEFAULT 'none' CHECK (screening IN ('none','oversight','watchlist_alone'))
         )
         """
     )
