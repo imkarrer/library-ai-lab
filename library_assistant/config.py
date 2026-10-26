@@ -34,6 +34,9 @@ class Settings:
     openai_model: str = "llama3"  # Default model
     school_timezone: str = "America/Chicago"  # IANA name
     school_day_end: str = "15:30"  # HH:MM, local to school_timezone
+    oversight_endpoint: str | None = None
+    oversight_model: str | None = None
+    oversight_timeout_seconds: int = 20
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> Settings:
@@ -45,6 +48,10 @@ class Settings:
             if raw is not None:
                 values[field.name] = _parse(field.name, hints[field.name], raw)
         return cls(**values)
+
+    @property
+    def oversight_enabled(self) -> bool:
+        return self.oversight_endpoint is not None and self.oversight_model is not None
 
 
 def _parse(name: str, hint: object, raw: str) -> object:
