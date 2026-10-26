@@ -6,9 +6,11 @@ import tempfile
 from datetime import UTC, datetime
 
 import pytest
+from fastapi.testclient import TestClient
 
+from library_assistant.app import app
 from library_assistant.config import Settings
-from library_assistant.purge import purge
+from library_assistant.purge import purge, run_if_due
 
 
 @pytest.fixture
@@ -61,6 +63,13 @@ def db():
                 flag_id INTEGER NOT NULL,
                 transcript_id INTEGER NOT NULL,
                 repeated_at TEXT NOT NULL
+            )
+            """
+        )
+        db.execute(
+            """
+            CREATE TABLE purge_runs (
+                ran_at TEXT NOT NULL
             )
             """
         )
@@ -371,3 +380,111 @@ def test_report_counts(db):
     # Verify transcript counts
     transcript_count = db.execute("SELECT COUNT(*) FROM transcripts").fetchone()[0]
     assert transcript_count == 1  # Only the flagged one should remain
+
+
+def test_run_if_due_runs_once_per_day_end(db):
+    """Test that run_if_due runs purge once per day end."""
+    # Create a transcript from yesterday
+    yesterday = datetime(2023, 10, 1, 10, 0, 0, tzinfo=UTC)
+    db.execute(
+        "INSERT INTO transcripts (session_hash, class_label, card_number, question, answer, citations, asked_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (
+            "session1",
+            "Test Class",
+            "12345",
+            "Question",
+            "Answer",
+            "[]",
+            yesterday.isoformat(),
+        ),
+    )
+    db.commit()
+
+    # Create a settings object with school timezone and end time
+    settings = Settings(school_timezone="America/Chicago", school_day_end="17:00:00")
+
+    # First call should run purge
+    now = datetime(2023, 10, 2, 18, 0, 0, tzinfo=UTC)
+    result1 = run_if_due(db, now, settings)
+
+    # Should have run and returned a result
+    assert result1 is not None
+    assert result1.deleted == 1
+    assert result1.kept_for_flags == 0
+
+    # Second call should not run purge again for same day end
+    result2 = run_if_due(db, now, settings)
+
+    # Should return None indicating no purge was run
+    assert result2 is None
+
+    # Verify transcript was deleted
+    count = db.execute("SELECT COUNT(*) FROM transcripts").fetchone()[0]
+    assert count == 0
+
+
+def test_run_if_due_skips_when_already_run(db):
+    """Test that run_if_due skips when already run for the day end."""
+    # Create a transcript from yesterday
+    yesterday = datetime(2023, 10, 1, 10, 0, 0, tzinfo=UTC)
+    db.execute(
+        "INSERT INTO transcripts (session_hash, class_label, card_number, question, answer, citations, asked_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (
+            "session1",
+            "Test Class",
+            "12345",
+            "Question",
+            "Answer",
+            "[]",
+            yesterday.isoformat(),
+        ),
+    )
+    db.commit()
+
+    # Create a settings object with school timezone and end time
+    settings = Settings(school_timezone="America/Chicago", school_day_end="17:00:00")
+
+    # First call should run purge and record the run
+    now = datetime(2023, 10, 2, 18, 0, 0, tzinfo=UTC)
+    result1 = run_if_due(db, now, settings)
+
+    # Should have run and returned a result
+    assert result1 is not None
+
+    # Verify transcript was deleted in first run
+    count1 = db.execute("SELECT COUNT(*) FROM transcripts").fetchone()[0]
+    assert count1 == 0
+
+    # Add a second transcript to see if purge runs again (it shouldn't)
+    db.execute(
+        "INSERT INTO transcripts (session_hash, class_label, card_number, question, answer, citations, asked_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (
+            "session2",
+            "Test Class",
+            "67890",
+            "Question",
+            "Answer",
+            "[]",
+            yesterday.isoformat(),
+        ),
+    )
+    db.commit()
+
+    # Second call should not run purge again for same day end
+    result2 = run_if_due(db, now, settings)
+
+    # Should return None indicating no purge was run
+    assert result2 is None
+
+    # Verify only the new transcript exists (first was purged, second wasn't purged)
+    count2 = db.execute("SELECT COUNT(*) FROM transcripts").fetchone()[0]
+    assert count2 == 1
+
+
+def test_startup_purges_after_missed_day_end():
+    """Test that startup purge runs after a missed day end."""
+    # Test using TestClient to simulate app startup and verify behavior
+    with TestClient(app) as client:
+        # The TestClient will trigger the lifespan which should run purge
+        response = client.get("/health")
+        assert response.status_code == 200

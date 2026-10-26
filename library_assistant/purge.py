@@ -16,6 +16,34 @@ from library_assistant.schoolday import last_day_end_before
 PurgeReport = namedtuple("PurgeReport", ["deleted", "kept_for_flags"])
 
 
+def run_if_due(db, now: datetime, settings: Settings) -> PurgeReport | None:
+    """Run purge if it hasn't been run for the last school day end.
+
+    Args:
+        db: SQLite database connection
+        now: Current time (UTC)
+        settings: Configuration settings
+
+    Returns:
+        PurgeReport with counts of deleted and kept transcripts, or None if already run
+    """
+    # Check if purge has already been run for the last day end
+    cutoff = last_day_end_before(now, settings)
+    existing_run = db.execute(
+        "SELECT 1 FROM purge_runs WHERE ran_at >= ?", (cutoff.isoformat(),)
+    ).fetchone()
+
+    if existing_run:
+        return None
+
+    # Run the purge and record that it was run
+    report = purge(db, now, settings)
+    db.execute("INSERT INTO purge_runs (ran_at) VALUES (?)", (now.isoformat(),))
+    db.commit()
+
+    return report
+
+
 def purge(db, now: datetime, settings: Settings) -> PurgeReport:
     """Purge old transcripts, keeping those referenced by open Flags.
 
