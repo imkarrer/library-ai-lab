@@ -313,7 +313,16 @@ def post_sign_in(
     expires_at_dt = datetime.fromisoformat(expires_at)
     if clock > expires_at_dt:
         return PlainTextResponse(REFUSAL_TEXT, status_code=403)
+
+    # If the request already carries a `session` cookie, delete that sessions row
+    # before creating the new one, so the previous Student's Session on this device ends
     session_id = secrets.token_urlsafe(32)
+    if SESSION_COOKIE in request.cookies:
+        old_session_id = request.cookies[SESSION_COOKIE]
+        db.execute(
+            "DELETE FROM sessions WHERE session_hash = ?", (hash_token(old_session_id),)
+        )
+
     db.execute(
         "INSERT INTO sessions (session_hash, token_hash, started_at) VALUES (?, ?, ?)",
         (hash_token(session_id), token_hash, clock.isoformat()),
@@ -322,11 +331,14 @@ def post_sign_in(
     sign_in_response = PlainTextResponse(
         f"{class_label} / card {card_number}: session active"
     )
+    # The new cookie gets `expires=` the Card's expires_at, so the browser drops it
+    # when the Card stops working. It is still HttpOnly, SameSite=Strict.
     sign_in_response.set_cookie(
         key=SESSION_COOKIE,
         value=session_id,
         httponly=True,
         samesite="strict",
+        expires=expires_at_dt,
     )
     return sign_in_response
 
