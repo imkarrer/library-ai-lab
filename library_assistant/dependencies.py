@@ -29,7 +29,7 @@ def get_catalog(settings: Settings = Depends(get_settings)) -> Catalog:
 @functools.cache
 def get_watchlist() -> Watchlist:
     """The Watchlist, loaded and validated once per process; tests override it."""
-    return load_watchlist()
+    return load_watchlist(demo=get_settings().demo)
 
 
 async def get_http_client(
