@@ -67,7 +67,9 @@ SETUP_FORM = """<h1>Create the librarian account</h1>
 
 def page(title: str, body: str, status_code: int = 200) -> HTMLResponse:
     return HTMLResponse(
-        PAGE_HTML.format(title=html.escape(title), body=body), status_code=status_code
+        PAGE_HTML.format(title=html.escape(title), body=body),
+        status_code=status_code,
+        headers={"Cache-Control": "no-store"},
     )
 
 
