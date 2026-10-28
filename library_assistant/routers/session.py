@@ -12,10 +12,12 @@ import json
 import sqlite3
 from datetime import datetime
 
+import httpx
 from fastapi import APIRouter, Depends
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from starlette.types import Receive, Scope, Send
 
-from library_assistant.access import REFUSAL_TEXT, get_clock, get_db
+from library_assistant.access import REFUSAL_TEXT, Session, get_clock, get_db
 from library_assistant.catalog import Catalog
 from library_assistant.config import Settings
 from library_assistant.dependencies import (
@@ -96,6 +98,27 @@ CHAT_PAGE_HTML = """<!DOCTYPE html>
 </html>
 """
 
+# Card refs (Token hashes) with a message in flight: one per Card, across all its
+# Sessions (decision lib-f24.65). Process memory only (one process, ADR-0008); never
+# logged or stored (ADR-0002).
+_in_flight: set[str] = set()
+
+
+class _ReleasingStream(StreamingResponse):
+    """Releases the Card's in-flight marker however the response ends, including a
+    connection dropped before the body iterator ever starts (its finally never runs)."""
+
+    def __init__(self, *args, card_ref: str, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._card_ref = card_ref
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            _in_flight.discard(self._card_ref)
+
+
 router = APIRouter()
 
 
@@ -114,7 +137,7 @@ def chat_page(session: SessionDep) -> HTMLResponse:
     )
 
 
-@router.post("/ask")
+@router.post("/ask", response_model=None)
 async def ask(
     request: AskRequest,
     session: SessionDep,
@@ -123,8 +146,32 @@ async def ask(
     catalog: Catalog = Depends(get_catalog),
     db: sqlite3.Connection = Depends(get_db),
     clock: datetime = Depends(get_clock),
+) -> StreamingResponse | JSONResponse:
+    """Ask a question in a Session and stream a Grounded answer with Citations.
+
+    A Card has one message in flight at a time: another one gets 409 "one moment"
+    before it is recorded, checked or sent anywhere.
+    """
+    card_ref = session.card_ref
+    if card_ref in _in_flight:
+        return JSONResponse({"status": "one moment"}, status_code=409)
+    _in_flight.add(card_ref)
+    try:
+        return _answer(request, session, http_client, settings, catalog, db, clock)
+    except BaseException:
+        _in_flight.discard(card_ref)
+        raise
+
+
+def _answer(
+    request: AskRequest,
+    session: Session,
+    http_client: httpx.AsyncClient,
+    settings: Settings,
+    catalog: Catalog,
+    db: sqlite3.Connection,
+    clock: datetime,
 ) -> StreamingResponse:
-    """Ask a question in a Session and stream a Grounded answer with Citations."""
     transcript_id = start_exchange(db, session, request.question, clock)
     records = catalog.search(request.question, k=4)
     citations = [
@@ -177,8 +224,14 @@ async def ask(
                 yield "\n" + citation.line()
                 shown.append(citation)
         finally:
-            finish_exchange(db, transcript_id, "".join(answer_parts), shown)
+            try:
+                finish_exchange(db, transcript_id, "".join(answer_parts), shown)
+            finally:
+                _in_flight.discard(session.card_ref)
 
-    return StreamingResponse(
-        generate(), media_type="text/plain", headers={"Cache-Control": "no-store"}
+    return _ReleasingStream(
+        generate(),
+        media_type="text/plain",
+        headers={"Cache-Control": "no-store"},
+        card_ref=session.card_ref,
     )
