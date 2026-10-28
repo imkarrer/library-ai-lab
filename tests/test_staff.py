@@ -225,3 +225,53 @@ def test_librarian_sees_accounts_and_keys_pages(client, db):
     keys = client.get("/staff/keys")
     assert keys.status_code == 200
     assert REGISTRATION_KEY in keys.text
+
+
+def test_setup_creates_librarian(client, db):
+    response = client.post(
+        "/staff/setup",
+        data={
+            "username": "librarian",
+            "password": "correct horse",
+            "password_again": "correct horse",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert response.headers["location"] == "/staff"
+    assert STAFF_SESSION_COOKIE in response.cookies
+    row = db.execute("SELECT username, role FROM staff_accounts").fetchone()
+    assert row == ("librarian", "librarian")
+
+
+def test_setup_is_404_once_an_account_exists(client, db):
+    create_account(db, "librarian", "correct horse", "librarian")
+    assert client.get("/staff/setup").status_code == 404
+    response = client.post(
+        "/staff/setup",
+        data={
+            "username": "someone",
+            "password": "pw",
+            "password_again": "pw",
+        },
+    )
+    assert response.status_code == 404
+
+
+def test_setup_refuses_mismatched_passwords(client, db):
+    response = client.post(
+        "/staff/setup",
+        data={
+            "username": "librarian",
+            "password": "correct horse",
+            "password_again": "wrong horse",
+        },
+    )
+    assert response.status_code == 400
+    assert db.execute("SELECT 1 FROM staff_accounts").fetchone() is None
+
+
+def test_login_redirects_to_setup_when_no_accounts(client):
+    response = client.get("/staff/login", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == "/staff/setup"
