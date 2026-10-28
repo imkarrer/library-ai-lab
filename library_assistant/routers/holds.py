@@ -13,7 +13,7 @@ from datetime import date, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Form, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from library_assistant.access import get_clock, get_db
 from library_assistant.config import Settings, get_settings
@@ -23,6 +23,7 @@ from library_assistant.holds import (
     all_holds,
     get_hold,
     held_transcript_count,
+    held_transcripts,
     lift_hold,
     set_hold,
 )
@@ -35,13 +36,17 @@ def _split(raw: str) -> list[str]:
     return [part for part in raw.split(",") if part.strip()]
 
 
-def _scope_html(hold: Hold) -> str:
+def _scope_text(hold: Hold) -> str:
     classes = "all classes" if hold.all_classes else ", ".join(hold.class_labels)
     cards = ", ".join(hold.card_numbers) if hold.card_numbers else "all cards"
     return (
-        f"{html.escape(classes)}; {html.escape(cards)}; "
+        f"{classes}; {cards}; "
         f"{hold.date_from.isoformat()} to {hold.date_to.isoformat()}"
     )
+
+
+def _scope_html(hold: Hold) -> str:
+    return html.escape(_scope_text(hold))
 
 
 def _hold_row_html(hold: Hold, now: datetime, held: int) -> str:
@@ -67,7 +72,7 @@ def _hold_row_html(hold: Hold, now: datetime, held: int) -> str:
         f"<td>{html.escape(hold.set_by)}, {age_days} days ago</td>"
         f"<td>{held} transcripts</td>"
         f"<td>{status}</td>"
-        f"<td>{action}</td>"
+        f'<td><a href="/staff/holds/{hold.id}/export">Export</a> {action}</td>'
         "</tr>"
     )
 
@@ -153,6 +158,46 @@ def set_hold_route(
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     return RedirectResponse("/staff/holds", status_code=303)
+
+
+@router.get("/{hold_id}/export")
+def export_hold(
+    hold_id: int,
+    account: LibrarianDep,
+    db: sqlite3.Connection = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> Response:
+    """Export everything in a Hold's scope as a text/plain attachment: nothing
+    outside its scope, and nothing from any other Hold."""
+    hold = get_hold(db, hold_id)
+    if hold is None:
+        raise HTTPException(status_code=404, detail="no such Hold")
+
+    lines = [
+        f"Hold: {hold.id}",
+        f"Scope: {_scope_text(hold)}",
+        f"Reason: {hold.reason_kind}",
+        f"Reference: {hold.reference}",
+        f"Set by: {hold.set_by} at {hold.set_at}",
+        "",
+    ]
+    for class_label, card_number, asked_at, question, answer in held_transcripts(
+        db, hold, settings
+    ):
+        lines.append(f"Class label: {class_label}")
+        lines.append(f"Card number: {card_number}")
+        lines.append(f"Timed message at {asked_at}:")
+        lines.append(f"  Question: {question}")
+        lines.append(f"  Answer: {answer}")
+        lines.append("")
+    export_content = "\n".join(lines) + "\n"
+
+    response = Response(content=export_content, media_type="text/plain")
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Content-Disposition"] = (
+        f'attachment; filename="hold-{hold_id}-export.txt"'
+    )
+    return response
 
 
 @router.post("/{hold_id}/lift", response_model=None)

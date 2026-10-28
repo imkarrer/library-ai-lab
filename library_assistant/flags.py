@@ -35,6 +35,8 @@ class FlagRow:
     closed_at: str | None
     repeat_count: int
     last_repeat_at: str | None
+    # Set only by an Export, never by closing: the high-severity close gate reads it.
+    exported: int | None
 
 
 def raise_flag(
@@ -67,8 +69,9 @@ def raise_flag(
             entry_id,
             watchlist_version,
             reason,
-            raised_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            raised_at,
+            exported
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
         """,
         (
             transcript_id,
@@ -202,7 +205,8 @@ def open_flags(db: sqlite3.Connection) -> list[FlagRow]:
             raised_at,
             closed_at,
             repeat_count,
-            last_repeat_at
+            last_repeat_at,
+            exported
         FROM flags
         WHERE closed_at IS NULL
         ORDER BY raised_at DESC
@@ -239,7 +243,8 @@ def get_flag(db: sqlite3.Connection, flag_id: int) -> FlagRow | None:
             raised_at,
             closed_at,
             repeat_count,
-            last_repeat_at
+            last_repeat_at,
+            exported
         FROM flags
         WHERE id = ?
         """,

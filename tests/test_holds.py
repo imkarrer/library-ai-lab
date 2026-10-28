@@ -410,6 +410,45 @@ def test_startup_catch_up_purge_honours_holds(db, monkeypatch):
     assert row == (1, 1)
 
 
+def test_hold_export_contains_only_its_scope(client, db):
+    _sign_in_as(client, db, "librarian")
+    _transcript(db, "Period 3", "14")
+    _transcript(db, "Period 5", "14")
+    _transcript(db, "Period 3", "99")
+    hold_id = _hold(db, class_labels=("Period 3",), card_numbers=("14",))
+
+    response = client.get(f"/staff/holds/{hold_id}/export")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/plain")
+    assert response.headers["cache-control"] == "no-store"
+    body = response.text
+    assert "what do snow leopards eat?" in body
+    assert body.count("what do snow leopards eat?") == 1
+    assert "Period 3" in body
+    assert "99" not in body
+    assert "Period 5" not in body
+
+
+def test_hold_export_is_plain_text_not_html(client, db):
+    _sign_in_as(client, db, "librarian")
+    _transcript(db, "Art & Design", "14")
+    hold_id = _hold(db, class_labels=("Art & Design",))
+
+    body = client.get(f"/staff/holds/{hold_id}/export").text
+
+    assert "Scope: Art & Design;" in body
+    assert "&amp;" not in body
+
+
+def test_hold_export_refused_to_non_librarian(client, db):
+    _hold(db)
+    _sign_in_as(client, db, "teacher")
+
+    response = client.get("/staff/holds/1/export")
+    assert response.status_code == 403
+
+
 def test_older_purge_run_table_gains_the_count_columns(tmp_path):
     path = tmp_path / "old.db"
     old = sqlite3.connect(path)

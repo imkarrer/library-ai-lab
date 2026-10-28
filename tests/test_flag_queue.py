@@ -132,7 +132,7 @@ def test_close_removes_from_queue(client, db):
 
     response = client.post(
         f"/staff/flags/{flag_id}/close",
-        data={"outcome": "handled", "reason": "done"},
+        data={"outcome": "handled", "reason": "done", "confirm": "true"},
         follow_redirects=False,
     )
 
@@ -200,7 +200,7 @@ def test_stand_in_gets_full_queue_access(client, db):
     assert (
         client.post(
             f"/staff/flags/{flag_id}/close",
-            data={"outcome": "handled", "reason": "done"},
+            data={"outcome": "handled", "reason": "done", "confirm": "true"},
             follow_redirects=False,
         ).status_code
         == 303
@@ -275,14 +275,18 @@ def test_close_requires_outcome_and_reason(client, db):
 
     response = client.post(
         f"/staff/flags/{flag_id}/close",
-        data={"outcome": "not-a-real-outcome", "reason": "a reason"},
+        data={
+            "outcome": "not-a-real-outcome",
+            "reason": "a reason",
+            "confirm": "true",
+        },
         follow_redirects=False,
     )
     assert response.status_code == 422
 
     response = client.post(
         f"/staff/flags/{flag_id}/close",
-        data={"outcome": "handled", "reason": "  "},
+        data={"outcome": "handled", "reason": "  ", "confirm": "true"},
         follow_redirects=False,
     )
     assert response.status_code == 422
@@ -295,7 +299,7 @@ def test_close_records_history_with_outcome_and_account(client, db):
 
     response = client.post(
         f"/staff/flags/{flag_id}/close",
-        data={"outcome": "handled", "reason": "not a concern"},
+        data={"outcome": "handled", "reason": "not a concern", "confirm": "true"},
         follow_redirects=False,
     )
     assert response.status_code == 303
@@ -314,7 +318,7 @@ def test_reopen_requires_reason(client, db):
     flag_id = _flag(db, transcript_id)
     client.post(
         f"/staff/flags/{flag_id}/close",
-        data={"outcome": "handled", "reason": "not a concern"},
+        data={"outcome": "handled", "reason": "not a concern", "confirm": "true"},
         follow_redirects=False,
     )
 
@@ -332,7 +336,7 @@ def test_reopen_reopens_and_records_history(client, db):
     flag_id = _flag(db, transcript_id)
     client.post(
         f"/staff/flags/{flag_id}/close",
-        data={"outcome": "handled", "reason": "not a concern"},
+        data={"outcome": "handled", "reason": "not a concern", "confirm": "true"},
         follow_redirects=False,
     )
 
@@ -359,7 +363,7 @@ def test_reopen_refused_after_exchange_purged(client, db):
     flag_id = _flag(db, transcript_id)
     client.post(
         f"/staff/flags/{flag_id}/close",
-        data={"outcome": "handled", "reason": "not a concern"},
+        data={"outcome": "handled", "reason": "not a concern", "confirm": "true"},
         follow_redirects=False,
     )
     db.execute("DELETE FROM transcripts WHERE id = ?", (transcript_id,))
