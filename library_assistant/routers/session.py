@@ -35,6 +35,7 @@ from library_assistant.dependencies import (
     start_exchange,
 )
 from library_assistant.models import AskRequest, Citation
+from library_assistant.prompt import SearchLineFilter, build_messages
 
 # Quoted word for word by the AI literacy unit (docs/curriculum/ai-literacy-unit.md).
 BANNER_TEXT = "This can be wrong, check the source."
@@ -215,31 +216,19 @@ def _answer(
     clock: datetime,
 ) -> StreamingResponse:
     transcript_id = start_exchange(db, session, request.question, clock)
-    records = catalog.search(request.question, k=4)
-    citations = [
-        Citation(
-            record_id=record.id, title=record.title, call_number=record.call_number
-        )
-        for record in records
-    ]
 
-    context = "\n\n".join(
-        f"{record.title} ({record.call_number}): {record.summary}" for record in records
-    )
-    messages = [
-        {
-            "role": "system",
-            "content": "Answer the student's question using only these Records:\n"
-            + context,
-        },
-        {"role": "user", "content": request.question},
-    ]
+    # First, we build the messages for the research prompt
+    messages = build_messages(request.question)
 
+    # Then we stream the model response
     async def generate():
         answer_parts: list[str] = []
         shown: list[Citation] = []
         # finally: a model error or a hang-up still records what the Student saw.
         try:
+            # Create a single filter instance for the entire streaming process
+            filter_instance = SearchLineFilter()
+
             async with http_client.stream(
                 "POST",
                 "/chat/completions",
@@ -260,11 +249,43 @@ def _answer(
                     )
                     if delta:
                         answer_parts.append(delta)
-                        yield delta
 
-            for citation in citations:
-                yield "\n" + citation.line()
-                shown.append(citation)
+                        # Use the filter to handle search lines
+                        output = filter_instance.feed(delta)
+                        if output:
+                            yield output
+
+            # After streaming, extract search terms from the full response
+            remaining_text, search_terms = filter_instance.finish()
+
+            # If no search terms, search with the original question
+            search_query = " ".join(search_terms) if search_terms else request.question
+
+            # Now search the catalog
+            records = catalog.search(search_query, k=4)
+            citations = [
+                Citation(
+                    record_id=record.id,
+                    title=record.title,
+                    call_number=record.call_number,
+                )
+                for record in records
+            ]
+
+            # Yield the citations
+            if records:
+                yield "\n\nBooks in our library:"
+                for citation in citations:
+                    yield "\n" + citation.line()
+            else:
+                yield "\n\nThe library's catalog has nothing on this yet. Ask the librarian."
+
+            # Copy the citations to shown list
+            shown = citations.copy()
+
+            # Also yield any remaining text that wasn't handled by the filter
+            if remaining_text:
+                yield remaining_text
         finally:
             try:
                 finish_exchange(db, transcript_id, "".join(answer_parts), shown)
