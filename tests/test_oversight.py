@@ -106,28 +106,29 @@ def test_first_lock_succeeds():
         lock_file.close()
 
 
-def test_second_lock_fails_and_logs():
-    """Test that second lock acquisition fails and logs a warning."""
-    # Create a temporary database path
+def test_second_lock_fails_and_logs(caplog):
+    """Test that a second lock acquisition in the same process fails and logs a warning.
+
+    flock locks are tied to the open file description, not the process, so a
+    second open() of the same lock file conflicts even without a second process.
+    """
+    import logging
     import tempfile
 
     with tempfile.NamedTemporaryFile() as tmp:
         db_path = tmp.name
 
-        # First acquisition should succeed
+        # First acquisition should succeed and must stay open to hold the lock.
         lock_file1 = acquire_oversight_lock(db_path)
         assert lock_file1 is not None
-        # Close it so the second test can try to acquire
-        lock_file1.close()
 
-        # Second acquisition should fail (if using the same file, but we don't have
-        # a way to test true process locking in unit tests)
-        # The important thing is that we're not crashing
-        acquire_oversight_lock(db_path)
-        # Note: In a real test with two processes, this would return None
-        # For this unit test, we just want to make sure no exception is thrown
-        # and that it returns a handle or None (either is valid)
-        # We can't really test the actual flock behavior in a unit test context
+        try:
+            with caplog.at_level(logging.WARNING):
+                lock_file2 = acquire_oversight_lock(db_path)
+            assert lock_file2 is None
+            assert "Oversight off: another process holds" in caplog.text
+        finally:
+            lock_file1.close()
 
 
 def test_lock_file_beside_db():
