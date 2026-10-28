@@ -23,7 +23,9 @@ from library_assistant.staff import (
 )
 from library_assistant.staff import router as staff_router
 
-NOW = datetime(2026, 10, 26, 14, 0, tzinfo=UTC)
+# Far in the future on purpose: sign-in sets the cookie to expire with the Card, an
+# absolute time the HTTP client compares with the real clock, so a past NOW drops it.
+NOW = datetime(2036, 10, 27, 14, 0, tzinfo=UTC)
 REGISTRATION_KEY = "s3cret-registration-key"
 
 
