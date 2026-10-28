@@ -1,8 +1,9 @@
 """Purge transcripts according to ADR-0003.
 
 Every transcript is deleted at the end of the school day it was made, except those
-attached to an open Flag, which stay until an adult closes the Flag. The purge runs
-at the end of each school day (ADR-0003).
+attached to an open Flag, which stay until an adult closes the Flag, and those in an
+active Hold's scope, which stay until the Librarian lifts it (ADR-0003 addendum). The
+purge runs at the end of each school day (ADR-0003).
 """
 
 from __future__ import annotations
@@ -12,10 +13,21 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
 
 from library_assistant.config import Settings
+from library_assistant.holds import active_holds, holding, mark_holds_for_review
 from library_assistant.schoolday import last_day_end_before, school_day_end_for
 
+# kept_for_holds counts transcripts kept because a Hold covers them (whatever else
+# would also keep them); holds is how many active Holds the Purge honoured.
 PurgeReport = namedtuple(
-    "PurgeReport", ["deleted", "kept_for_flags", "kept_unscreened", "overdue_flags"]
+    "PurgeReport",
+    [
+        "deleted",
+        "kept_for_flags",
+        "kept_unscreened",
+        "kept_for_holds",
+        "holds",
+        "overdue_flags",
+    ],
 )
 
 
@@ -39,16 +51,23 @@ def run_if_due(db, now: datetime, settings: Settings) -> PurgeReport | None:
     if existing_run:
         return None
 
-    # Run the purge and record that it was run
+    # Run the purge and record that it was run, with its report
     report = purge(db, now, settings)
-    db.execute("INSERT INTO purge_runs (ran_at) VALUES (?)", (now.isoformat(),))
+    columns = ", ".join(PurgeReport._fields)
+    placeholders = ", ".join("?" for _ in PurgeReport._fields)
+    db.execute(
+        f"INSERT INTO purge_runs (ran_at, {columns}) VALUES (?, {placeholders})",
+        (now.isoformat(), *report),
+    )
     db.commit()
 
     return report
 
 
 def purge(db, now: datetime, settings: Settings) -> PurgeReport:
-    """Purge old transcripts, keeping those referenced by open Flags.
+    """Purge old transcripts, keeping those under a Hold or referenced by open Flags.
+
+    Also marks for review each Hold older than `holds_review_days`.
 
     Args:
         db: SQLite database connection
@@ -67,16 +86,24 @@ def purge(db, now: datetime, settings: Settings) -> PurgeReport:
 
     # Get all transcripts that are older than cutoff
     transcripts_to_delete = db.execute(
-        "SELECT id FROM transcripts WHERE asked_at < ?", (cutoff.isoformat(),)
+        "SELECT id, class_label, card_number, asked_at FROM transcripts "
+        "WHERE asked_at < ?",
+        (cutoff.isoformat(),),
     ).fetchall()
 
+    holds = active_holds(db)
     deleted_count = 0
     kept_for_flags_count = 0
     kept_unscreened_count = 0
+    kept_for_holds_count = 0
 
     # Process each transcript to see if it should be kept
-    for transcript_row in transcripts_to_delete:
-        transcript_id = transcript_row[0]
+    for transcript_id, class_label, card_number, asked_at in transcripts_to_delete:
+        # A Hold keeps exactly what its scope covers: Class label (or all), the school
+        # date the transcript was made, and its Card number when the Hold names any.
+        if holding(holds, class_label, card_number, asked_at, settings):
+            kept_for_holds_count += 1
+            continue
 
         # Check if this transcript is referenced by an open flag (closed_at IS NULL)
         # Either directly via flags.transcript_id or through flag_repeats
@@ -135,10 +162,16 @@ def purge(db, now: datetime, settings: Settings) -> PurgeReport:
         (overdue_cutoff.isoformat(),),
     ).fetchone()[0]
 
+    # A Hold never expires on its own; one older than holds.review_days is marked
+    # for review instead (ADR-0003 addendum).
+    mark_holds_for_review(db, now, settings.holds_review_days)
+
     return PurgeReport(
         deleted=deleted_count,
         kept_for_flags=kept_for_flags_count,
         kept_unscreened=kept_unscreened_count,
+        kept_for_holds=kept_for_holds_count,
+        holds=len(holds),
         overdue_flags=overdue_count,
     )
 

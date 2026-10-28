@@ -25,6 +25,11 @@ def _local_date(moment: datetime, settings: Settings) -> date:
     return moment.astimezone(ZoneInfo(settings.school_timezone)).date()
 
 
+def school_date(moment: datetime, settings: Settings) -> date:
+    """The school's local date at `moment`: the day a record belongs to."""
+    return _local_date(moment, settings)
+
+
 def school_day_end_for(moment: datetime, settings: Settings) -> datetime:
     """The end of the school day on `moment`'s local date."""
     return _end_on(_local_date(moment, settings), settings)
