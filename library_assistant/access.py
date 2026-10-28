@@ -196,6 +196,19 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
         )
         """
     )
+    # Track changes to install settings
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS setting_changes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            key TEXT NOT NULL,
+            old_value TEXT,
+            new_value TEXT NOT NULL,
+            account_id INTEGER NOT NULL,
+            changed_at TEXT NOT NULL
+        )
+        """
+    )
     conn.commit()
     return conn
 
