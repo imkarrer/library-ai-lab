@@ -178,6 +178,120 @@ def test_page_has_no_token_or_hash(client, db):
     assert hash_token("token-14") not in response.text
 
 
+def test_tile_shows_high_when_any_open_high_flag(client, db):
+    """Test that a tile shows 'flag-high' when there's an open high-severity flag."""
+    _sign_in_as(client, db, "librarian")
+    _card(db, "token-14", "14")
+    session_hash = _session(db, "token-14")
+    _ask(db, session_hash, "Period 3", "14", "a question")
+
+    # Add a high severity flag
+    from library_assistant.flags import raise_flag
+
+    transcript_id = db.execute(
+        "SELECT id FROM transcripts WHERE session_hash = ?", (session_hash,)
+    ).fetchone()[0]
+    raise_flag(
+        db,
+        transcript_id=transcript_id,
+        class_label="Period 3",
+        card_number="14",
+        batch_expires_at=(NOW + timedelta(hours=6)).isoformat(),
+        message_hash=None,
+        category="test-category",
+        severity="high",
+        source="watchlist",
+        raised_at=NOW.isoformat(),
+    )
+
+    response = client.get("/staff/live")
+
+    assert response.status_code == 200
+    assert "flag-high" in response.text
+    assert "Flag: high" in response.text
+
+
+def test_tile_shows_low_when_only_low(client, db):
+    """Test that a tile shows 'flag-low' when there's an open low-severity flag."""
+    _sign_in_as(client, db, "librarian")
+    _card(db, "token-14", "14")
+    session_hash = _session(db, "token-14")
+    _ask(db, session_hash, "Period 3", "14", "a question")
+
+    # Add a low severity flag
+    from library_assistant.flags import raise_flag
+
+    transcript_id = db.execute(
+        "SELECT id FROM transcripts WHERE session_hash = ?", (session_hash,)
+    ).fetchone()[0]
+    raise_flag(
+        db,
+        transcript_id=transcript_id,
+        class_label="Period 3",
+        card_number="14",
+        batch_expires_at=(NOW + timedelta(hours=6)).isoformat(),
+        message_hash=None,
+        category="test-category",
+        severity="low",
+        source="watchlist",
+        raised_at=NOW.isoformat(),
+    )
+
+    response = client.get("/staff/live")
+
+    assert response.status_code == 200
+    assert "flag-low" in response.text
+    assert "Flag: low" in response.text
+
+
+def test_closed_flags_do_not_mark(client, db):
+    """Test that closed flags do not affect the tile marker."""
+    _sign_in_as(client, db, "librarian")
+    _card(db, "token-14", "14")
+    session_hash = _session(db, "token-14")
+    _ask(db, session_hash, "Period 3", "14", "a question")
+
+    # Add a closed high severity flag
+    from library_assistant.flags import close_flag, raise_flag
+
+    transcript_id = db.execute(
+        "SELECT id FROM transcripts WHERE session_hash = ?", (session_hash,)
+    ).fetchone()[0]
+    flag_id = raise_flag(
+        db,
+        transcript_id=transcript_id,
+        class_label="Period 3",
+        card_number="14",
+        batch_expires_at=(NOW + timedelta(hours=6)).isoformat(),
+        message_hash=None,
+        category="test-category",
+        severity="high",
+        source="watchlist",
+        raised_at=NOW.isoformat(),
+    )
+    close_flag(db, flag_id, (NOW + timedelta(minutes=1)).isoformat())
+
+    response = client.get("/staff/live")
+
+    assert response.status_code == 200
+    assert "flag-high" not in response.text
+    assert "Flag: high" not in response.text
+
+
+def test_no_flag_no_marker(client, db):
+    """Test that a tile has no flag marker when no open flags exist."""
+    _sign_in_as(client, db, "librarian")
+    _card(db, "token-14", "14")
+    session_hash = _session(db, "token-14")
+    _ask(db, session_hash, "Period 3", "14", "a question")
+
+    response = client.get("/staff/live")
+
+    assert response.status_code == 200
+    assert "flag-" not in response.text
+    assert "Flag:" not in response.text
+
+
 @pytest.mark.parametrize("role", ["teacher", "counselor"])
 def test_teacher_and_counselor_403(client, db, role):
     _sign_in_as(client, db, role)
