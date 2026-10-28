@@ -23,7 +23,7 @@ from library_assistant.access import (
 )
 from library_assistant.dependencies import get_catalog
 from library_assistant.models import Citation
-from library_assistant.staff import StandInDep, page
+from library_assistant.staff import LibrarianDep, StandInDep, page
 
 LATEST_QUESTION_LIMIT = 80
 
