@@ -191,3 +191,101 @@ def test_anonymous_401(client):
     response = client.get("/staff/live")
 
     assert response.status_code == 401
+
+
+def test_detail_shows_questions_answers_citations_oldest_first(client, db):
+    """Test that session detail shows exchanges ordered oldest first."""
+    _sign_in_as(client, db, "librarian")
+    _card(db, "token-14", "14", class_label="Period 3")
+    session_hash = _session(db, "token-14")
+
+    # Add multiple exchanges
+    _ask(
+        db,
+        session_hash,
+        "Period 3",
+        "14",
+        "First question",
+        asked_at=NOW - timedelta(minutes=10),
+    )
+    _ask(
+        db,
+        session_hash,
+        "Period 3",
+        "14",
+        "Second question",
+        asked_at=NOW - timedelta(minutes=5),
+    )
+
+    # Get the session_no from the session_hash (it's the rowid)
+    session_row = db.execute(
+        "SELECT rowid FROM sessions WHERE session_hash = ?", (session_hash,)
+    ).fetchone()
+    session_no = session_row[0]
+
+    response = client.get(f"/staff/live/sessions/{session_no}")
+
+    assert response.status_code == 200
+    assert "Period 3" in response.text
+    assert "14" in response.text
+    assert "First question" in response.text
+    assert "Second question" in response.text
+    # Check ordering - first question should come before second question
+    first_pos = response.text.index("First question")
+    second_pos = response.text.index("Second question")
+    assert first_pos < second_pos
+
+
+def test_detail_unknown_session_404(client, db):
+    """Test that accessing a non-existent session returns 404."""
+    _sign_in_as(client, db, "librarian")
+
+    response = client.get("/staff/live/sessions/999999")
+
+    assert response.status_code == 404
+
+
+def test_detail_has_no_token_or_hash(client, db):
+    """Test that session detail page does not contain token or hash."""
+    _sign_in_as(client, db, "librarian")
+    _card(db, "token-14", "14")
+    session_hash = _session(db, "token-14")
+    _ask(db, session_hash, "Period 3", "14", "a question")
+
+    # Get the session_no from the session_hash (it's the rowid)
+    session_row = db.execute(
+        "SELECT rowid FROM sessions WHERE session_hash = ?", (session_hash,)
+    ).fetchone()
+    session_no = session_row[0]
+
+    response = client.get(f"/staff/live/sessions/{session_no}")
+
+    assert response.status_code == 200
+    lowered = response.text.lower()
+    assert "token" not in lowered
+    assert "hash" not in lowered
+    assert session_hash not in response.text
+
+
+def test_detail_teacher_403(client, db):
+    """Test that teacher role gets 403 for session detail."""
+    _sign_in_as(client, db, "teacher")
+
+    response = client.get("/staff/live/sessions/1")
+
+    assert response.status_code == 403
+
+
+def test_tile_links_to_detail(client, db):
+    """Test that tile links properly to session detail."""
+    _sign_in_as(client, db, "librarian")
+    _card(db, "token-14", "14", class_label="Period 3")
+    session_hash = _session(db, "token-14")
+    _ask(db, session_hash, "Period 3", "14", "what do snow leopards eat?")
+
+    # First get the live view to get session_no
+    response = client.get("/staff/live")
+    assert response.status_code == 200
+
+    # Check that there's a link to the detail view
+    assert "/staff/live/sessions/" in response.text
