@@ -30,6 +30,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 DEFAULT_PATH = Path(__file__).with_name("watchlist.toml")
+DEMO_PATH = Path(__file__).with_name("watchlist-demo.toml")
 
 CATEGORIES = ("self-harm", "abuse", "bullying", "threats-of-violence")
 SEVERITIES = ("high", "low")
@@ -88,7 +89,7 @@ class Watchlist:
         return [entry for entry in self.entries if entry.matches(text)]
 
 
-def load_watchlist(path: str | Path = DEFAULT_PATH) -> Watchlist:
+def load_watchlist(path: str | Path = DEFAULT_PATH, demo: bool = False) -> Watchlist:
     """Load and validate the Watchlist at `path`; ValueError names the entry it refuses."""
     with open(path, "rb") as f:
         data = tomllib.load(f)
@@ -107,6 +108,21 @@ def load_watchlist(path: str | Path = DEFAULT_PATH) -> Watchlist:
         entries.append(entry)
     if not entries:
         raise ValueError("watchlist has no entries")
+
+    # If demo flag is True, load demo entries and append them
+    if demo:
+        try:
+            with open(DEMO_PATH, "rb") as f:
+                demo_data = tomllib.load(f)
+            for index, raw in enumerate(demo_data.get("entries", [])):
+                entry = _entry(raw, f"demo_entries[{index}]")
+                if entry.id in seen:
+                    raise ValueError(f"watchlist entry {entry.id!r}: duplicate id")
+                seen.add(entry.id)
+                entries.append(entry)
+        except FileNotFoundError:
+            # If demo file doesn't exist, continue with just the main entries
+            pass
     return Watchlist(version=version, entries=tuple(entries))
 
 
