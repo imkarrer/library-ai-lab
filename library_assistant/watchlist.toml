@@ -1,0 +1,27 @@
+# Placeholder Watchlist: inert phrases that prove the loader and matcher. The real content
+# is lib-f24.15. Format: library_assistant/watchlist.py.
+version = "2026-10-28.1"
+
+[[entries]]
+id = "placeholder-high"
+category = "self-harm"
+severity = "high"
+phrases = ["watchlist placeholder high"]
+must_match = [
+  "watchlist placeholder high",
+  "this is a W4TCHLIST Placeholder HIIIGH test",
+  "watchlist-placeholder-high!",
+]
+must_not_match = [
+  "watchlist placeholder",
+  "watchlist placeholder highest",
+  "watchlist placeholder low",
+]
+
+[[entries]]
+id = "placeholder-low"
+category = "bullying"
+severity = "low"
+phrases = ["watchlist placeholder low"]
+must_match = ["Watchlist placeholder low", "wätchlist plac3holder l0w"]
+must_not_match = ["watchlist placeholder", "watchlist placeholder lower"]
