@@ -53,6 +53,17 @@ LOGIN_FORM = """<h1>Staff sign-in</h1>
   <p><button>Sign in</button></p>
 </form>"""
 
+SETUP_FORM = """<h1>Create the librarian account</h1>
+{message}
+<form method="post" action="/staff/setup">
+  <p><label>Username <input name="username" autocomplete="username" required></label></p>
+  <p><label>Password <input name="password" type="password"
+     autocomplete="new-password" required></label></p>
+  <p><label>Password again <input name="password_again" type="password"
+     autocomplete="new-password" required></label></p>
+  <p><button>Create account</button></p>
+</form>"""
+
 
 def page(title: str, body: str, status_code: int = 200) -> HTMLResponse:
     return HTMLResponse(
@@ -193,9 +204,66 @@ def set_stand_in(db: sqlite3.Connection, account_id: int, is_stand_in: bool) -> 
 router = APIRouter(prefix="/staff")
 
 
-@router.get("/login")
-def login_page() -> HTMLResponse:
+def _any_staff_account_exists(db: sqlite3.Connection) -> bool:
+    return db.execute("SELECT 1 FROM staff_accounts LIMIT 1").fetchone() is not None
+
+
+def _sign_in(
+    db: sqlite3.Connection, account_id: int, clock: datetime
+) -> RedirectResponse:
+    """Open a staff session for the account and send them to /staff."""
+    session_id = secrets.token_urlsafe(32)
+    db.execute(
+        "INSERT INTO staff_sessions (session_hash, account_id, expires_at) "
+        "VALUES (?, ?, ?)",
+        (
+            hash_token(session_id),
+            account_id,
+            (clock + STAFF_SESSION_LIFETIME).isoformat(),
+        ),
+    )
+    db.commit()
+    response = RedirectResponse("/staff", status_code=303)
+    response.set_cookie(
+        key=STAFF_SESSION_COOKIE, value=session_id, httponly=True, samesite="strict"
+    )
+    return response
+
+
+@router.get("/login", response_model=None)
+def login_page(
+    db: sqlite3.Connection = Depends(get_db),
+) -> HTMLResponse | RedirectResponse:
+    if not _any_staff_account_exists(db):
+        return RedirectResponse("/staff/setup", status_code=303)
     return page("Sign in", LOGIN_FORM.format(message=""))
+
+
+@router.get("/setup", response_model=None)
+def setup_page(db: sqlite3.Connection = Depends(get_db)) -> HTMLResponse:
+    if _any_staff_account_exists(db):
+        raise HTTPException(status_code=404)
+    return page("Set up", SETUP_FORM.format(message=""))
+
+
+@router.post("/setup", response_model=None)
+def setup(
+    username: Annotated[str, Form()],
+    password: Annotated[str, Form()],
+    password_again: Annotated[str, Form()],
+    db: sqlite3.Connection = Depends(get_db),
+    clock: datetime = Depends(get_clock),
+) -> HTMLResponse | RedirectResponse:
+    if _any_staff_account_exists(db):
+        raise HTTPException(status_code=404)
+    if password != password_again:
+        return page(
+            "Set up",
+            SETUP_FORM.format(message="<p>Passwords did not match.</p>"),
+            status_code=400,
+        )
+    account_id = create_account(db, username, password, "librarian")
+    return _sign_in(db, account_id, clock)
 
 
 @router.post("/login", response_model=None)
@@ -215,22 +283,7 @@ def login(
             LOGIN_FORM.format(message="<p>Wrong username or password.</p>"),
             status_code=401,
         )
-    session_id = secrets.token_urlsafe(32)
-    db.execute(
-        "INSERT INTO staff_sessions (session_hash, account_id, expires_at) "
-        "VALUES (?, ?, ?)",
-        (
-            hash_token(session_id),
-            row[0],
-            (clock + STAFF_SESSION_LIFETIME).isoformat(),
-        ),
-    )
-    db.commit()
-    response = RedirectResponse("/staff", status_code=303)
-    response.set_cookie(
-        key=STAFF_SESSION_COOKIE, value=session_id, httponly=True, samesite="strict"
-    )
-    return response
+    return _sign_in(db, row[0], clock)
 
 
 @router.post("/logout")
