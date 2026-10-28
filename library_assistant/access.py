@@ -233,6 +233,15 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
         )
         """
     )
+    # Track flag reviews
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS flag_reviews (
+            account_id INTEGER NOT NULL,
+            reviewed_at TEXT NOT NULL
+        )
+        """
+    )
     conn.commit()
     return conn
 
@@ -245,6 +254,43 @@ def get_db() -> sqlite3.Connection:
     if _connection is None:
         _connection = connect()
     return _connection
+
+
+def last_review_at(db: sqlite3.Connection) -> datetime | None:
+    """Get the timestamp of the most recent flag review."""
+    row = db.execute(
+        "SELECT reviewed_at FROM flag_reviews ORDER BY reviewed_at DESC LIMIT 1"
+    ).fetchone()
+    if row is None:
+        return None
+    return datetime.fromisoformat(row[0])
+
+
+def review_due_at(
+    db: sqlite3.Connection, settings_db_values: dict[str, str], now: datetime
+) -> datetime | None:
+    """Get the due time for the next flag review, or None if not in periodic mode."""
+    # Check if we're in periodic mode
+    supervision_mode = settings_db_values.get("supervision_mode", "live")
+    if supervision_mode != "periodic":
+        return None
+
+    # Get the last review time
+    last_review = last_review_at(db)
+    if last_review is None:
+        return None
+
+    # Get the review interval from settings
+    try:
+        reviews_every_minutes = int(
+            settings_db_values.get("reviews_every_minutes", "120")
+        )
+    except (ValueError, TypeError):
+        reviews_every_minutes = 120  # Default value
+
+    # Calculate the due time
+    due_time = last_review + timedelta(minutes=reviews_every_minutes)
+    return due_time
 
 
 class CardSpec(BaseModel):
