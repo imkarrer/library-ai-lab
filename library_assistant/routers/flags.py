@@ -27,6 +27,7 @@ from library_assistant.flags import (
     open_flags,
     reopen_flag,
 )
+from library_assistant.holds import active_hold_count
 from library_assistant.staff import StaffDep, StandInDep, page
 
 router = APIRouter(prefix="/staff")
@@ -139,11 +140,17 @@ def flag_queue(
             if clock > due_at:
                 header_info += " (overdue)"
 
+    # The active Hold count, for those who may work the whole queue (ADR-0003
+    # addendum); a Counselor sees only Escalated Flags, and Holds would show them more.
+    holds_info = ""
+    if account.role == "librarian" or account.is_stand_in:
+        holds_info = f"<p>Active Holds: {active_hold_count(db)}</p>"
+
     body = (
-        f"<h1>Flag queue</h1><p>{header_info}</p>"
-        if header_info
-        else ""
-        "<table><thead><tr>"
+        "<h1>Flag queue</h1>"
+        + (f"<p>{header_info}</p>" if header_info else "")
+        + holds_info
+        + "<table><thead><tr>"
         "<th>Raised at</th><th>Category</th><th>Severity</th><th>Source</th>"
         "<th>Entry</th><th>Class</th><th>Card</th><th></th><th></th>"
         "</tr></thead><tbody>"
