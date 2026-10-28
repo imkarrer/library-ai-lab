@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from library_assistant.access import connect, get_clock
 from library_assistant.access import router as access_router
 from library_assistant.config import Settings
+from library_assistant.install_settings import router as install_settings_router
 
 # Import here to avoid circular imports
 from library_assistant.purge import run_if_due
@@ -37,6 +38,7 @@ app.include_router(session_router)
 app.include_router(staff_router)
 app.include_router(live_router)
 app.include_router(flags_router)
+app.include_router(install_settings_router)
 app.add_exception_handler(StaffSignInRequired, sign_in_required_handler)
 
 

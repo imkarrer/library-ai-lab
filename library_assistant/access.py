@@ -182,6 +182,16 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
         )
         """
     )
+    # Install settings (library_assistant.install_settings). Only the Librarian manages
+    # these (ADR-0010).
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS install_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        )
+        """
+    )
     conn.commit()
     return conn
 
