@@ -1,8 +1,18 @@
+import asyncio
+import json
 import sqlite3
 from unittest.mock import patch
 
+import httpx
+import pytest
+
 from library_assistant.config import Settings
-from library_assistant.oversight import acquire_oversight_lock
+from library_assistant.oversight import (
+    OversightUnavailable,
+    Verdict,
+    acquire_oversight_lock,
+    screen,
+)
 
 
 def test_oversight_off_by_default():
@@ -150,3 +160,133 @@ def test_lock_file_beside_db():
         assert lock_file is not None
         # Close to cleanup
         lock_file.close()
+
+
+def _settings() -> Settings:
+    return Settings(
+        oversight_endpoint="http://oversight.example.com",
+        oversight_model="guard-model",
+        oversight_timeout_seconds=5,
+    )
+
+
+def _chat_response(content: str) -> httpx.Response:
+    return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
+
+
+def _client(handler) -> httpx.AsyncClient:
+    # The shared client points at the Answer lane; screen must still reach Oversight.
+    return httpx.AsyncClient(
+        base_url="http://answer-lane.example.com",
+        transport=httpx.MockTransport(handler),
+    )
+
+
+def _run_screen(handler, question: str = "is this ok to ask?") -> Verdict:
+    async def go() -> Verdict:
+        async with _client(handler) as client:
+            return await screen(client, _settings(), question)
+
+    return asyncio.run(go())
+
+
+def test_screen_parses_verdict():
+    content = json.dumps(
+        {"category": "bullying", "severity": "high", "reason": "names a classmate"}
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return _chat_response(content)
+
+    verdict = _run_screen(handler)
+    assert verdict == Verdict(
+        category="bullying", severity="high", reason="names a classmate"
+    )
+
+
+def test_screen_null_category_is_no_concern():
+    content = json.dumps({"category": None, "severity": None, "reason": "no concern"})
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return _chat_response(content)
+
+    verdict = _run_screen(handler)
+    assert verdict == Verdict(category=None, severity=None, reason="no concern")
+
+
+def test_screen_retries_once_on_bad_json():
+    calls = {"count": 0}
+    good = json.dumps({"category": None, "severity": None, "reason": "fine"})
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["count"] += 1
+        if calls["count"] == 1:
+            return _chat_response("not json at all")
+        return _chat_response(good)
+
+    verdict = _run_screen(handler)
+    assert verdict == Verdict(category=None, severity=None, reason="fine")
+    assert calls["count"] == 2
+
+
+def test_screen_unavailable_after_two_bad_replies():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return _chat_response("still not json")
+
+    with pytest.raises(OversightUnavailable):
+        _run_screen(handler)
+
+
+def test_screen_unavailable_on_connect_error():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("refused", request=request)
+
+    with pytest.raises(OversightUnavailable):
+        _run_screen(handler)
+
+
+def test_request_has_max_tokens_256_and_only_the_message():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["url"] = str(request.url)
+        seen["payload"] = json.loads(request.content)
+        content = json.dumps({"category": None, "severity": None, "reason": "fine"})
+        return _chat_response(content)
+
+    _run_screen(handler, question="is the library open on Saturday?")
+
+    assert seen["url"] == "http://oversight.example.com/chat/completions"
+    payload = seen["payload"]
+    assert payload["model"] == "guard-model"
+    assert payload["stream"] is False
+    assert payload["temperature"] == 0
+    assert payload["max_tokens"] == 256
+    assert [m["role"] for m in payload["messages"]] == ["system", "user"]
+    user_messages = [m for m in payload["messages"] if m["role"] == "user"]
+    assert user_messages == [
+        {"role": "user", "content": "is the library open on Saturday?"}
+    ]
+
+
+def test_screen_retries_once_on_unknown_category():
+    calls = {"count": 0}
+    good = json.dumps({"category": "abuse", "severity": "low", "reason": "r"})
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["count"] += 1
+        if calls["count"] == 1:
+            return _chat_response(json.dumps({"category": "spam", "reason": "r"}))
+        return _chat_response(good)
+
+    verdict = _run_screen(handler)
+    assert verdict == Verdict(category="abuse", severity="low", reason="r")
+    assert calls["count"] == 2
+
+
+def test_screen_unavailable_on_timeout():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("slow", request=request)
+
+    with pytest.raises(OversightUnavailable):
+        _run_screen(handler)
