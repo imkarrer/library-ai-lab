@@ -1,0 +1,8 @@
+# Marp settings for the handout (see README.md). Source lines wrap at 92 columns like the rest
+# of the repo's Markdown, so a newline must not become a line break on the page.
+html: true
+themeSet: ./handout.css
+options:
+  markdown:
+    breaks: false
+allowLocalFiles: true
