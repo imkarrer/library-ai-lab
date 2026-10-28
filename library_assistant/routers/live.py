@@ -12,10 +12,12 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import datetime
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import HTMLResponse
 
 from library_assistant.access import get_clock, get_db
+from library_assistant.dependencies import get_catalog
+from library_assistant.models import Citation
 from library_assistant.staff import LibrarianDep, page
 
 LATEST_QUESTION_LIMIT = 80
@@ -31,6 +33,16 @@ class SessionTile:
     last_activity_at: datetime
     message_count: int
     latest_question: str
+
+
+@dataclass(frozen=True)
+class Exchange:
+    """A question-answer exchange with citations."""
+
+    asked_at: datetime
+    question: str
+    answer: str
+    citations: list[Citation]
 
 
 def _truncate(question: str) -> str:
@@ -89,6 +101,112 @@ def _tile_html(tile: SessionTile) -> str:
     )
 
 
+def _exchange_html(exchange: Exchange, catalog) -> str:
+    """Render an exchange with citations resolved from the catalog."""
+    citation_html = ""
+    if exchange.citations:
+        citation_html = '<div class="citations">'
+        for citation in exchange.citations:
+            record = catalog.get(citation.record_id)
+            title = record.title if record else citation.record_id
+            citation_html += f'<p><a href="/staff/catalog/record/{citation.record_id}">{html.escape(title)}</a></p>'
+        citation_html += "</div>"
+
+    return (
+        '<div class="exchange">'
+        f"<p><strong>Asked at:</strong> {html.escape(exchange.asked_at.isoformat())}</p>"
+        f"<p><strong>Question:</strong> {html.escape(exchange.question)}</p>"
+        f"<p><strong>Answer:</strong> {html.escape(exchange.answer)}</p>"
+        f"{citation_html}"
+        "</div>"
+    )
+
+
+def session_detail(
+    session_no: int,
+    db: sqlite3.Connection,
+    catalog,
+    now: datetime,
+) -> tuple[str, str, list[Exchange]]:
+    """Get session detail data for a given session number.
+
+    Returns: (class_label, card_number, exchanges)
+    """
+    # Get session information
+    session_row = db.execute(
+        "SELECT sessions.rowid, sessions.session_hash, cards.class_label, "
+        "cards.card_number, sessions.started_at "
+        "FROM sessions JOIN cards ON cards.token_hash = sessions.token_hash "
+        "WHERE sessions.rowid = ?",
+        (session_no,),
+    ).fetchone()
+
+    if not session_row:
+        # Check if it's an ended session (Finished or expired)
+        ended_session = db.execute(
+            "SELECT 1 FROM sessions WHERE rowid = ?",
+            (session_no,),
+        ).fetchone()
+        if not ended_session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        else:
+            # Session exists but is ended (Finished or expired)
+            raise HTTPException(status_code=404, detail="Session not found")
+
+    session_hash = session_row[1]
+    class_label = session_row[2]
+    card_number = session_row[3]
+
+    # Get exchanges ordered by asked_at ascending (oldest first)
+    transcript_rows = db.execute(
+        "SELECT asked_at, question, answer, citations FROM transcripts "
+        "WHERE session_hash = ? "
+        "ORDER BY asked_at ASC",
+        (session_hash,),
+    ).fetchall()
+
+    exchanges = []
+    for asked_at_str, question, answer, citations_str in transcript_rows:
+        asked_at = datetime.fromisoformat(asked_at_str)
+
+        # Parse citations
+        citations = []
+        if citations_str:
+            citation_ids = citations_str.split(",")
+            for record_id in citation_ids:
+                if record_id:
+                    # Get the record from catalog to populate citation fields
+                    record = catalog.get(record_id)
+                    if record:
+                        citations.append(
+                            Citation(
+                                record_id=record_id,
+                                title=record.title,
+                                call_number=record.call_number,
+                            )
+                        )
+                    else:
+                        # If record not found, create citation with minimal info
+                        citations.append(
+                            Citation(
+                                record_id=record_id,
+                                title=record_id,
+                                call_number=record_id,
+                            )
+                        )
+
+        exchanges.append(
+            Exchange(
+                asked_at=asked_at,
+                question=question,
+                answer=answer,
+                citations=citations,
+            )
+        )
+
+    return class_label, card_number, exchanges
+
+
 router = APIRouter(prefix="/staff")
 
 
@@ -106,5 +224,33 @@ def live_view(
         else "<p>No active Sessions.</p>"
     )
     response = page("Live view", f"<h1>Live view</h1>{body}")
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@router.get("/live/sessions/{session_no}")
+def session_detail_view(
+    session_no: int,
+    account: LibrarianDep,
+    db: sqlite3.Connection = Depends(get_db),
+    catalog=Depends(get_catalog),
+    clock: datetime = Depends(get_clock),
+) -> HTMLResponse:
+    """The Session detail view: questions, answers, and Citations."""
+    class_label, card_number, exchanges = session_detail(session_no, db, catalog, clock)
+
+    # Build HTML for exchanges
+    exchange_html = "".join(_exchange_html(exchange, catalog) for exchange in exchanges)
+
+    # Build page content
+    content = (
+        f"<h1>Session Detail</h1>"
+        f"<p><strong>Class:</strong> {html.escape(class_label)}</p>"
+        f"<p><strong>Card:</strong> {html.escape(card_number)}</p>"
+        f'<p><a href="/staff/live">← Back to Live view</a></p>'
+        f'<div class="exchanges">{exchange_html}</div>'
+    )
+
+    response = page("Session Detail", content)
     response.headers["Cache-Control"] = "no-store"
     return response
