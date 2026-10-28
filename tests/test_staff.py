@@ -275,3 +275,113 @@ def test_login_redirects_to_setup_when_no_accounts(client):
     response = client.get("/staff/login", follow_redirects=False)
     assert response.status_code == 303
     assert response.headers["location"] == "/staff/setup"
+
+
+def _username_exists(db, username):
+    return (
+        db.execute(
+            "SELECT 1 FROM staff_accounts WHERE username = ?", (username,)
+        ).fetchone()
+        is not None
+    )
+
+
+def test_accounts_anonymous_401(client):
+    assert client.get("/staff/accounts").status_code == 401
+    response = client.post(
+        "/staff/accounts",
+        data={"username": "new", "password": "pw", "role": "teacher"},
+    )
+    assert response.status_code == 401
+
+
+@pytest.mark.parametrize("role", ["teacher", "counselor"])
+def test_teacher_cannot_add_account_403(client, db, role):
+    create_account(db, "librarian", "correct horse", "librarian")
+    create_account(db, role, "correct horse", role)
+    _sign_in(client, username=role)
+
+    response = client.post(
+        "/staff/accounts",
+        data={"username": "newteacher", "password": "pw", "role": "teacher"},
+    )
+
+    assert response.status_code == 403
+    assert not _username_exists(db, "newteacher")
+
+
+def test_librarian_adds_teacher_and_counselor(client, db):
+    create_account(db, "librarian", "correct horse", "librarian")
+    _sign_in(client)
+
+    for username, role in [("newteacher", "teacher"), ("newcounselor", "counselor")]:
+        response = client.post(
+            "/staff/accounts",
+            data={"username": username, "password": "pw", "role": role},
+            follow_redirects=False,
+        )
+        assert response.status_code == 303
+        assert response.headers["location"] == "/staff/accounts"
+
+    roles = dict(db.execute("SELECT username, role FROM staff_accounts").fetchall())
+    assert roles["newteacher"] == "teacher"
+    assert roles["newcounselor"] == "counselor"
+    text = client.get("/staff/accounts").text
+    assert "newteacher" in text
+    assert "newcounselor" in text
+    assert '<form method="post" action="/staff/accounts">' in text
+
+
+def test_accounts_page_shows_no_password_hash(client, db):
+    create_account(db, "librarian", "correct horse", "librarian")
+    create_account(db, "teacher", "correct horse", "teacher")
+    _sign_in(client)
+
+    response = client.get("/staff/accounts")
+
+    assert response.status_code == 200
+    assert "scrypt$" not in response.text
+    for (password_hash,) in db.execute("SELECT password_hash FROM staff_accounts"):
+        assert password_hash not in response.text
+
+
+@pytest.mark.parametrize("role", ["librarian", "admin"])
+def test_add_librarian_role_is_400(client, db, role):
+    create_account(db, "librarian", "correct horse", "librarian")
+    _sign_in(client)
+
+    response = client.post(
+        "/staff/accounts",
+        data={"username": "newlibrarian", "password": "pw", "role": role},
+    )
+
+    assert response.status_code == 400
+    assert not _username_exists(db, "newlibrarian")
+
+
+def test_add_account_duplicate_username_409(client, db):
+    create_account(db, "librarian", "correct horse", "librarian")
+    _sign_in(client)
+    data = {"username": "newteacher", "password": "pw", "role": "teacher"}
+
+    first = client.post("/staff/accounts", data=data, follow_redirects=False)
+    assert first.status_code == 303
+    assert client.post("/staff/accounts", data=data).status_code == 409
+
+
+def test_accounts_page_escapes_username(client, db):
+    create_account(db, "librarian", "correct horse", "librarian")
+    _sign_in(client)
+    client.post(
+        "/staff/accounts",
+        data={
+            "username": "<script>alert(1)</script>",
+            "password": "pw",
+            "role": "teacher",
+        },
+    )
+
+    text = client.get("/staff/accounts").text
+
+    assert "<script>" not in text
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in text
