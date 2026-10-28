@@ -5,6 +5,7 @@ Card sign-in and asking share one store and one notion of time.
 
 from __future__ import annotations
 
+import functools
 import sqlite3
 from collections.abc import AsyncIterator
 from datetime import datetime
@@ -17,11 +18,18 @@ from library_assistant.access import Session, current_session
 from library_assistant.catalog import Catalog
 from library_assistant.config import Settings, build_catalog, get_settings
 from library_assistant.models import Citation
+from library_assistant.watchlist import Watchlist, load_watchlist
 
 
 def get_catalog(settings: Settings = Depends(get_settings)) -> Catalog:
     """The configured Catalog adapter."""
     return build_catalog(settings)
+
+
+@functools.cache
+def get_watchlist() -> Watchlist:
+    """The Watchlist, loaded and validated once per process; tests override it."""
+    return load_watchlist()
 
 
 async def get_http_client(
