@@ -15,7 +15,7 @@ from library_assistant.config import Settings
 from library_assistant.schoolday import last_day_end_before, school_day_end_for
 
 PurgeReport = namedtuple(
-    "PurgeReport", ["deleted", "kept_for_flags", "kept_unscreened"]
+    "PurgeReport", ["deleted", "kept_for_flags", "kept_unscreened", "overdue_flags"]
 )
 
 
@@ -128,10 +128,18 @@ def purge(db, now: datetime, settings: Settings) -> PurgeReport:
 
             deleted_count += 1
 
+    # A Flag open longer than flags.overdue_days is counted here too (ADR-0003 addendum).
+    overdue_cutoff = now - timedelta(days=settings.flags_overdue_days)
+    overdue_count = db.execute(
+        "SELECT COUNT(*) FROM flags WHERE closed_at IS NULL AND raised_at < ?",
+        (overdue_cutoff.isoformat(),),
+    ).fetchone()[0]
+
     return PurgeReport(
         deleted=deleted_count,
         kept_for_flags=kept_for_flags_count,
         kept_unscreened=kept_unscreened_count,
+        overdue_flags=overdue_count,
     )
 
 

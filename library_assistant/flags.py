@@ -7,6 +7,12 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass
+from datetime import datetime, timedelta
+
+from library_assistant.flag_history import append_event
+
+# Close requires one of these (ADR-0003 addendum, "Flag lifecycle").
+OUTCOMES = ("not_a_concern", "handled", "escalated_to_counselor", "other")
 
 
 @dataclass(frozen=True)
@@ -80,7 +86,17 @@ def raise_flag(
         ),
     )
     db.commit()
-    return cursor.lastrowid
+    flag_id = cursor.lastrowid
+    append_event(
+        db,
+        flag_id,
+        "raised",
+        at=raised_at,
+        source=source,
+        entry_id=entry_id,
+        watchlist_version=watchlist_version,
+    )
+    return flag_id
 
 
 def raise_or_repeat(
@@ -138,6 +154,13 @@ def raise_or_repeat(
             (flag_id, transcript_id, raised_at),
         )
         db.commit()
+        append_event(
+            db,
+            flag_id,
+            "repeated",
+            at=raised_at,
+            repeat_count=repeat_count + 1,
+        )
         return (flag_id, True)
     else:
         # No existing flag, raise a new one
@@ -189,6 +212,13 @@ def open_flags(db: sqlite3.Connection) -> list[FlagRow]:
     return [FlagRow(*row) for row in rows]
 
 
+def is_overdue(flag: FlagRow, now: datetime, overdue_days: int) -> bool:
+    """A Flag open longer than `overdue_days` is overdue (ADR-0003 addendum)."""
+    if flag.closed_at is not None:
+        return False
+    return datetime.fromisoformat(flag.raised_at) < now - timedelta(days=overdue_days)
+
+
 def get_flag(db: sqlite3.Connection, flag_id: int) -> FlagRow | None:
     """Get a flag by ID, or None if not found."""
     row = db.execute(
@@ -221,8 +251,23 @@ def get_flag(db: sqlite3.Connection, flag_id: int) -> FlagRow | None:
     return FlagRow(*row)
 
 
-def close_flag(db: sqlite3.Connection, flag_id: int, closed_at: str) -> None:
-    """Close a flag by setting closed_at and clearing message_hash."""
+def close_flag(
+    db: sqlite3.Connection,
+    flag_id: int,
+    closed_at: str,
+    account: str,
+    outcome: str,
+    reason: str,
+) -> None:
+    """Close a flag by setting closed_at and clearing message_hash.
+
+    Requires an outcome from the fixed `OUTCOMES` list and a one-line reason
+    (ADR-0003 addendum, "Flag lifecycle").
+    """
+    if outcome not in OUTCOMES:
+        raise ValueError(f"unknown close outcome: {outcome!r}")
+    if not reason.strip():
+        raise ValueError("close requires a reason")
     db.execute(
         """
         UPDATE flags
@@ -232,3 +277,41 @@ def close_flag(db: sqlite3.Connection, flag_id: int, closed_at: str) -> None:
         (closed_at, flag_id),
     )
     db.commit()
+    append_event(
+        db,
+        flag_id,
+        "closed",
+        at=closed_at,
+        account=account,
+        outcome=outcome,
+        reason=reason,
+    )
+
+
+def reopen_flag(
+    db: sqlite3.Connection,
+    flag_id: int,
+    reopened_at: str,
+    account: str,
+    reason: str,
+) -> None:
+    """Reopen a closed flag.
+
+    Requires a reason, and is refused once the Purge has deleted the flag's exchange
+    (ADR-0003 addendum, "Flag lifecycle").
+    """
+    if not reason.strip():
+        raise ValueError("reopen requires a reason")
+    flag = get_flag(db, flag_id)
+    if flag is None:
+        raise ValueError("no such flag")
+    transcript = db.execute(
+        "SELECT 1 FROM transcripts WHERE id = ?", (flag.transcript_id,)
+    ).fetchone()
+    if transcript is None:
+        raise ValueError("the exchange has already been purged")
+    db.execute("UPDATE flags SET closed_at = NULL WHERE id = ?", (flag_id,))
+    db.commit()
+    append_event(
+        db, flag_id, "reopened", at=reopened_at, account=account, reason=reason
+    )

@@ -12,17 +12,27 @@ import sqlite3
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from library_assistant.access import get_clock, get_db
-from library_assistant.flags import FlagRow, close_flag, get_flag, open_flags
+from library_assistant.config import Settings, get_settings
+from library_assistant.flag_history import append_event, get_history
+from library_assistant.flags import (
+    OUTCOMES,
+    FlagRow,
+    close_flag,
+    get_flag,
+    is_overdue,
+    open_flags,
+    reopen_flag,
+)
 from library_assistant.staff import StaffDep, StandInDep, page
 
 router = APIRouter(prefix="/staff")
 
 
-def _queue_row_html(flag: FlagRow) -> str:
+def _queue_row_html(flag: FlagRow, overdue: bool) -> str:
     return (
         "<tr>"
         f"<td>{html.escape(flag.raised_at)}</td>"
@@ -32,6 +42,7 @@ def _queue_row_html(flag: FlagRow) -> str:
         f"<td>{html.escape(str(flag.entry_id or ''))}</td>"
         f"<td>{html.escape(flag.class_label)}</td>"
         f"<td>{html.escape(flag.card_number)}</td>"
+        f"<td>{'Overdue' if overdue else ''}</td>"
         f'<td><a href="/staff/flags/{flag.id}">View</a></td>'
         "</tr>"
     )
@@ -62,14 +73,19 @@ def _visible_to(account: StaffDep, flag: FlagRow) -> bool:
 def flag_queue(
     account: QueueDep,
     db: sqlite3.Connection = Depends(get_db),
+    clock: datetime = Depends(get_clock),
+    settings: Settings = Depends(get_settings),
 ) -> HTMLResponse:
     flags = [flag for flag in open_flags(db) if _visible_to(account, flag)]
-    rows = "".join(_queue_row_html(flag) for flag in flags)
+    rows = "".join(
+        _queue_row_html(flag, is_overdue(flag, clock, settings.flags_overdue_days))
+        for flag in flags
+    )
     body = (
         "<h1>Flag queue</h1>"
         "<table><thead><tr>"
         "<th>Raised at</th><th>Category</th><th>Severity</th><th>Source</th>"
-        "<th>Entry</th><th>Class</th><th>Card</th><th></th>"
+        "<th>Entry</th><th>Class</th><th>Card</th><th></th><th></th>"
         "</tr></thead><tbody>"
         f"{rows}"
         "</tbody></table>"
@@ -82,6 +98,7 @@ def flag_page(
     flag_id: int,
     account: QueueDep,
     db: sqlite3.Connection = Depends(get_db),
+    clock: datetime = Depends(get_clock),
 ) -> HTMLResponse:
     flag = get_flag(db, flag_id)
     if flag is None:
@@ -93,6 +110,34 @@ def flag_page(
         (flag.transcript_id,),
     ).fetchone()
     question, answer = transcript if transcript else ("", "")
+    append_event(db, flag_id, "viewed", at=clock.isoformat(), account=account.username)
+    history_rows = "".join(
+        "<tr>"
+        f"<td>{html.escape(event.at)}</td>"
+        f"<td>{html.escape(event.event)}</td>"
+        f"<td>{html.escape(event.account or '')}</td>"
+        f"<td>{html.escape(event.outcome or '')}</td>"
+        f"<td>{html.escape(event.reason or '')}</td>"
+        "</tr>"
+        for event in get_history(db, flag_id)
+    )
+    outcome_options = "".join(
+        f'<option value="{html.escape(outcome)}">{html.escape(outcome)}</option>'
+        for outcome in OUTCOMES
+    )
+    action = "reopen" if flag.closed_at is not None else "close"
+    button = "Reopen" if flag.closed_at is not None else "Close"
+    form = (
+        f'<form method="post" action="/staff/flags/{flag.id}/{action}">'
+        + (
+            '<p><label>Outcome <select name="outcome" required>'
+            f"{outcome_options}</select></label></p>"
+            if action == "close"
+            else ""
+        )
+        + '<p><label>Reason <input name="reason" required></label></p>'
+        + f"<p><button>{button}</button></p></form>"
+    )
     body = (
         "<h1>Flag</h1>"
         "<table><tbody>"
@@ -103,11 +148,17 @@ def flag_page(
         f"<tr><th>Entry</th><td>{html.escape(str(flag.entry_id or ''))}</td></tr>"
         f"<tr><th>Class</th><td>{html.escape(flag.class_label)}</td></tr>"
         f"<tr><th>Card</th><td>{html.escape(flag.card_number)}</td></tr>"
+        f"<tr><th>Repeats</th><td>{flag.repeat_count}</td></tr>"
         "</tbody></table>"
         f"<p><strong>Question</strong></p><p>{html.escape(question)}</p>"
         f"<p><strong>Answer</strong></p><p>{html.escape(answer)}</p>"
-        '<form method="post" action="/staff/flags/'
-        f'{flag.id}/close"><button>Close</button></form>'
+        f"{form}"
+        "<h2>History</h2>"
+        "<table><thead><tr>"
+        "<th>At</th><th>Event</th><th>Account</th><th>Outcome</th><th>Reason</th>"
+        "</tr></thead><tbody>"
+        f"{history_rows}"
+        "</tbody></table>"
     )
     response = page("Flag", body)
     response.headers["Cache-Control"] = "no-store"
@@ -118,11 +169,34 @@ def flag_page(
 def close_flag_route(
     flag_id: int,
     account: StandInDep,
+    outcome: Annotated[str, Form()],
+    reason: Annotated[str, Form()],
     db: sqlite3.Connection = Depends(get_db),
     clock: datetime = Depends(get_clock),
 ) -> RedirectResponse:
     flag = get_flag(db, flag_id)
     if flag is None:
         raise HTTPException(status_code=404, detail="no such flag")
-    close_flag(db, flag_id, clock.isoformat())
+    try:
+        close_flag(db, flag_id, clock.isoformat(), account.username, outcome, reason)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
     return RedirectResponse("/staff/flags", status_code=303)
+
+
+@router.post("/flags/{flag_id}/reopen", response_model=None)
+def reopen_flag_route(
+    flag_id: int,
+    account: StandInDep,
+    reason: Annotated[str, Form()],
+    db: sqlite3.Connection = Depends(get_db),
+    clock: datetime = Depends(get_clock),
+) -> RedirectResponse:
+    flag = get_flag(db, flag_id)
+    if flag is None:
+        raise HTTPException(status_code=404, detail="no such flag")
+    try:
+        reopen_flag(db, flag_id, clock.isoformat(), account.username, reason)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    return RedirectResponse(f"/staff/flags/{flag_id}", status_code=303)
