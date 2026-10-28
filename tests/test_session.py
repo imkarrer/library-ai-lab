@@ -1,8 +1,12 @@
 """Grounded answers in a Session, through the real Card sign-in flow: register a
 Batch, sign in with a Card, then ask with the cookie sign-in set."""
 
+import asyncio
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 
+import anyio
 import httpx
 import pytest
 from fastapi.testclient import TestClient
@@ -19,7 +23,7 @@ from library_assistant.app import app
 from library_assistant.catalog import Catalog, Record
 from library_assistant.config import Settings
 from library_assistant.dependencies import get_catalog, get_settings
-from library_assistant.routers.session import BANNER_TEXT
+from library_assistant.routers.session import BANNER_TEXT, _in_flight
 
 REGISTRATION_KEY = "s3cret-registration-key"
 # Far in the future on purpose: sign-in sets the cookie to expire with the Card, an
@@ -363,3 +367,166 @@ def test_card_page_has_end_session_button(client):
     response = tc.get("/card")
     assert response.status_code == 200
     assert "End session" in response.text
+
+
+# One message in flight per Card (decision lib-f24.65). These tests drive the app
+# concurrently through httpx.ASGITransport, which only returns a response once its body
+# has streamed: so request 1 runs as a task, held inside the fake model until released,
+# and every wait is bounded so a bug fails fast instead of hanging.
+
+WAIT = 5
+
+
+@pytest.fixture
+def anyio_backend():
+    return "asyncio"
+
+
+@pytest.fixture(autouse=True)
+def _no_card_left_in_flight():
+    _in_flight.clear()
+    yield
+    _in_flight.clear()
+
+
+class HeldModel:
+    """The model endpoint: its first call waits for `release`, later calls answer at once."""
+
+    def __init__(self) -> None:
+        self.entered = asyncio.Event()
+        self.release = asyncio.Event()
+        self.fail_first = False
+        self.calls = 0
+
+
+@pytest.fixture
+def held_model(monkeypatch) -> HeldModel:
+    model = HeldModel()
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        model.calls += 1
+        if model.calls == 1:
+            model.entered.set()
+            await model.release.wait()
+            if model.fail_first:
+                raise httpx.ConnectError("model server down")
+        return httpx.Response(
+            200,
+            content=b'data: {"choices":[{"delta":{"content":"Ferdinand"}}]}\n\n'
+            b"data: [DONE]\n\n",
+            headers={"content-type": "text/event-stream"},
+        )
+
+    monkeypatch.setattr(
+        httpx.AsyncHTTPTransport, "handle_async_request", handle_async_request
+    )
+    return model
+
+
+@asynccontextmanager
+async def _signed_in(token: str = "token-14") -> AsyncIterator[httpx.AsyncClient]:
+    """A device with its own cookie jar, signed in with the Card `token`."""
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://testserver"
+    ) as device:
+        with anyio.fail_after(WAIT):
+            response = await device.post("/card", json={"token": token})
+        assert response.status_code == 200
+        yield device
+
+
+async def _ask(device: httpx.AsyncClient) -> httpx.Response:
+    with anyio.fail_after(WAIT):
+        return await device.post("/ask", json={"question": "a book about bulls?"})
+
+
+@asynccontextmanager
+async def _first_message_in_flight(
+    device: httpx.AsyncClient, model: HeldModel
+) -> AsyncIterator[dict]:
+    """Sends a message from `device` and yields once the model holds it; on exit,
+    releases the model and waits for that first message to end.
+
+    The yielded dict gets "response" (or "error", on a model error) when it ends."""
+    first: dict = {}
+
+    async def ask_first() -> None:
+        try:
+            first["response"] = await _ask(device)
+        except httpx.ConnectError as error:
+            first["error"] = error
+
+    with anyio.fail_after(WAIT):
+        async with anyio.create_task_group() as tasks:
+            tasks.start_soon(ask_first)
+            await model.entered.wait()
+            try:
+                yield first
+            finally:
+                model.release.set()
+
+
+def _one_moment(response: httpx.Response) -> bool:
+    return response.status_code == 409 and response.json() == {"status": "one moment"}
+
+
+@pytest.mark.anyio
+async def test_second_message_while_in_flight_is_409_one_moment(client, held_model):
+    _, db = client
+    async with _signed_in() as device:
+        async with _first_message_in_flight(device, held_model) as first:
+            assert _one_moment(await _ask(device))
+        assert first["response"].status_code == 200
+
+    # The second message was neither recorded nor sent to the model.
+    assert held_model.calls == 1
+    assert db.execute("SELECT count(*) FROM transcripts").fetchone()[0] == 1
+
+
+@pytest.mark.anyio
+async def test_other_card_unaffected_while_in_flight(client, held_model):
+    async with _signed_in("token-14") as card_14, _signed_in("token-15") as card_15:
+        async with _first_message_in_flight(card_14, held_model) as first:
+            other = await _ask(card_15)
+            assert other.status_code == 200
+            assert "Ferdinand" in other.text
+            assert first == {}, "card 14's message should still be in flight"
+        assert first["response"].status_code == 200
+
+
+@pytest.mark.anyio
+async def test_same_card_second_session_also_409(client, held_model):
+    _, db = client
+    async with _signed_in() as phone, _signed_in() as laptop:
+        assert db.execute("SELECT count(*) FROM sessions").fetchone()[0] == 2
+        async with _first_message_in_flight(phone, held_model) as first:
+            assert _one_moment(await _ask(laptop))
+        assert first["response"].status_code == 200
+    assert held_model.calls == 1
+
+
+@pytest.mark.anyio
+async def test_card_released_after_answer(client, held_model):
+    async with _signed_in() as device:
+        async with _first_message_in_flight(device, held_model) as first:
+            assert _one_moment(await _ask(device))
+        assert first["response"].status_code == 200
+
+        again = await _ask(device)
+    assert again.status_code == 200
+    assert "Ferdinand" in again.text
+    assert _in_flight == set()
+
+
+@pytest.mark.anyio
+async def test_card_released_after_model_error(client, held_model):
+    held_model.fail_first = True
+    async with _signed_in() as device:
+        async with _first_message_in_flight(device, held_model) as first:
+            assert _one_moment(await _ask(device))
+        assert isinstance(first["error"], httpx.ConnectError)
+
+        again = await _ask(device)
+    assert again.status_code == 200
+    assert "Ferdinand" in again.text
+    assert _in_flight == set()
