@@ -12,13 +12,18 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Depends, Form, HTTPException
+from fastapi.responses import HTMLResponse, RedirectResponse
 
-from library_assistant.access import get_clock, get_db
+from library_assistant.access import (
+    get_clock,
+    get_db,
+    revoke_batch_of_session,
+    revoke_card_of_session,
+)
 from library_assistant.dependencies import get_catalog
 from library_assistant.models import Citation
-from library_assistant.staff import StandInDep, page
+from library_assistant.staff import LibrarianDep, StandInDep, page
 
 LATEST_QUESTION_LIMIT = 80
 
@@ -293,8 +298,48 @@ def session_detail_view(
         f"<p><strong>Card:</strong> {html.escape(card_number)}</p>"
         f'<p><a href="/staff/live">← Back to Live view</a></p>'
         f'<div class="exchanges">{exchange_html}</div>'
+        f'<form method="post" action="/staff/live/sessions/{session_no}/revoke-card">'
+        f'<label><input type="checkbox" name="confirm" value="yes" required> '
+        f"Yes, revoke card {html.escape(card_number)}</label>"
+        '<button type="submit">Revoke this Card</button>'
+        "</form>"
+        f'<form method="post" action="/staff/live/sessions/{session_no}/revoke-batch">'
+        f'<label><input type="checkbox" name="confirm" value="yes" required> '
+        f"Yes, revoke every Card in {html.escape(class_label)}</label>"
+        '<button type="submit">Revoke this Batch</button>'
+        "</form>"
     )
 
     response = page("Session Detail", content)
     response.headers["Cache-Control"] = "no-store"
     return response
+
+
+@router.post("/live/sessions/{session_no}/revoke-card")
+def revoke_card_of_session_endpoint(
+    session_no: int,
+    account: LibrarianDep,
+    confirm: str | None = Form(None),
+    db: sqlite3.Connection = Depends(get_db),
+) -> RedirectResponse:
+    """Revoke the Card behind a Session; refuses without the confirmation checkbox."""
+    if not confirm:
+        raise HTTPException(status_code=400, detail="confirmation required")
+    if not revoke_card_of_session(db, session_no):
+        raise HTTPException(status_code=404, detail="Card already gone")
+    return RedirectResponse("/staff/live", status_code=303)
+
+
+@router.post("/live/sessions/{session_no}/revoke-batch")
+def revoke_batch_of_session_endpoint(
+    session_no: int,
+    account: LibrarianDep,
+    confirm: str | None = Form(None),
+    db: sqlite3.Connection = Depends(get_db),
+) -> RedirectResponse:
+    """Revoke every Card in the Batch behind a Session; refuses without the checkbox."""
+    if not confirm:
+        raise HTTPException(status_code=400, detail="confirmation required")
+    if not revoke_batch_of_session(db, session_no):
+        raise HTTPException(status_code=404, detail="Card already gone")
+    return RedirectResponse("/staff/live", status_code=303)

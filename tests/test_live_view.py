@@ -3,7 +3,13 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from fastapi.testclient import TestClient
 
-from library_assistant.access import connect, get_clock, get_db, hash_token
+from library_assistant.access import (
+    SESSION_COOKIE,
+    connect,
+    get_clock,
+    get_db,
+    hash_token,
+)
 from library_assistant.app import app
 from library_assistant.staff import STAFF_SESSION_COOKIE, create_account
 
@@ -459,3 +465,125 @@ def test_tile_links_to_detail(client, db):
 
     # Check that there's a link to the detail view
     assert "/staff/live/sessions/" in response.text
+
+
+def _session_no_for_card(db, card_number, class_label) -> int:
+    row = db.execute(
+        "SELECT sessions.rowid FROM sessions "
+        "JOIN cards ON cards.token_hash = sessions.token_hash "
+        "WHERE cards.card_number = ? AND cards.class_label = ?",
+        (card_number, class_label),
+    ).fetchone()
+    return row[0]
+
+
+def test_revoke_card_refuses_next_ask_other_cards_continue(client, db):
+    _sign_in_as(client, db, "librarian")
+    expires_at = NOW + timedelta(hours=6)
+    _card(db, "token-14", "14", class_label="Period 3", expires_at=expires_at)
+    _card(db, "token-15", "15", class_label="Period 3", expires_at=expires_at)
+    # Separate clients: posting /card with an existing session cookie would
+    # delete the first Card's Session (a new sign-in on the same device).
+    sess14 = (
+        TestClient(app)
+        .post("/card", json={"token": "token-14"})
+        .cookies[SESSION_COOKIE]
+    )
+    sess15 = (
+        TestClient(app)
+        .post("/card", json={"token": "token-15"})
+        .cookies[SESSION_COOKIE]
+    )
+    session_no = _session_no_for_card(db, "14", "Period 3")
+
+    response = client.post(
+        f"/staff/live/sessions/{session_no}/revoke-card",
+        data={"confirm": "yes"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/staff/live"
+    checker14 = TestClient(app)
+    checker14.cookies.set(SESSION_COOKIE, sess14)
+    checker15 = TestClient(app)
+    checker15.cookies.set(SESSION_COOKIE, sess15)
+    assert checker14.get("/chat").status_code == 403
+    assert checker15.get("/chat").status_code == 200
+
+
+def test_revoke_batch_refuses_every_card(client, db):
+    _sign_in_as(client, db, "librarian")
+    expires_at = NOW + timedelta(hours=6)
+    _card(db, "token-14", "14", class_label="Period 3", expires_at=expires_at)
+    _card(db, "token-15", "15", class_label="Period 3", expires_at=expires_at)
+    sess14 = (
+        TestClient(app)
+        .post("/card", json={"token": "token-14"})
+        .cookies[SESSION_COOKIE]
+    )
+    sess15 = (
+        TestClient(app)
+        .post("/card", json={"token": "token-15"})
+        .cookies[SESSION_COOKIE]
+    )
+    session_no = _session_no_for_card(db, "14", "Period 3")
+
+    response = client.post(
+        f"/staff/live/sessions/{session_no}/revoke-batch",
+        data={"confirm": "yes"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/staff/live"
+    checker14 = TestClient(app)
+    checker14.cookies.set(SESSION_COOKIE, sess14)
+    checker15 = TestClient(app)
+    checker15.cookies.set(SESSION_COOKIE, sess15)
+    assert checker14.get("/chat").status_code == 403
+    assert checker15.get("/chat").status_code == 403
+
+
+def test_revoke_requires_confirm(client, db):
+    _sign_in_as(client, db, "librarian")
+    _card(db, "token-14", "14", class_label="Period 3")
+    session_hash = _session(db, "token-14")
+    session_row = db.execute(
+        "SELECT rowid FROM sessions WHERE session_hash = ?", (session_hash,)
+    ).fetchone()
+    session_no = session_row[0]
+
+    response = client.post(f"/staff/live/sessions/{session_no}/revoke-card", data={})
+
+    assert response.status_code == 400
+    assert db.execute("SELECT 1 FROM cards").fetchone() is not None
+
+
+def test_revoke_teacher_403(client, db):
+    _sign_in_as(client, db, "teacher")
+    _card(db, "token-14", "14", class_label="Period 3")
+    session_hash = _session(db, "token-14")
+    session_row = db.execute(
+        "SELECT rowid FROM sessions WHERE session_hash = ?", (session_hash,)
+    ).fetchone()
+    session_no = session_row[0]
+
+    response = client.post(
+        f"/staff/live/sessions/{session_no}/revoke-card", data={"confirm": "yes"}
+    )
+
+    assert response.status_code == 403
+    assert db.execute("SELECT 1 FROM cards").fetchone() is not None
+
+
+def test_overview_still_has_no_forms(client, db):
+    _sign_in_as(client, db, "librarian")
+    _card(db, "token-14", "14", class_label="Period 3")
+    session_hash = _session(db, "token-14")
+    _ask(db, session_hash, "Period 3", "14", "what do snow leopards eat?")
+
+    response = client.get("/staff/live")
+
+    assert response.status_code == 200
+    assert "<form" not in response.text
