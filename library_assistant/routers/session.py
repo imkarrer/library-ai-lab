@@ -48,14 +48,15 @@ BANNER_TEXT = "This can be wrong, check the source."
 ERROR_TEXT = "Something went wrong. Ask the librarian."
 
 # ADR-0011's self-harm text verbatim, {counselor} = "a school counselor". One reply for
-# every high-severity match until lib-irf.1 makes it per Rubric category.
+# every high-severity match until lib-irf.1 makes it per Rubric category. The ADR's **bold**
+# is dropped: the chat page shows plain text, so asterisks would reach the Student.
 SUPPORTIVE_REPLY = """It sounds like you are going through something really hard. \
 You don't have to handle it alone.
 
 Please talk to an adult you trust today, like a school counselor or the librarian.
 
-You can call or text **988** any time, day or night. It is free, and a real person will \
-listen. If you might hurt yourself right now, tell an adult near you or call **911**.
+You can call or text 988 any time, day or night. It is free, and a real person will \
+listen. If you might hurt yourself right now, tell an adult near you or call 911.
 
 I am a library computer, so a person can help with this better than I can. An adult here \
 may check in with you, because they care how you are doing."""

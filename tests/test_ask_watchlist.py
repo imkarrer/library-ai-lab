@@ -158,7 +158,11 @@ def test_supportive_reply_is_adr_0011_self_harm_text():
         " ".join(part.split("\n"))
         for part in re.split(r"\n\n+", "\n".join(lines).strip())
     ]
-    expected = "\n\n".join(paragraphs).replace("{counselor}", "a school counselor")
+    expected = (
+        "\n\n".join(paragraphs)
+        .replace("{counselor}", "a school counselor")
+        .replace("**", "")
+    )
     assert SUPPORTIVE_REPLY == expected
 
 
