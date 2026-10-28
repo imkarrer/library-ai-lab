@@ -3,8 +3,9 @@
 Every transcript is deleted at the end of the school day it was made, except those
 attached to an open Flag, which stay until an adult closes the Flag, and those in an
 active Hold's scope, which stay until the Librarian lifts it (ADR-0003 addendum). The
-purge runs at the end of each school day (ADR-0003). Transcripts older than flags.history_days
-are also deleted, unless they are referenced by an open Flag or covered by a Hold.
+purge runs at the end of each school day (ADR-0003). A closed Flag and its history
+outlive the exchange, but only for flags.history_days after close, unless a Hold still
+covers the Flag's scope (ADR-0003 addendum, "Flag lifecycle").
 """
 
 from __future__ import annotations
@@ -81,9 +82,6 @@ def purge(db, now: datetime, settings: Settings) -> PurgeReport:
     # Calculate the cutoff time (end of the school day before 'now')
     cutoff = last_day_end_before(now, settings)
 
-    # Calculate history cutoff based on flags_history_days setting
-    history_cutoff = now - timedelta(days=settings.flags_history_days)
-
     # Find all transcripts that are older than the cutoff
     # But keep transcripts that are referenced by open Flags (closed_at IS NULL)
     # This includes both direct references via transcript_id and references via flag_repeats
@@ -149,32 +147,40 @@ def purge(db, now: datetime, settings: Settings) -> PurgeReport:
         elif unscreened_check[0] > 0:
             kept_unscreened_count += 1
         else:
-            # Check if this transcript is also older than flags_history_days
-            # If so, it should be deleted even if it passed the day-end cutoff
-            if asked_at < history_cutoff.isoformat():
-                # This transcript is older than flags_history_days, so delete it
-                # but first check if it should be kept for holds or flags
-                # (This check is redundant because it already passed the hold/flag check)
-                # But we need to make sure it's not covered by a Hold or open Flag
-                # However, it's already been through that check above, so we just delete it
-                db.execute("DELETE FROM transcripts WHERE id = ?", (transcript_id,))
+            # Past the day-end cutoff, not covered by a Hold, an open Flag, or
+            # pending screening: the exchange goes (at the first Purge after a
+            # Flag closes, this is what deletes it, ADR-0003 addendum).
+            db.execute("DELETE FROM transcripts WHERE id = ?", (transcript_id,))
+            db.execute(
+                "DELETE FROM flag_repeats WHERE transcript_id = ?", (transcript_id,)
+            )
+            deleted_count += 1
 
-                # Delete related flag_repeats entries for this transcript
-                db.execute(
-                    "DELETE FROM flag_repeats WHERE transcript_id = ?", (transcript_id,)
-                )
+    # The Flag and its history outlive the exchange, but not forever: at the first
+    # Purge flags.history_days after a Flag closed, both go too, unless a Hold still
+    # covers the Flag's scope (ADR-0003 addendum, "Flag lifecycle").
+    history_cutoff = now - timedelta(days=settings.flags_history_days)
+    closed_flags = db.execute(
+        "SELECT id, class_label, card_number, raised_at FROM flags "
+        "WHERE closed_at IS NOT NULL AND closed_at < ?",
+        (history_cutoff.isoformat(),),
+    ).fetchall()
+    for flag_id, class_label, card_number, raised_at in closed_flags:
+        if holding(holds, class_label, card_number, raised_at, settings):
+            continue
+        db.execute("DELETE FROM flag_history WHERE flag_id = ?", (flag_id,))
+        db.execute("DELETE FROM flag_repeats WHERE flag_id = ?", (flag_id,))
+        db.execute("DELETE FROM flags WHERE id = ?", (flag_id,))
 
-                deleted_count += 1
-            else:
-                # Standard day-end cutoff logic - delete if not covered by holds/flags
-                db.execute("DELETE FROM transcripts WHERE id = ?", (transcript_id,))
-
-                # Delete related flag_repeats entries for this transcript
-                db.execute(
-                    "DELETE FROM flag_repeats WHERE transcript_id = ?", (transcript_id,)
-                )
-
-                deleted_count += 1
+    # Token hashes are deleted at the first Purge after their Batch expires (a Revoke
+    # deletes the Card row at once). The Batch's Class label, Card numbers, and expiry
+    # go with the hash, since nothing else keeps a Card row alive but a Session that
+    # still refers to it (ADR-0003 addendum, "other copies").
+    db.execute(
+        "DELETE FROM cards WHERE expires_at < ? "
+        "AND token_hash NOT IN (SELECT token_hash FROM sessions)",
+        (now.isoformat(),),
+    )
 
     db.commit()
     # Fold any write-ahead log back into the database and truncate it, so no
