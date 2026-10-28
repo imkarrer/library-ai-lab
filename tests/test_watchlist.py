@@ -10,6 +10,42 @@ from library_assistant.watchlist import (
 SHIPPED = load_watchlist(DEFAULT_PATH)
 
 
+def test_demo_entry_absent_by_default():
+    """Test that demo entry is absent when demo flag is False (default)."""
+    watchlist = load_watchlist(DEFAULT_PATH, demo=False)
+    demo_entry_ids = [
+        entry.id for entry in watchlist.entries if entry.id == "demo-flag"
+    ]
+    assert len(demo_entry_ids) == 0
+
+
+def test_demo_entry_present_when_demo():
+    """Test that demo entry is present when demo flag is True."""
+    watchlist = load_watchlist(DEFAULT_PATH, demo=True)
+    demo_entry = next(entry for entry in watchlist.entries if entry.id == "demo-flag")
+    assert demo_entry.category == "self-harm"
+    assert demo_entry.severity == "high"
+    assert "library demo flag" in demo_entry.phrases
+
+
+def test_demo_entry_matches_its_examples():
+    """Test that demo entry matches its must_match examples."""
+    watchlist = load_watchlist(DEFAULT_PATH, demo=True)
+    demo_entry = next(entry for entry in watchlist.entries if entry.id == "demo-flag")
+
+    # Test must_match examples
+    for example in demo_entry.must_match:
+        assert demo_entry in watchlist.match(example), (
+            f"Demo entry should match: {example}"
+        )
+
+    # Test must_not_match examples
+    for example in demo_entry.must_not_match:
+        assert demo_entry not in watchlist.match(example), (
+            f"Demo entry should not match: {example}"
+        )
+
+
 @pytest.mark.parametrize("entry", SHIPPED.entries, ids=lambda entry: entry.id)
 def test_every_entry_matches_its_examples(entry):
     for example in entry.must_match:

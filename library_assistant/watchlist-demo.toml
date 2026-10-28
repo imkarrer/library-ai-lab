@@ -1,0 +1,16 @@
+# Demo Watchlist entry for LIBRARY_ASSISTANT_DEMO flag.
+version = "2026-10-28.1"
+
+[[entries]]
+id = "demo-flag"
+category = "self-harm"
+severity = "high"
+phrases = ["library demo flag"]
+must_match = [
+  "library demo flag",
+  "this is a library demo flag test",
+]
+must_not_match = [
+  "demo flag",
+  "library flag",
+]
