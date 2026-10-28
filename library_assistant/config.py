@@ -38,6 +38,7 @@ class Settings:
     oversight_model: str | None = None
     oversight_timeout_seconds: int = 20
     flags_overdue_days: int = 7  # ADR-0003 addendum: flags.overdue_days
+    flags_history_days: int = 90  # ADR-0003 addendum: flags.history_days
     holds_review_days: int = 30  # ADR-0003 addendum: holds.review_days
 
     @classmethod

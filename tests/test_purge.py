@@ -74,6 +74,43 @@ def db():
         )
         db.execute(
             """
+            CREATE TABLE flag_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                flag_id INTEGER NOT NULL,
+                event TEXT NOT NULL,
+                at TEXT NOT NULL,
+                account TEXT,
+                reason TEXT,
+                outcome TEXT,
+                source TEXT,
+                entry_id TEXT,
+                watchlist_version TEXT,
+                repeat_count INTEGER
+            )
+            """
+        )
+        db.execute(
+            """
+            CREATE TABLE cards (
+                token_hash TEXT PRIMARY KEY,
+                card_number TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                class_label TEXT NOT NULL
+            )
+            """
+        )
+        db.execute(
+            """
+            CREATE TABLE sessions (
+                session_hash TEXT PRIMARY KEY,
+                token_hash TEXT NOT NULL,
+                started_at TEXT NOT NULL,
+                last_seen_at TEXT NOT NULL DEFAULT '1970-01-01T00:00:00+00:00'
+            )
+            """
+        )
+        db.execute(
+            """
             CREATE TABLE purge_runs (
                 ran_at TEXT NOT NULL,
                 deleted INTEGER,
@@ -324,6 +361,194 @@ def test_closed_flag_transcript_goes_at_next_purge(db):
     # Verify transcript was deleted
     count = db.execute("SELECT COUNT(*) FROM transcripts").fetchone()[0]
     assert count == 0
+
+
+def _insert_closed_flag(
+    db, closed_at: str, raised_at: str = "2023-10-01T10:00:00Z"
+) -> int:
+    db.execute(
+        "INSERT INTO flags (transcript_id, class_label, card_number, batch_expires_at, "
+        "message_hash, category, severity, source, raised_at, closed_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            1,
+            "Test Class",
+            "12345",
+            "2023-12-31T23:59:59Z",
+            None,
+            "content",
+            "high",
+            "watchlist",
+            raised_at,
+            closed_at,
+        ),
+    )
+    flag_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
+    db.execute(
+        "INSERT INTO flag_history (flag_id, event, at) VALUES (?, 'closed', ?)",
+        (flag_id, closed_at),
+    )
+    db.commit()
+    return flag_id
+
+
+def test_closed_flag_and_history_kept_before_history_days(db):
+    """A closed Flag and its history stay until flags.history_days after close."""
+    flag_id = _insert_closed_flag(db, closed_at="2023-10-01T12:00:00Z")
+    settings = Settings(
+        school_timezone="America/Chicago",
+        school_day_end="17:00:00",
+        flags_history_days=90,
+    )
+    now = datetime(2023, 10, 2, 18, 0, 0, tzinfo=UTC)
+
+    purge(db, now, settings)
+
+    assert (
+        db.execute("SELECT COUNT(*) FROM flags WHERE id = ?", (flag_id,)).fetchone()[0]
+        == 1
+    )
+    assert (
+        db.execute(
+            "SELECT COUNT(*) FROM flag_history WHERE flag_id = ?", (flag_id,)
+        ).fetchone()[0]
+        == 1
+    )
+
+
+def test_closed_flag_and_history_deleted_after_history_days(db):
+    """The first Purge flags.history_days after close deletes the Flag and history."""
+    flag_id = _insert_closed_flag(db, closed_at="2023-01-01T12:00:00Z")
+    settings = Settings(
+        school_timezone="America/Chicago",
+        school_day_end="17:00:00",
+        flags_history_days=90,
+    )
+    now = datetime(2023, 10, 2, 18, 0, 0, tzinfo=UTC)
+
+    purge(db, now, settings)
+
+    assert (
+        db.execute("SELECT COUNT(*) FROM flags WHERE id = ?", (flag_id,)).fetchone()[0]
+        == 0
+    )
+    assert (
+        db.execute(
+            "SELECT COUNT(*) FROM flag_history WHERE flag_id = ?", (flag_id,)
+        ).fetchone()[0]
+        == 0
+    )
+
+
+def test_hold_keeps_closed_flag_past_history_days(db):
+    """A Hold covering the Flag's scope outlives flags.history_days."""
+    flag_id = _insert_closed_flag(
+        db, closed_at="2023-01-01T12:00:00Z", raised_at="2023-10-01T10:00:00Z"
+    )
+    db.execute(
+        "INSERT INTO holds (all_classes, class_labels, card_numbers, date_from, date_to, "
+        "reason_kind, reference, set_at, set_by) "
+        "VALUES (0, ?, ?, ?, ?, 'other', 'ref', ?, 'librarian')",
+        (
+            '["Test Class"]',
+            "[]",
+            "2023-10-01",
+            "2023-10-01",
+            "2023-10-01T00:00:00Z",
+        ),
+    )
+    db.commit()
+    settings = Settings(
+        school_timezone="America/Chicago",
+        school_day_end="17:00:00",
+        flags_history_days=90,
+    )
+    now = datetime(2023, 10, 2, 18, 0, 0, tzinfo=UTC)
+
+    purge(db, now, settings)
+
+    assert (
+        db.execute("SELECT COUNT(*) FROM flags WHERE id = ?", (flag_id,)).fetchone()[0]
+        == 1
+    )
+
+
+def test_expired_card_hash_purged(db):
+    """A Card's Token hash is deleted at the first Purge after the Batch expires."""
+    db.execute(
+        "INSERT INTO cards (token_hash, card_number, expires_at, class_label) "
+        "VALUES ('hash-1', '12345', '2023-01-01T00:00:00Z', 'Test Class')"
+    )
+    db.commit()
+    settings = Settings(school_timezone="America/Chicago", school_day_end="17:00:00")
+    now = datetime(2023, 10, 2, 18, 0, 0, tzinfo=UTC)
+
+    purge(db, now, settings)
+
+    assert db.execute("SELECT COUNT(*) FROM cards").fetchone()[0] == 0
+
+
+def _tables_holding(db, value):
+    """Every table with a row that carries `value` in any column."""
+    tables = [
+        name
+        for (name,) in db.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table'"
+        ).fetchall()
+    ]
+    found = []
+    for table in tables:
+        for row in db.execute(f'SELECT * FROM "{table}"').fetchall():
+            if any(value in str(cell) for cell in row if cell is not None):
+                found.append(table)
+                break
+    return found
+
+
+@pytest.mark.parametrize("ending", ["expired", "revoked"])
+def test_no_token_hash_remains_after_expiry_or_revoke(tmp_path, ending):
+    """After expiry or a Revoke, the next Purge leaves the Card's Token hash in no
+    table, even while a Session started with the Card still sits in the database."""
+    from library_assistant.access import connect
+
+    db = connect(str(tmp_path / "assistant.db"))
+    try:
+        now = datetime(2023, 10, 2, 18, 0, 0, tzinfo=UTC)
+        in_date = now + timedelta(days=1)
+        expires_at = now - timedelta(days=1) if ending == "expired" else in_date
+        db.execute(
+            "INSERT INTO cards (token_hash, card_number, expires_at, class_label) "
+            "VALUES ('hash-gone', '12345', ?, 'Test Class')",
+            (expires_at.isoformat(),),
+        )
+        db.execute(
+            "INSERT INTO cards (token_hash, card_number, expires_at, class_label) "
+            "VALUES ('hash-live', '67890', ?, 'Test Class')",
+            (in_date.isoformat(),),
+        )
+        db.execute(
+            "INSERT INTO sessions (session_hash, token_hash, started_at) "
+            "VALUES ('session-gone', 'hash-gone', '2023-10-01T14:00:00+00:00')"
+        )
+        db.execute(
+            "INSERT INTO sessions (session_hash, token_hash, started_at) "
+            "VALUES ('session-live', 'hash-live', '2023-10-01T14:00:00+00:00')"
+        )
+        if ending == "revoked":
+            db.execute("DELETE FROM cards WHERE token_hash = 'hash-gone'")
+        db.commit()
+        assert "sessions" in _tables_holding(db, "hash-gone")
+
+        settings = Settings(
+            school_timezone="America/Chicago", school_day_end="17:00:00"
+        )
+        purge(db, now, settings)
+
+        assert _tables_holding(db, "hash-gone") == []
+        # A Card still in date keeps its row and its Session.
+        assert sorted(_tables_holding(db, "hash-live")) == ["cards", "sessions"]
+    finally:
+        db.close()
 
 
 def test_report_counts(db):
