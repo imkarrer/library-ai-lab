@@ -31,7 +31,9 @@ def db():
                 question TEXT NOT NULL,
                 answer TEXT NOT NULL,
                 citations TEXT NOT NULL,
-                asked_at TEXT NOT NULL
+                asked_at TEXT NOT NULL,
+                screened_at TEXT,
+                screening TEXT NOT NULL DEFAULT 'none' CHECK (screening IN ('none','oversight','watchlist_alone'))
             )
             """
         )
@@ -479,6 +481,145 @@ def test_run_if_due_skips_when_already_run(db):
     # Verify only the new transcript exists (first was purged, second wasn't purged)
     count2 = db.execute("SELECT COUNT(*) FROM transcripts").fetchone()[0]
     assert count2 == 1
+
+
+def test_unscreened_exchange_survives_purge(db):
+    """A transcript still awaiting Oversight screening survives the Purge."""
+    yesterday = datetime(2023, 10, 1, 10, 0, 0, tzinfo=UTC)
+    db.execute(
+        "INSERT INTO transcripts (session_hash, class_label, card_number, question, answer, citations, asked_at, screening, screened_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            "session1",
+            "Test Class",
+            "12345",
+            "Question",
+            "Answer",
+            "[]",
+            yesterday.isoformat(),
+            "oversight",
+            None,
+        ),
+    )
+    db.commit()
+
+    settings = Settings(school_timezone="America/Chicago", school_day_end="17:00:00")
+    now = datetime(2023, 10, 2, 18, 0, 0, tzinfo=UTC)
+    result = purge(db, now, settings)
+
+    assert result.deleted == 0
+    assert result.kept_unscreened == 1
+
+    count = db.execute("SELECT COUNT(*) FROM transcripts").fetchone()[0]
+    assert count == 1
+
+
+def test_watchlist_alone_unscreened_survives_purge(db):
+    """A transcript still awaiting Watchlist-alone screening survives the Purge."""
+    yesterday = datetime(2023, 10, 1, 10, 0, 0, tzinfo=UTC)
+    db.execute(
+        "INSERT INTO transcripts (session_hash, class_label, card_number, question, answer, citations, asked_at, screening, screened_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            "session1",
+            "Test Class",
+            "12345",
+            "Question",
+            "Answer",
+            "[]",
+            yesterday.isoformat(),
+            "watchlist_alone",
+            None,
+        ),
+    )
+    db.commit()
+
+    settings = Settings(school_timezone="America/Chicago", school_day_end="17:00:00")
+    now = datetime(2023, 10, 2, 18, 0, 0, tzinfo=UTC)
+    result = purge(db, now, settings)
+
+    assert result.deleted == 0
+    assert result.kept_unscreened == 1
+
+    count = db.execute("SELECT COUNT(*) FROM transcripts").fetchone()[0]
+    assert count == 1
+
+
+def test_screened_exchange_goes(db):
+    """A transcript that has already been screened purges normally."""
+    yesterday = datetime(2023, 10, 1, 10, 0, 0, tzinfo=UTC)
+    db.execute(
+        "INSERT INTO transcripts (session_hash, class_label, card_number, question, answer, citations, asked_at, screening, screened_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            "session1",
+            "Test Class",
+            "12345",
+            "Question",
+            "Answer",
+            "[]",
+            yesterday.isoformat(),
+            "oversight",
+            "2023-10-01T11:00:00Z",
+        ),
+    )
+    db.commit()
+
+    settings = Settings(school_timezone="America/Chicago", school_day_end="17:00:00")
+    now = datetime(2023, 10, 2, 18, 0, 0, tzinfo=UTC)
+    result = purge(db, now, settings)
+
+    assert result.deleted == 1
+    assert result.kept_unscreened == 0
+
+    count = db.execute("SELECT COUNT(*) FROM transcripts").fetchone()[0]
+    assert count == 0
+
+
+def test_report_counts_unscreened(db):
+    """PurgeReport.kept_unscreened counts unscreened transcripts separately from deletes and flags."""
+    yesterday = datetime(2023, 10, 1, 10, 0, 0, tzinfo=UTC)
+
+    # Transcript 1: no flag, already screened -> deleted
+    db.execute(
+        "INSERT INTO transcripts (session_hash, class_label, card_number, question, answer, citations, asked_at, screening, screened_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            "session1",
+            "Test Class",
+            "12345",
+            "Question",
+            "Answer",
+            "[]",
+            yesterday.isoformat(),
+            "none",
+            None,
+        ),
+    )
+
+    # Transcript 2: unscreened watchlist_alone -> kept_unscreened
+    db.execute(
+        "INSERT INTO transcripts (session_hash, class_label, card_number, question, answer, citations, asked_at, screening, screened_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            "session2",
+            "Test Class",
+            "67890",
+            "Question",
+            "Answer",
+            "[]",
+            yesterday.isoformat(),
+            "watchlist_alone",
+            None,
+        ),
+    )
+    db.commit()
+
+    settings = Settings(school_timezone="America/Chicago", school_day_end="17:00:00")
+    now = datetime(2023, 10, 2, 18, 0, 0, tzinfo=UTC)
+    result = purge(db, now, settings)
+
+    assert result.deleted == 1
+    assert result.kept_for_flags == 0
+    assert result.kept_unscreened == 1
+
+    count = db.execute("SELECT COUNT(*) FROM transcripts").fetchone()[0]
+    assert count == 1
 
 
 def test_startup_purges_after_missed_day_end():

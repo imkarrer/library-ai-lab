@@ -13,7 +13,9 @@ from datetime import datetime
 from library_assistant.config import Settings
 from library_assistant.schoolday import last_day_end_before
 
-PurgeReport = namedtuple("PurgeReport", ["deleted", "kept_for_flags"])
+PurgeReport = namedtuple(
+    "PurgeReport", ["deleted", "kept_for_flags", "kept_unscreened"]
+)
 
 
 def run_if_due(db, now: datetime, settings: Settings) -> PurgeReport | None:
@@ -69,6 +71,7 @@ def purge(db, now: datetime, settings: Settings) -> PurgeReport:
 
     deleted_count = 0
     kept_for_flags_count = 0
+    kept_unscreened_count = 0
 
     # Process each transcript to see if it should be kept
     for transcript_row in transcripts_to_delete:
@@ -78,8 +81,8 @@ def purge(db, now: datetime, settings: Settings) -> PurgeReport:
         # Either directly via flags.transcript_id or through flag_repeats
         flag_check = db.execute(
             """
-            SELECT COUNT(*) 
-            FROM flags 
+            SELECT COUNT(*)
+            FROM flags
             WHERE transcript_id = ? AND closed_at IS NULL
             """,
             (transcript_id,),
@@ -88,10 +91,22 @@ def purge(db, now: datetime, settings: Settings) -> PurgeReport:
         # Also check flag_repeats for open flags
         flag_repeat_check = db.execute(
             """
-            SELECT COUNT(*) 
-            FROM flag_repeats fr 
-            JOIN flags f ON fr.flag_id = f.id 
+            SELECT COUNT(*)
+            FROM flag_repeats fr
+            JOIN flags f ON fr.flag_id = f.id
             WHERE fr.transcript_id = ? AND f.closed_at IS NULL
+            """,
+            (transcript_id,),
+        ).fetchone()
+
+        # Oversight down does not hold Students (ADR-0004 addenda): a transcript
+        # still awaiting screening stays, whatever its day.
+        unscreened_check = db.execute(
+            """
+            SELECT COUNT(*)
+            FROM transcripts
+            WHERE id = ? AND screened_at IS NULL
+                AND screening IN ('oversight', 'watchlist_alone')
             """,
             (transcript_id,),
         ).fetchone()
@@ -99,6 +114,8 @@ def purge(db, now: datetime, settings: Settings) -> PurgeReport:
         # If the transcript is referenced by an open flag, keep it
         if flag_check[0] > 0 or flag_repeat_check[0] > 0:
             kept_for_flags_count += 1
+        elif unscreened_check[0] > 0:
+            kept_unscreened_count += 1
         else:
             # Delete the transcript
             db.execute("DELETE FROM transcripts WHERE id = ?", (transcript_id,))
@@ -110,4 +127,8 @@ def purge(db, now: datetime, settings: Settings) -> PurgeReport:
 
             deleted_count += 1
 
-    return PurgeReport(deleted=deleted_count, kept_for_flags=kept_for_flags_count)
+    return PurgeReport(
+        deleted=deleted_count,
+        kept_for_flags=kept_for_flags_count,
+        kept_unscreened=kept_unscreened_count,
+    )
