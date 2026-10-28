@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from library_assistant.access import connect, get_clock, get_db, hash_token
 from library_assistant.app import app
 from library_assistant.flags import raise_flag
-from library_assistant.staff import STAFF_SESSION_COOKIE, create_account
+from library_assistant.staff import STAFF_SESSION_COOKIE, create_account, set_stand_in
 
 # Far in the future on purpose, matching tests/test_staff.py's convention: a past NOW
 # would make every Card and staff session in this file look already expired.
@@ -138,9 +138,8 @@ def test_close_removes_from_queue(client, db):
     assert f"/staff/flags/{flag_id}" not in queue.text
 
 
-@pytest.mark.parametrize("role", ["teacher", "counselor"])
-def test_teacher_and_counselor_get_403(client, db, role):
-    _sign_in_as(client, db, role)
+def test_teacher_gets_403(client, db):
+    _sign_in_as(client, db, "teacher")
     transcript_id = _transcript(db)
     flag_id = _flag(db, transcript_id)
 
@@ -149,6 +148,53 @@ def test_teacher_and_counselor_get_403(client, db, role):
     assert (
         client.post(f"/staff/flags/{flag_id}/close", follow_redirects=False).status_code
         == 403
+    )
+
+
+def test_counselor_sees_only_escalated(client, db):
+    """A Counselor sees the queue, but only an Escalated Flag in it (ADR-0010)."""
+    _sign_in_as(client, db, "counselor")
+    transcript_id = _transcript(db)
+    open_flag_id = _flag(db, transcript_id)
+    escalated_flag_id = _flag(db, transcript_id, category="escalated")
+
+    response = client.get("/staff/flags")
+    assert response.status_code == 200
+    assert f"/staff/flags/{escalated_flag_id}" in response.text
+    assert f"/staff/flags/{open_flag_id}" not in response.text
+
+    assert client.get(f"/staff/flags/{escalated_flag_id}").status_code == 200
+    assert client.get(f"/staff/flags/{open_flag_id}").status_code == 403
+    assert (
+        client.post(
+            f"/staff/flags/{escalated_flag_id}/close", follow_redirects=False
+        ).status_code
+        == 403
+    )
+
+
+def test_stand_in_gets_full_queue_access(client, db):
+    """A Stand-in works the queue like a Librarian (ADR-0010)."""
+    create_account(db, "teacher-standin", "correct horse", "teacher")
+    account_id = db.execute(
+        "SELECT id FROM staff_accounts WHERE username = 'teacher-standin'"
+    ).fetchone()[0]
+    set_stand_in(db, account_id, True)
+    response = client.post(
+        "/staff/login",
+        data={"username": "teacher-standin", "password": "correct horse"},
+        follow_redirects=False,
+    )
+    client.cookies.set(STAFF_SESSION_COOKIE, response.cookies[STAFF_SESSION_COOKIE])
+
+    transcript_id = _transcript(db)
+    flag_id = _flag(db, transcript_id)
+
+    assert client.get("/staff/flags").status_code == 200
+    assert client.get(f"/staff/flags/{flag_id}").status_code == 200
+    assert (
+        client.post(f"/staff/flags/{flag_id}/close", follow_redirects=False).status_code
+        == 303
     )
 
 

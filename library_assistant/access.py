@@ -161,6 +161,7 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
             username TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
             role TEXT NOT NULL CHECK (role IN ('librarian', 'teacher', 'counselor')),
+            is_stand_in INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL
         )
         """

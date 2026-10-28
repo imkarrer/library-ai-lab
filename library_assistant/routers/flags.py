@@ -10,13 +10,14 @@ from __future__ import annotations
 import html
 import sqlite3
 from datetime import datetime
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from library_assistant.access import get_clock, get_db
 from library_assistant.flags import FlagRow, close_flag, get_flag, open_flags
-from library_assistant.staff import LibrarianDep, page
+from library_assistant.staff import StaffDep, StandInDep, page
 
 router = APIRouter(prefix="/staff")
 
@@ -36,12 +37,33 @@ def _queue_row_html(flag: FlagRow) -> str:
     )
 
 
+def _queue_access(account: StaffDep) -> StaffDep:
+    """Librarian and Stand-in see the whole queue; a Counselor sees only Escalated
+    Flags (ADR-0010, lib-f24.7); everyone else is refused."""
+    if (
+        account.role != "librarian"
+        and not account.is_stand_in
+        and account.role != "counselor"
+    ):
+        raise HTTPException(status_code=403, detail="not available to your role")
+    return account
+
+
+QueueDep = Annotated[StaffDep, Depends(_queue_access)]
+
+
+def _visible_to(account: StaffDep, flag: FlagRow) -> bool:
+    if account.role == "librarian" or account.is_stand_in:
+        return True
+    return flag.category == "escalated"
+
+
 @router.get("/flags")
 def flag_queue(
-    account: LibrarianDep,
+    account: QueueDep,
     db: sqlite3.Connection = Depends(get_db),
 ) -> HTMLResponse:
-    flags = open_flags(db)
+    flags = [flag for flag in open_flags(db) if _visible_to(account, flag)]
     rows = "".join(_queue_row_html(flag) for flag in flags)
     body = (
         "<h1>Flag queue</h1>"
@@ -58,12 +80,14 @@ def flag_queue(
 @router.get("/flags/{flag_id}")
 def flag_page(
     flag_id: int,
-    account: LibrarianDep,
+    account: QueueDep,
     db: sqlite3.Connection = Depends(get_db),
 ) -> HTMLResponse:
     flag = get_flag(db, flag_id)
     if flag is None:
         raise HTTPException(status_code=404, detail="no such flag")
+    if not _visible_to(account, flag):
+        raise HTTPException(status_code=403, detail="not available to your role")
     transcript = db.execute(
         "SELECT question, answer FROM transcripts WHERE id = ?",
         (flag.transcript_id,),
@@ -93,7 +117,7 @@ def flag_page(
 @router.post("/flags/{flag_id}/close", response_model=None)
 def close_flag_route(
     flag_id: int,
-    account: LibrarianDep,
+    account: StandInDep,
     db: sqlite3.Connection = Depends(get_db),
     clock: datetime = Depends(get_clock),
 ) -> RedirectResponse:

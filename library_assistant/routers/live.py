@@ -18,7 +18,7 @@ from fastapi.responses import HTMLResponse
 from library_assistant.access import get_clock, get_db
 from library_assistant.dependencies import get_catalog
 from library_assistant.models import Citation
-from library_assistant.staff import LibrarianDep, page
+from library_assistant.staff import StandInDep, page
 
 LATEST_QUESTION_LIMIT = 80
 
@@ -256,7 +256,7 @@ router = APIRouter(prefix="/staff")
 
 @router.get("/live")
 def live_view(
-    account: LibrarianDep,
+    account: StandInDep,
     db: sqlite3.Connection = Depends(get_db),
     clock: datetime = Depends(get_clock),
 ) -> HTMLResponse:
@@ -275,7 +275,7 @@ def live_view(
 @router.get("/live/sessions/{session_no}")
 def session_detail_view(
     session_no: int,
-    account: LibrarianDep,
+    account: StandInDep,
     db: sqlite3.Connection = Depends(get_db),
     catalog=Depends(get_catalog),
     clock: datetime = Depends(get_clock),

@@ -22,7 +22,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from library_assistant.access import get_clock, get_db, hash_token
+from library_assistant.access import get_clock, get_db, get_registration_key, hash_token
 
 STAFF_SESSION_COOKIE = "staff_session"
 STAFF_SESSION_LIFETIME = timedelta(hours=12)
@@ -103,6 +103,7 @@ class StaffAccount:
     id: int
     username: str
     role: str
+    is_stand_in: bool = False
 
 
 class StaffSignInRequired(Exception):
@@ -130,7 +131,7 @@ def current_staff(
         raise StaffSignInRequired
     row = db.execute(
         "SELECT staff_accounts.id, staff_accounts.username, staff_accounts.role, "
-        "staff_sessions.expires_at "
+        "staff_accounts.is_stand_in, staff_sessions.expires_at "
         "FROM staff_sessions JOIN staff_accounts "
         "ON staff_accounts.id = staff_sessions.account_id "
         "WHERE staff_sessions.session_hash = ?",
@@ -138,10 +139,12 @@ def current_staff(
     ).fetchone()
     if row is None:
         raise StaffSignInRequired
-    account_id, username, role, expires_at = row
+    account_id, username, role, is_stand_in, expires_at = row
     if clock >= datetime.fromisoformat(expires_at):
         raise StaffSignInRequired
-    return StaffAccount(id=account_id, username=username, role=role)
+    return StaffAccount(
+        id=account_id, username=username, role=role, is_stand_in=bool(is_stand_in)
+    )
 
 
 StaffDep = Annotated[StaffAccount, Depends(current_staff)]
@@ -160,6 +163,31 @@ def require_role(*roles: str) -> Callable[..., StaffAccount]:
 
 # Route parameters use these, so ruff B008 sees no call in an argument default.
 LibrarianDep = Annotated[StaffAccount, Depends(require_role("librarian"))]
+
+
+def require_watch_access() -> Callable[..., StaffAccount]:
+    """Lets through the Librarian or a Stand-in; everyone else gets 403 (ADR-0010)."""
+
+    def dependency(account: StaffDep) -> StaffAccount:
+        if account.role != "librarian" and not account.is_stand_in:
+            raise HTTPException(status_code=403, detail="not available to your role")
+        return account
+
+    return dependency
+
+
+StandInDep = Annotated[StaffAccount, Depends(require_watch_access())]
+
+
+def set_stand_in(db: sqlite3.Connection, account_id: int, is_stand_in: bool) -> None:
+    """Grant or revoke the Stand-in role on a staff account (ADR-0010)."""
+    cursor = db.execute(
+        "UPDATE staff_accounts SET is_stand_in = ? WHERE id = ?",
+        (1 if is_stand_in else 0, account_id),
+    )
+    if cursor.rowcount == 0:
+        raise HTTPException(status_code=404, detail="no such account")
+    db.commit()
 
 
 router = APIRouter(prefix="/staff")
@@ -229,3 +257,68 @@ def staff_home(account: StaffDep) -> HTMLResponse:
         f"<p>Signed in as {html.escape(account.username)} ({account.role}).</p>"
         '<form method="post" action="/staff/logout"><button>Sign out</button></form>',
     )
+
+
+def _account_row_html(row: tuple[int, str, str, int]) -> str:
+    account_id, username, role, is_stand_in = row
+    action = "revoke" if is_stand_in else "grant"
+    return (
+        "<tr>"
+        f"<td>{html.escape(username)}</td>"
+        f"<td>{html.escape(role)}</td>"
+        f"<td>{'yes' if is_stand_in else 'no'}</td>"
+        f'<td><form method="post" action="/staff/accounts/{account_id}/stand-in/{action}">'
+        f"<button>{action.capitalize()} Stand-in</button></form></td>"
+        "</tr>"
+    )
+
+
+@router.get("/accounts")
+def accounts_page(
+    account: LibrarianDep, db: sqlite3.Connection = Depends(get_db)
+) -> HTMLResponse:
+    """Librarian-only: grant or revoke Stand-in on any staff account (ADR-0010)."""
+    rows = db.execute(
+        "SELECT id, username, role, is_stand_in FROM staff_accounts ORDER BY username"
+    ).fetchall()
+    body = (
+        "<h1>Staff accounts</h1>"
+        "<table><thead><tr>"
+        "<th>Username</th><th>Role</th><th>Stand-in</th><th></th>"
+        "</tr></thead><tbody>"
+        f"{''.join(_account_row_html(row) for row in rows)}"
+        "</tbody></table>"
+    )
+    return page("Staff accounts", body)
+
+
+@router.post("/accounts/{account_id}/stand-in/grant", response_model=None)
+def grant_stand_in_route(
+    account_id: int,
+    account: LibrarianDep,
+    db: sqlite3.Connection = Depends(get_db),
+) -> RedirectResponse:
+    set_stand_in(db, account_id, True)
+    return RedirectResponse("/staff/accounts", status_code=303)
+
+
+@router.post("/accounts/{account_id}/stand-in/revoke", response_model=None)
+def revoke_stand_in_route(
+    account_id: int,
+    account: LibrarianDep,
+    db: sqlite3.Connection = Depends(get_db),
+) -> RedirectResponse:
+    set_stand_in(db, account_id, False)
+    return RedirectResponse("/staff/accounts", status_code=303)
+
+
+@router.get("/keys")
+def keys_page(
+    account: LibrarianDep, key: str | None = Depends(get_registration_key)
+) -> HTMLResponse:
+    """Librarian-only: the Install's Registration key. Per-Teacher keys are lib-90j.1."""
+    body = (
+        "<h1>Registration key</h1>"
+        f"<p>{html.escape(key) if key else 'No registration key is set.'}</p>"
+    )
+    return page("Registration key", body)
