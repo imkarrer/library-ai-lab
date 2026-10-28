@@ -1,5 +1,9 @@
+import asyncio
+import json
+import re
 from datetime import UTC, datetime, timedelta
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
@@ -8,10 +12,15 @@ from library_assistant.access import (
     connect,
     get_clock,
     get_db,
+    get_registration_key,
     hash_token,
 )
 from library_assistant.app import app
-from library_assistant.staff import STAFF_SESSION_COOKIE, create_account
+from library_assistant.catalog import Catalog, Record
+from library_assistant.config import Settings
+from library_assistant.dependencies import get_catalog, get_settings
+from library_assistant.routers.live import LiveBus, get_live_bus, live_events
+from library_assistant.staff import STAFF_SESSION_COOKIE, StaffAccount, create_account
 
 # Far in the future on purpose, matching tests/test_staff.py's convention: a past NOW
 # would make every Card and staff session in this file look already expired.
@@ -587,3 +596,211 @@ def test_overview_still_has_no_forms(client, db):
 
     assert response.status_code == 200
     assert "<form" not in response.text
+
+
+# --- Live updates over SSE (lib-f24.48). No test sleeps on the wall clock: the ping wait
+# is injected, and every await on the stream is bounded by STREAM_TIMEOUT so a bug fails
+# the test instead of hanging it.
+
+STREAM_TIMEOUT = 5
+REGISTRATION_KEY = "s3cret-registration-key"
+RECORD = Record(
+    id="00057791",
+    title="The story of Ferdinand /",
+    author="Leaf, Munro,",
+    subjects="Bulls -- Fiction",
+    summary="A bull who would rather smell flowers than fight.",
+    call_number="PZ10.3.L47 St",
+)
+LIBRARIAN = StaffAccount(id=1, username="librarian-account", role="librarian")
+
+
+class FakeCatalog(Catalog):
+    def search(self, query: str, k: int) -> list[Record]:
+        return [RECORD]
+
+    def get(self, id: str) -> Record | None:
+        return RECORD if id == RECORD.id else None
+
+
+@pytest.fixture
+def bus():
+    bus = LiveBus()
+    app.dependency_overrides[get_live_bus] = lambda: bus
+    return bus
+
+
+@pytest.fixture
+def asking_client(client, bus, monkeypatch):
+    """A Card signed in through the real flow, with the model endpoint faked."""
+    app.dependency_overrides[get_registration_key] = lambda: REGISTRATION_KEY
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        openai_endpoint="http://model.example.com:8080", openai_model="llama3"
+    )
+    app.dependency_overrides[get_catalog] = lambda: FakeCatalog()
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        body = (
+            b'data: {"choices":[{"delta":{"content":"Try Ferdinand"}}]}\n\n'
+            b"data: [DONE]\n\n"
+        )
+        return httpx.Response(
+            200, content=body, headers={"content-type": "text/event-stream"}
+        )
+
+    monkeypatch.setattr(
+        httpx.AsyncHTTPTransport, "handle_async_request", handle_async_request
+    )
+    response = client.post(
+        "/batches",
+        json={
+            "registration_key": REGISTRATION_KEY,
+            "cards": [{"token": "token-14", "card_number": "14"}],
+            "expires_at": (NOW + timedelta(hours=6)).isoformat(),
+            "class_label": "Period 3",
+        },
+    )
+    assert response.status_code == 201
+    response = client.post("/card", json={"token": "token-14"})
+    assert response.status_code == 200
+    client.cookies.set(SESSION_COOKIE, response.cookies[SESSION_COOKIE])
+    return client
+
+
+def _drain(queue) -> list[tuple[str, dict]]:
+    messages = []
+    while not queue.empty():
+        messages.append(queue.get_nowait())
+    return messages
+
+
+def test_question_event_published_on_ask(asking_client, db, bus):
+    queue = bus.subscribe()
+
+    asking_client.post("/ask", json={"question": "a book about bulls?"})
+
+    kind, data = _drain(queue)[0]
+    session_no, session_hash = db.execute(
+        "SELECT rowid, session_hash FROM sessions"
+    ).fetchone()
+    transcript_id = db.execute("SELECT id FROM transcripts").fetchone()[0]
+    assert kind == "question"
+    assert data == {
+        "session_no": session_no,
+        "transcript_id": transcript_id,
+        "class_label": "Period 3",
+        "card_number": "14",
+        "question": "a book about bulls?",
+        "asked_at": NOW.isoformat(),
+    }
+    assert session_hash not in json.dumps(data)
+
+
+def test_answer_event_published_after_finish(asking_client, db, bus):
+    queue = bus.subscribe()
+
+    asking_client.post("/ask", json={"question": "a book about bulls?"})
+
+    messages = _drain(queue)
+    assert [kind for kind, _ in messages] == ["question", "answer"]
+    _, data = messages[1]
+    session_no = db.execute("SELECT rowid FROM sessions").fetchone()[0]
+    transcript_id, stored_answer = db.execute(
+        "SELECT id, answer FROM transcripts"
+    ).fetchone()
+    assert data == {
+        "session_no": session_no,
+        "transcript_id": transcript_id,
+        "answer": "Try Ferdinand",
+        "citations": [
+            {
+                "record_id": RECORD.id,
+                "title": RECORD.title,
+                "call_number": RECORD.call_number,
+            }
+        ],
+    }
+    # Published after finish_exchange: the transcript already holds the answer.
+    assert stored_answer == "Try Ferdinand"
+
+
+async def _never_returns() -> None:
+    await asyncio.Event().wait()
+
+
+def test_events_stream_delivers_published_messages():
+    bus = LiveBus()
+
+    async def scenario():
+        response = await live_events(LIBRARIAN, bus, _never_returns)
+        assert response.media_type == "text/event-stream"
+        assert response.headers["cache-control"] == "no-store"
+        stream = response.body_iterator
+        bus.publish("question", {"session_no": 3, "question": "snow leopards?"})
+        bus.publish("answer", {"session_no": 3, "answer": "they eat ibex"})
+        first = await asyncio.wait_for(anext(stream), STREAM_TIMEOUT)
+        second = await asyncio.wait_for(anext(stream), STREAM_TIMEOUT)
+        await stream.aclose()
+        return first, second
+
+    first, second = asyncio.run(scenario())
+
+    assert first == (
+        'event: question\ndata: {"session_no": 3, "question": "snow leopards?"}\n\n'
+    )
+    assert second == (
+        'event: answer\ndata: {"session_no": 3, "answer": "they eat ibex"}\n\n'
+    )
+    # Closing the stream unsubscribed it: a later publish reaches no queue.
+    assert not bus._subscribers
+
+
+def test_events_ping_each_time_the_wait_returns():
+    bus = LiveBus()
+    waits = []
+
+    async def wait() -> None:
+        waits.append(1)
+        if len(waits) > 1:
+            await asyncio.Event().wait()
+
+    async def scenario():
+        response = await live_events(LIBRARIAN, bus, wait)
+        stream = response.body_iterator
+        ping = await asyncio.wait_for(anext(stream), STREAM_TIMEOUT)
+        bus.publish("question", {"session_no": 3})
+        message = await asyncio.wait_for(anext(stream), STREAM_TIMEOUT)
+        await stream.aclose()
+        return ping, message
+
+    ping, message = asyncio.run(scenario())
+
+    assert ping == ": ping\n\n"
+    assert message == 'event: question\ndata: {"session_no": 3}\n\n'
+
+
+def test_events_teacher_403(client, db):
+    _sign_in_as(client, db, "teacher")
+
+    response = client.get("/staff/live/events")
+
+    assert response.status_code == 403
+
+
+def test_live_pages_load_no_external_script(client, db):
+    _sign_in_as(client, db, "librarian")
+    _card(db, "token-14", "14")
+    session_hash = _session(db, "token-14")
+    _ask(db, session_hash, "Period 3", "14", "a question")
+    session_no = db.execute(
+        "SELECT rowid FROM sessions WHERE session_hash = ?", (session_hash,)
+    ).fetchone()[0]
+
+    for url in ("/staff/live", f"/staff/live/sessions/{session_no}"):
+        response = client.get(url)
+
+        assert response.status_code == 200
+        assert "<script>" in response.text
+        assert "/staff/live/events" in response.text
+        assert re.search(r"<script[^>]*\ssrc\s*=", response.text) is None
+        assert "<link" not in response.text
