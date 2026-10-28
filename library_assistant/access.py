@@ -397,6 +397,42 @@ def revoke_batch(
     return {"status": "revoked"}
 
 
+def revoke_card_of_session(db: sqlite3.Connection, session_no: int) -> bool:
+    """Revoke the Card behind a Session. False if the Card is already gone."""
+    row = db.execute(
+        "SELECT token_hash FROM sessions WHERE rowid = ?", (session_no,)
+    ).fetchone()
+    if not row:
+        return False
+    (token_hash,) = row
+    cursor = db.execute("DELETE FROM cards WHERE token_hash = ?", (token_hash,))
+    db.commit()
+    return cursor.rowcount > 0
+
+
+def revoke_batch_of_session(db: sqlite3.Connection, session_no: int) -> int:
+    """Revoke every Card in the Batch behind a Session. 0 if the Card is already gone."""
+    row = db.execute(
+        "SELECT token_hash FROM sessions WHERE rowid = ?", (session_no,)
+    ).fetchone()
+    if not row:
+        return 0
+    (token_hash,) = row
+    card_row = db.execute(
+        "SELECT class_label, expires_at FROM cards WHERE token_hash = ?",
+        (token_hash,),
+    ).fetchone()
+    if not card_row:
+        return 0
+    class_label, expires_at = card_row
+    cursor = db.execute(
+        "DELETE FROM cards WHERE class_label = ? AND expires_at = ?",
+        (class_label, expires_at),
+    )
+    db.commit()
+    return cursor.rowcount
+
+
 @router.get("/cards/{token}")
 def sign_in_token_in_path_refused(token: str) -> PlainTextResponse:
     """A Token in the URL path reaches server logs, so it is always refused.
