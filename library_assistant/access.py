@@ -23,6 +23,9 @@ from library_assistant.schoolday import school_day_end_for
 DB_PATH = os.environ.get("LIBRARY_ASSISTANT_DB", "library_assistant.db")
 
 REFUSAL_TEXT = "This card has stopped working. Ask your teacher for a new one."
+# Every Student page sends this, so no browser cache keeps a Card or an exchange
+# (ADR-0003 addendum).
+NO_STORE = {"Cache-Control": "no-store"}
 
 IDLE_TEXT = "this session ended, scan your card again"
 
@@ -87,6 +90,8 @@ def get_registration_key() -> str | None:
 
 def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path, check_same_thread=False)
+    # Enable secure_delete to overwrite deleted data with zeros
+    conn.execute("PRAGMA secure_delete = ON")
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS cards (
@@ -404,14 +409,14 @@ def sign_in_token_in_path_refused(token: str) -> PlainTextResponse:
     Binding: ADR-0003 addendum. Cards carry their Token in the `/card#t=...` fragment,
     which browsers never send; this route exists only to refuse any Token the server does see.
     """
-    return PlainTextResponse(REFUSAL_TEXT, status_code=403)
+    return PlainTextResponse(REFUSAL_TEXT, status_code=403, headers=NO_STORE)
 
 
 @router.get("/card", response_model=None)
 def card_page(request: Request) -> HTMLResponse | PlainTextResponse:
     if "token" in request.query_params:
-        return PlainTextResponse(REFUSAL_TEXT, status_code=403)
-    return HTMLResponse(CARD_PAGE_HTML)
+        return PlainTextResponse(REFUSAL_TEXT, status_code=403, headers=NO_STORE)
+    return HTMLResponse(CARD_PAGE_HTML, headers=NO_STORE)
 
 
 @router.post("/card")
@@ -422,18 +427,18 @@ def post_sign_in(
     clock: datetime = Depends(get_clock),
 ) -> PlainTextResponse:
     if "token" in request.query_params:
-        return PlainTextResponse(REFUSAL_TEXT, status_code=403)
+        return PlainTextResponse(REFUSAL_TEXT, status_code=403, headers=NO_STORE)
     token_hash = hash_token(payload.token)
     row = db.execute(
         "SELECT card_number, expires_at, class_label FROM cards WHERE token_hash = ?",
         (token_hash,),
     ).fetchone()
     if row is None:
-        return PlainTextResponse(REFUSAL_TEXT, status_code=403)
+        return PlainTextResponse(REFUSAL_TEXT, status_code=403, headers=NO_STORE)
     card_number, expires_at, class_label = row
     expires_at_dt = datetime.fromisoformat(expires_at)
     if clock > expires_at_dt:
-        return PlainTextResponse(REFUSAL_TEXT, status_code=403)
+        return PlainTextResponse(REFUSAL_TEXT, status_code=403, headers=NO_STORE)
 
     # If the request already carries a `session` cookie, delete that sessions row
     # before creating the new one, so the previous Student's Session on this device ends
@@ -451,7 +456,7 @@ def post_sign_in(
     )
     db.commit()
     sign_in_response = PlainTextResponse(
-        f"{class_label} / card {card_number}: session active"
+        f"{class_label} / card {card_number}: session active", headers=NO_STORE
     )
     # The new cookie gets `expires=` the Card's expires_at, so the browser drops it
     # when the Card stops working. It is still HttpOnly, SameSite=Strict.
@@ -478,6 +483,7 @@ def finish_session(
             "DELETE FROM sessions WHERE session_hash = ?", (hash_token(session_id),)
         )
         db.commit()
+    response.headers.update(NO_STORE)
     response.delete_cookie(SESSION_COOKIE, httponly=True, samesite="strict")
     return {"status": "finished"}
 
@@ -517,7 +523,7 @@ def current_session(
 
     session_id = request.cookies.get(SESSION_COOKIE)
     if not session_id:
-        raise HTTPException(status_code=403, detail=REFUSAL_TEXT)
+        raise HTTPException(status_code=403, detail=REFUSAL_TEXT, headers=NO_STORE)
     session_hash = hash_token(session_id)
     row = db.execute(
         "SELECT cards.card_number, cards.class_label, cards.expires_at, "
@@ -527,11 +533,11 @@ def current_session(
         (session_hash,),
     ).fetchone()
     if row is None:
-        raise HTTPException(status_code=403, detail=REFUSAL_TEXT)
+        raise HTTPException(status_code=403, detail=REFUSAL_TEXT, headers=NO_STORE)
     card_number, class_label, expires_at, last_seen_at, token_hash = row
     expires_at_dt = datetime.fromisoformat(expires_at)
     if clock > expires_at_dt:
-        raise HTTPException(status_code=403, detail=REFUSAL_TEXT)
+        raise HTTPException(status_code=403, detail=REFUSAL_TEXT, headers=NO_STORE)
 
     idle_minutes = get_int_setting(db, SESSION_IDLE_MINUTES, 0)
     if idle_minutes > 0:
@@ -539,7 +545,7 @@ def current_session(
         if idle_for > timedelta(minutes=idle_minutes):
             db.execute("DELETE FROM sessions WHERE session_hash = ?", (session_hash,))
             db.commit()
-            raise HTTPException(status_code=403, detail=IDLE_TEXT)
+            raise HTTPException(status_code=403, detail=IDLE_TEXT, headers=NO_STORE)
     db.execute(
         "UPDATE sessions SET last_seen_at = ? WHERE session_hash = ?",
         (clock.isoformat(), session_hash),

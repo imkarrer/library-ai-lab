@@ -17,7 +17,13 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from starlette.types import Receive, Scope, Send
 
-from library_assistant.access import REFUSAL_TEXT, Session, get_clock, get_db
+from library_assistant.access import (
+    NO_STORE,
+    REFUSAL_TEXT,
+    Session,
+    get_clock,
+    get_db,
+)
 from library_assistant.catalog import Catalog
 from library_assistant.config import Settings
 from library_assistant.dependencies import (
@@ -133,7 +139,7 @@ def chat_page(session: SessionDep) -> HTMLResponse:
             refusal_text=json.dumps(REFUSAL_TEXT),
             error_text=json.dumps(ERROR_TEXT),
         ),
-        headers={"Cache-Control": "no-store"},
+        headers=NO_STORE,
     )
 
 
@@ -154,7 +160,7 @@ async def ask(
     """
     card_ref = session.card_ref
     if card_ref in _in_flight:
-        return JSONResponse({"status": "one moment"}, status_code=409)
+        return JSONResponse({"status": "one moment"}, status_code=409, headers=NO_STORE)
     _in_flight.add(card_ref)
     try:
         return _answer(request, session, http_client, settings, catalog, db, clock)
@@ -232,6 +238,6 @@ def _answer(
     return _ReleasingStream(
         generate(),
         media_type="text/plain",
-        headers={"Cache-Control": "no-store"},
+        headers=NO_STORE,
         card_ref=session.card_ref,
     )

@@ -55,7 +55,9 @@ fish = '''
 
 [services.assistant]
 command = '''
-  cd "$FLOX_ENV_PROJECT" && "$FLOX_ENV_CACHE/venv/bin/uvicorn" library_assistant.app:app --host 127.0.0.1 --port 8000
+  # --no-access-log: uvicorn's access log writes the raw path and query, which could
+  # carry a Token or Card number; the app keeps its own (ADR-0003 addendum).
+  cd "$FLOX_ENV_PROJECT" && "$FLOX_ENV_CACHE/venv/bin/uvicorn" library_assistant.app:app --host 127.0.0.1 --port 8000 --no-access-log
 '''
 
 [services.model]
