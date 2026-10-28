@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -10,7 +11,7 @@ from library_assistant.install_settings import router as install_settings_router
 
 # Import here to avoid circular imports
 from library_assistant.oversight import acquire_oversight_lock
-from library_assistant.purge import run_if_due
+from library_assistant.purge import purge_loop, run_if_due
 from library_assistant.routers.flags import router as flags_router
 from library_assistant.routers.live import router as live_router
 from library_assistant.routers.session import router as session_router
@@ -21,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 # Keeps the oversight lock file open for the process's life.
 _oversight_lock_file = None
+_purge_task: asyncio.Task | None = None
 
 
 @asynccontextmanager
@@ -30,18 +32,27 @@ async def lifespan(app: FastAPI):
     db = connect()
 
     # Get the current time and settings using dependency overrides
-    clock = app.dependency_overrides.get(get_clock, get_clock)()
+    clock = app.dependency_overrides.get(get_clock, get_clock)
     settings = app.dependency_overrides.get(Settings, lambda: Settings())()
 
     # Run purge if needed at startup
-    run_if_due(db, clock, settings)
+    run_if_due(db, clock(), settings)
 
     # Acquire the Oversight lock if enabled; otherwise Oversight is not configured.
-    global _oversight_lock_file
+    global _oversight_lock_file, _purge_task
     if settings.oversight_enabled:
         _oversight_lock_file = acquire_oversight_lock(settings.catalog_path)
 
+    _purge_task = asyncio.create_task(purge_loop(db, settings, clock, asyncio.sleep))
+
     yield
+
+    _purge_task.cancel()
+    try:
+        await _purge_task
+    except asyncio.CancelledError:
+        pass
+    _purge_task = None
 
     if _oversight_lock_file is not None:
         try:
