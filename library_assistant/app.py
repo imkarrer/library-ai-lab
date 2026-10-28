@@ -8,6 +8,7 @@ from library_assistant.config import Settings
 
 # Import here to avoid circular imports
 from library_assistant.purge import run_if_due
+from library_assistant.routers.flags import router as flags_router
 from library_assistant.routers.live import router as live_router
 from library_assistant.routers.session import router as session_router
 from library_assistant.staff import StaffSignInRequired, sign_in_required_handler
@@ -35,6 +36,7 @@ app.include_router(access_router)
 app.include_router(session_router)
 app.include_router(staff_router)
 app.include_router(live_router)
+app.include_router(flags_router)
 app.add_exception_handler(StaffSignInRequired, sign_in_required_handler)
 
 
