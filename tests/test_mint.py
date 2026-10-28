@@ -6,17 +6,28 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from fastapi.testclient import TestClient
 
-from library_assistant.access import connect, get_db, get_registration_key, hash_token
+from library_assistant.access import (
+    connect,
+    get_clock,
+    get_db,
+    get_registration_key,
+    hash_token,
+)
 from library_assistant.app import app
+from library_assistant.config import Settings
 from library_assistant.mint import (
     mint_cards,
     qr_sheet_html,
     roster_csv,
     roster_sheet_html,
 )
+from library_assistant.schoolday import school_day_end_for
 from scripts.mint_batch import main, upload_payload, write_batch_files
 
 REGISTRATION_KEY = "s3cret-registration-key"
+
+FIXED_CLOCK = datetime(2027, 1, 15, 14, 0, tzinfo=UTC)
+DAY_END = school_day_end_for(FIXED_CLOCK, Settings())
 
 
 def _expiry() -> datetime:
@@ -63,6 +74,7 @@ def client(monkeypatch):
     db = connect(":memory:")
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[get_registration_key] = lambda: REGISTRATION_KEY
+    app.dependency_overrides[get_clock] = lambda: FIXED_CLOCK
     try:
         yield TestClient(app), db
     finally:
@@ -71,7 +83,7 @@ def client(monkeypatch):
 
 def test_round_trip_registration_lets_each_card_start_a_session(client):
     tc, db = client
-    expires_at = _expiry()
+    expires_at = DAY_END
     result = mint_cards(3, "Period 3", expires_at)
 
     response = tc.post(

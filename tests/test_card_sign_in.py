@@ -12,8 +12,13 @@ from library_assistant.access import (
     hash_token,
 )
 from library_assistant.app import app
+from library_assistant.config import Settings
+from library_assistant.schoolday import school_day_end_for
 
 REGISTRATION_KEY = "s3cret-registration-key"
+
+FIXED_CLOCK = datetime(2027, 1, 15, 14, 0, tzinfo=UTC)
+DAY_END = school_day_end_for(FIXED_CLOCK, Settings())
 
 
 @pytest.fixture
@@ -22,6 +27,7 @@ def client(monkeypatch):
     db = connect(":memory:")
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[get_registration_key] = lambda: REGISTRATION_KEY
+    app.dependency_overrides[get_clock] = lambda: FIXED_CLOCK
     try:
         yield TestClient(app), db
     finally:
@@ -42,13 +48,13 @@ def _register(client, expires_at: datetime, key: str = REGISTRATION_KEY):
 
 def test_batch_registration_without_key_refused(client):
     tc, _db = client
-    response = _register(tc, datetime.now(UTC) + timedelta(days=1), key="wrong-key")
+    response = _register(tc, DAY_END, key="wrong-key")
     assert response.status_code == 403
 
 
 def test_batch_registration_with_key_stored(client):
     tc, db = client
-    response = _register(tc, datetime.now(UTC) + timedelta(days=1))
+    response = _register(tc, DAY_END)
     assert response.status_code == 201
     rows = db.execute("SELECT * FROM cards").fetchall()
     assert len(rows) == 1
@@ -56,7 +62,7 @@ def test_batch_registration_with_key_stored(client):
 
 def test_db_holds_only_hash_card_number_expiry_class_label(client):
     tc, db = client
-    _register(tc, datetime.now(UTC) + timedelta(days=1))
+    _register(tc, DAY_END)
 
     columns = [row[1] for row in db.execute("PRAGMA table_info(cards)").fetchall()]
     assert set(columns) == {"token_hash", "card_number", "expires_at", "class_label"}
@@ -69,7 +75,7 @@ def test_db_holds_only_hash_card_number_expiry_class_label(client):
 
 def test_valid_token_starts_session(client):
     tc, _db = client
-    _register(tc, datetime.now(UTC) + timedelta(days=1))
+    _register(tc, DAY_END)
     response = tc.post("/card", json={"token": "token-1"})
     assert response.status_code == 200
     assert "Period 3" in response.text
@@ -79,7 +85,7 @@ def test_valid_token_starts_session(client):
 
 def test_session_cookie_is_httponly_strict_with_no_max_age(client):
     tc, _db = client
-    _register(tc, datetime.now(UTC) + timedelta(days=1))
+    _register(tc, DAY_END)
     response = tc.post("/card", json={"token": "token-1"})
     set_cookie = response.headers["set-cookie"]
     assert "HttpOnly" in set_cookie
@@ -89,7 +95,7 @@ def test_session_cookie_is_httponly_strict_with_no_max_age(client):
 
 def test_token_in_path_refused(client):
     tc, _db = client
-    _register(tc, datetime.now(UTC) + timedelta(days=1))
+    _register(tc, DAY_END)
     response = tc.get("/cards/token-1")
     assert response.status_code == 403
     assert (
@@ -100,14 +106,14 @@ def test_token_in_path_refused(client):
 
 def test_token_in_query_refused(client):
     tc, _db = client
-    _register(tc, datetime.now(UTC) + timedelta(days=1))
+    _register(tc, DAY_END)
     response = tc.post("/card?token=token-1", json={"token": "token-1"})
     assert response.status_code == 403
 
 
 def test_card_page_has_no_token(client):
     tc, _db = client
-    _register(tc, datetime.now(UTC) + timedelta(days=1))
+    _register(tc, DAY_END)
     response = tc.get("/card")
     assert response.status_code == 200
     assert "token-1" not in response.text
@@ -115,7 +121,7 @@ def test_card_page_has_no_token(client):
 
 def test_finish_clears_cookie_without_revoking_card(client):
     tc, db = client
-    _register(tc, datetime.now(UTC) + timedelta(days=1))
+    _register(tc, DAY_END)
     tc.post("/card", json={"token": "token-1"})
 
     response = tc.post("/card/finish")
@@ -131,7 +137,7 @@ def test_finish_clears_cookie_without_revoking_card(client):
 
 def test_expired_token_refused_via_fake_clock(client):
     tc, _db = client
-    expires_at = datetime.now(UTC) + timedelta(hours=1)
+    expires_at = FIXED_CLOCK + timedelta(hours=1)
     _register(tc, expires_at)
 
     app.dependency_overrides[get_clock] = lambda: expires_at + timedelta(hours=1)
@@ -155,7 +161,7 @@ def test_unknown_token_refused(client):
 
 def test_revoked_card_refused(client):
     tc, _db = client
-    expires_at = datetime.now(UTC) + timedelta(days=1)
+    expires_at = DAY_END
     _register(tc, expires_at)
 
     response = tc.post(
@@ -173,7 +179,7 @@ def test_revoked_card_refused(client):
 
 def test_revoked_batch_refused(client):
     tc, db = client
-    expires_at = datetime.now(UTC) + timedelta(days=1)
+    expires_at = DAY_END
     tc.post(
         "/batches",
         json={
@@ -205,7 +211,7 @@ def test_refusal_text_says_ask_for_a_new_card(client):
     """Test that the refusal text has been updated to mention asking for a new card."""
     tc, _db = client
     # Register a batch with a valid token, then try to use a different token
-    _register(tc, datetime.now(UTC) + timedelta(days=1))
+    _register(tc, DAY_END)
     # Try to sign in with a different token that doesn't exist
     response = tc.post("/card", json={"token": "non-existent-token"})
     assert response.status_code == 403
@@ -219,7 +225,7 @@ def test_new_sign_in_ends_the_devices_previous_session(client):
     """Test that signing in with a new card ends the previous session on the same device."""
     tc, db = client
     # Register two cards
-    expires_at = datetime.now(UTC) + timedelta(days=1)
+    expires_at = DAY_END
     _register(tc, expires_at)
 
     # Sign in with first card
@@ -250,7 +256,7 @@ def test_other_devices_sessions_untouched(client):
     """Test that signing in with a new card doesn't affect sessions on other devices."""
     tc, db = client
     # Register a card
-    expires_at = datetime.now(UTC) + timedelta(days=1)
+    expires_at = DAY_END
     _register(tc, expires_at)
 
     # Sign in with first card on device 1
@@ -279,7 +285,7 @@ def test_cookie_expires_with_the_card(client):
     """Test that the session cookie expires with the card's expiry."""
     tc, db = client
     # Register a card with a specific expiry time
-    expires_at = datetime.now(UTC) + timedelta(hours=1)
+    expires_at = FIXED_CLOCK + timedelta(hours=1)
     _register(tc, expires_at)
 
     # Sign in with the card
@@ -299,7 +305,28 @@ def test_cookie_expires_with_the_card(client):
 def test_card_page_has_end_session_button(client):
     """Test that the card page has the new 'End session' button."""
     tc, _db = client
-    _register(tc, datetime.now(UTC) + timedelta(days=1))
+    _register(tc, DAY_END)
     response = tc.get("/card")
     assert response.status_code == 200
     assert "End session" in response.text
+
+
+def test_expiry_past_day_end_refused(client):
+    tc, _db = client
+    response = _register(tc, DAY_END + timedelta(minutes=1))
+    assert response.status_code == 422
+    assert "A Batch must expire by the end of today's school day." in response.text
+
+
+def test_expiry_at_day_end_accepted(client):
+    tc, _db = client
+    response = _register(tc, DAY_END)
+    assert response.status_code == 201
+
+
+def test_registration_after_day_end_refused(client):
+    tc, _db = client
+    tc.app.dependency_overrides[get_clock] = lambda: DAY_END
+    response = _register(tc, DAY_END)
+    assert response.status_code == 422
+    assert "Registration is closed: today's school day has ended." in response.text
