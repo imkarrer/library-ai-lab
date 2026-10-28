@@ -123,20 +123,43 @@ school counselor or pupil services professional is part of every serious case.
 The **Flag queue** is the list of open Flags waiting for an adult. The assistant does not page
 anyone, ring, or send email. A Flag sits in the queue until a person looks. So:
 
-**Rule 1: No Student uses the assistant unless a named adult is watching the Flag queue.**
+This Install's supervision mode: `[BLANK: live / periodic / off]`. Review interval, in
+periodic mode: every `[BLANK: 120]` minutes (the `review_every_minutes` setting). The Librarian
+sets the mode in the assistant, and every change is recorded with who made it and when
+(ADR-0010, "Amendment: supervision mode").
+
+**Rule 1: Someone named is responsible for the Flag queue, in the way the mode says.**
 The assistant is for supervised use (one class at a time in the library, not whole-school
-self-serve). Before each class session, the Librarian confirms who is watching. If the
-Librarian has to step away, someone else signed in to the Flag queue takes over, or Students
-stop using the assistant until the Librarian returns.
+self-serve). What Rule 1 means depends on the supervision mode:
+
+- **Live** (the default): no Student uses the assistant unless a named adult is on Watch, and
+  the product enforces it: Students' Sessions pause when nobody is on Watch. Before each class
+  session, the Librarian confirms who is watching. If the Librarian has to step away, someone
+  else on Watch takes over, or Students stop until the Librarian returns.
+- **Periodic:** Students may chat at any time in the school day. The school names who reviews
+  the Flag queue, `[BLANK: name or role]`, and that person reviews it at least every
+  `review_every_minutes` and presses Mark reviewed. Until the next review, the Student's
+  Supportive reply is the only immediate response to a disclosure; the adults learn of it at
+  the review. Choose an interval short enough that this is acceptable to the school.
+- **Off:** the school's own supervision policy applies, `[BLANK: policy reference]`. Say it
+  plainly to staff: in this mode the assistant enforces nothing beyond the Watchlist, the
+  Supportive reply, and recording every Flag. A disclosure can sit unseen until someone opens
+  the Flag queue.
+
+In every mode, the Watchlist and the Supportive reply cannot be switched off, every Flag is
+recorded, and an unacknowledged high-severity Alarm sounds on the next staff page anyone
+opens.
 
 **Rule 2: Check the queue on this schedule.** Suggested defaults; the school sets its own.
 
 | When | What | Who |
 |---|---|---|
-| While Students are using the assistant | Keep the Flag queue visible; look at least every `[BLANK: 10]` minutes, and at once when a Student looks upset or leaves suddenly | Librarian |
-| At the end of each class session | Look through every Flag raised during that session before the class leaves, if you can; at the latest before the next class starts | Librarian |
-| `[BLANK: 30]` minutes before the end-of-day Purge (`[BLANK: Purge time]`) | Last check of the day. Every high-severity Flag must have been acted on by now (section 4) | Librarian |
-| First thing the next school day | Check for Flags raised overnight by Oversight (section 8) | Librarian |
+| Live: while Students are using the assistant | Stay on Watch with the Flag queue or Live view open; look at once when a Student looks upset or leaves suddenly | Librarian |
+| Periodic: every `[BLANK: 120]` minutes in the school day | Review every Flag raised since the last review, act on it (section 4), then press Mark reviewed | `[BLANK: named reviewer]` |
+| Off: as the school's policy says | `[BLANK: what the policy requires]` | `[BLANK]` |
+| At the end of each class session (live and periodic) | Look through every Flag raised during that session before the class leaves, if you can; at the latest before the next class starts | Librarian |
+| `[BLANK: 30]` minutes before the end-of-day Purge (`[BLANK: Purge time]`) | Last check of the day, in every mode. Every high-severity Flag must have been acted on by now (section 4) | Librarian |
+| At the next Start watch or first review | Act on any Flag marked *raised unwatched* (section 8) | Librarian |
 | Librarian absent | Backup in section 2 does all of the above, or no Student sessions that day | `[BLANK]` |
 
 **Rule 3: When a Flag needs the Counselor, Escalate it the same way every time.** If your
