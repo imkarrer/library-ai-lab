@@ -86,11 +86,13 @@ def active_sessions(db: sqlite3.Connection, now: datetime) -> list[SessionTile]:
                 "SELECT session_hash FROM transcripts WHERE id = ?", (transcript_id,)
             ).fetchone()
             if transcript and transcript[0] == session_hash:
-                if flag_severity is None or (
-                    severity == "high" and flag_severity != "high"
-                ):
-                    flag_severity = severity
-                break
+                # High severity overrides any lower severity
+                if severity == "high":
+                    flag_severity = "high"
+                    break
+                # For low severity, only set if no severity yet
+                elif severity == "low" and flag_severity is None:
+                    flag_severity = "low"
 
         tiles.append(
             SessionTile(

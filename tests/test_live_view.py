@@ -292,6 +292,55 @@ def test_no_flag_no_marker(client, db):
     assert "Flag:" not in response.text
 
 
+def test_tile_shows_high_when_high_and_low_flags_exist(client, db):
+    """Test that a tile shows 'flag-high' when both high and low severity flags exist."""
+    _sign_in_as(client, db, "librarian")
+    _card(db, "token-14", "14")
+    session_hash = _session(db, "token-14")
+    _ask(db, session_hash, "Period 3", "14", "a question")
+
+    # Add both high and low severity flags (should show high)
+    from library_assistant.flags import raise_flag
+
+    transcript_id = db.execute(
+        "SELECT id FROM transcripts WHERE session_hash = ?", (session_hash,)
+    ).fetchone()[0]
+
+    # First, add a low severity flag
+    raise_flag(
+        db,
+        transcript_id=transcript_id,
+        class_label="Period 3",
+        card_number="14",
+        batch_expires_at=(NOW + timedelta(hours=6)).isoformat(),
+        message_hash=None,
+        category="test-category",
+        severity="low",
+        source="watchlist",
+        raised_at=NOW.isoformat(),
+    )
+
+    # Then add a high severity flag on the same transcript
+    raise_flag(
+        db,
+        transcript_id=transcript_id,
+        class_label="Period 3",
+        card_number="14",
+        batch_expires_at=(NOW + timedelta(hours=6)).isoformat(),
+        message_hash=None,
+        category="test-category",
+        severity="high",
+        source="watchlist",
+        raised_at=NOW.isoformat(),
+    )
+
+    response = client.get("/staff/live")
+
+    assert response.status_code == 200
+    assert "flag-high" in response.text
+    assert "Flag: high" in response.text
+
+
 @pytest.mark.parametrize("role", ["teacher", "counselor"])
 def test_teacher_and_counselor_403(client, db, role):
     _sign_in_as(client, db, role)
