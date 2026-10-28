@@ -31,6 +31,14 @@ PurgeReport = namedtuple(
 )
 
 
+def next_purge_at(now: datetime, settings: Settings) -> datetime:
+    """The end of the school day the Purge will next run at, given `now`."""
+    next_end = school_day_end_for(now, settings)
+    if next_end <= now:
+        next_end = school_day_end_for(now + timedelta(days=1), settings)
+    return next_end
+
+
 def run_if_due(db, now: datetime, settings: Settings) -> PurgeReport | None:
     """Run purge if it hasn't been run for the last school day end.
 
@@ -193,8 +201,6 @@ async def purge_loop(
     """
     while True:
         moment = now()
-        next_end = school_day_end_for(moment, settings)
-        if next_end <= moment:
-            next_end = school_day_end_for(moment + timedelta(days=1), settings)
+        next_end = next_purge_at(moment, settings)
         await sleep((next_end - moment).total_seconds())
         run_if_due(db, now(), settings)
