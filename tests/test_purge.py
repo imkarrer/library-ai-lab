@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 import library_assistant.purge as purge_module
 from library_assistant.app import app
 from library_assistant.config import Settings
+from library_assistant.holds import create_holds_table
 from library_assistant.purge import purge, purge_loop, run_if_due
 
 
@@ -74,10 +75,17 @@ def db():
         db.execute(
             """
             CREATE TABLE purge_runs (
-                ran_at TEXT NOT NULL
+                ran_at TEXT NOT NULL,
+                deleted INTEGER,
+                kept_for_flags INTEGER,
+                kept_unscreened INTEGER,
+                kept_for_holds INTEGER,
+                holds INTEGER,
+                overdue_flags INTEGER
             )
             """
         )
+        create_holds_table(db)
         db.commit()
         yield db
     finally:

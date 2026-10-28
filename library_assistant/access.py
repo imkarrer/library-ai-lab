@@ -18,6 +18,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse
 from pydantic import BaseModel
 
 from library_assistant.config import Settings, get_settings
+from library_assistant.holds import create_holds_table
 from library_assistant.schoolday import school_day_end_for
 
 DB_PATH = os.environ.get("LIBRARY_ASSISTANT_DB", "library_assistant.db")
@@ -86,6 +87,27 @@ def get_clock() -> datetime:
 
 def get_registration_key() -> str | None:
     return os.environ.get("LIBRARY_ASSISTANT_REGISTRATION_KEY")
+
+
+# The counts each Purge run records beside its time (PurgeReport's fields).
+PURGE_RUN_COUNTS = (
+    "deleted",
+    "kept_for_flags",
+    "kept_unscreened",
+    "kept_for_holds",
+    "holds",
+    "overdue_flags",
+)
+
+
+def _add_missing_columns(
+    conn: sqlite3.Connection, table: str, columns: tuple[str, ...]
+) -> None:
+    """Add integer count columns an older database's table lacks."""
+    present = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+    for column in columns:
+        if column not in present:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} INTEGER")
 
 
 def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
@@ -207,7 +229,8 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
         )
         """
     )
-    # Track purge runs to avoid running multiple times per day
+    # The Purge run record: one row per run, with its report (library_assistant.purge).
+    # Its existence for a day end also stops the Purge running twice for it.
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS purge_runs (
@@ -215,6 +238,9 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
         )
         """
     )
+    _add_missing_columns(conn, "purge_runs", PURGE_RUN_COUNTS)
+    # Holds (ADR-0003 addendum): a scope the Purge keeps; never a Student.
+    create_holds_table(conn)
     # Install settings (library_assistant.install_settings). Only the Librarian manages
     # these (ADR-0010).
     conn.execute(
