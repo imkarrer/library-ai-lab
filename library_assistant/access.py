@@ -10,7 +10,7 @@ import hashlib
 import os
 import secrets
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -488,12 +488,17 @@ class Session:
 
     `ref` is the hash of the cookie's Session id: safe to store beside transcripts,
     useless as a cookie.
+
+    `card_ref` is the Card's Token hash, so rules keyed on the Card (one message in
+    flight) hold across every Session it has. It lives in memory only: never rendered,
+    logged or stored anywhere new (ADR-0002), hence kept out of the repr.
     """
 
     ref: str
     card_number: str
     class_label: str
     expires_at: datetime
+    card_ref: str = field(repr=False)
 
 
 def current_session(
@@ -516,14 +521,14 @@ def current_session(
     session_hash = hash_token(session_id)
     row = db.execute(
         "SELECT cards.card_number, cards.class_label, cards.expires_at, "
-        "sessions.last_seen_at "
+        "sessions.last_seen_at, sessions.token_hash "
         "FROM sessions JOIN cards ON cards.token_hash = sessions.token_hash "
         "WHERE sessions.session_hash = ?",
         (session_hash,),
     ).fetchone()
     if row is None:
         raise HTTPException(status_code=403, detail=REFUSAL_TEXT)
-    card_number, class_label, expires_at, last_seen_at = row
+    card_number, class_label, expires_at, last_seen_at, token_hash = row
     expires_at_dt = datetime.fromisoformat(expires_at)
     if clock > expires_at_dt:
         raise HTTPException(status_code=403, detail=REFUSAL_TEXT)
@@ -546,4 +551,5 @@ def current_session(
         card_number=card_number,
         class_label=class_label,
         expires_at=expires_at_dt,
+        card_ref=token_hash,
     )
