@@ -92,11 +92,6 @@ def get_supportive_reply_text(
     if overrides is None:
         overrides = {}
 
-    # Get the default text for this category
-    default_text = DEFAULT_REPLY_TEMPLATES.get(category, "")
-    if not default_text:
-        return ""  # Should not happen
-
     # Check if there's an override for this category
     if category in overrides:
         override_text = overrides[category]
@@ -105,8 +100,28 @@ def get_supportive_reply_text(
         if validation_errors:
             # For now, we'll use the default if validation fails
             # In a real implementation this should raise an error
+            # But we should still strip bold markers from the default text to maintain
+            # compatibility with the ADR-0011 requirement that bold is dropped for chat display
+            default_text = DEFAULT_REPLY_TEMPLATES.get(category, "")
+            if default_text:
+                # Strip bold markers for chat display compatibility
+                import re
+
+                stripped = re.sub(r"\*\*(.*?)\*\*", r"\1", default_text)
+                return stripped.format(counselor=counselor_name)
             return default_text
+        # For overrides, return as-is (they may have their own formatting rules)
         return override_text
 
+    # Get the default text for this category
+    default_text = DEFAULT_REPLY_TEMPLATES.get(category, "")
+    if not default_text:
+        return ""  # Should not happen
+
+    # Strip bold markers for chat display (ADR-0011 requirement)
+    import re
+
+    stripped = re.sub(r"\*\*(.*?)\*\*", r"\1", default_text)
+
     # Fill in the counselor placeholder
-    return default_text.format(counselor=counselor_name)
+    return stripped.format(counselor=counselor_name)
