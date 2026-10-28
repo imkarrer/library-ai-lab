@@ -184,6 +184,9 @@ def _answer(
         shown: list[Citation] = []
         # finally: a model error or a hang-up still records what the Student saw.
         try:
+            # Create a single filter instance for the entire streaming process
+            filter_instance = SearchLineFilter()
+
             async with http_client.stream(
                 "POST",
                 "/chat/completions",
@@ -206,14 +209,12 @@ def _answer(
                         answer_parts.append(delta)
 
                         # Use the filter to handle search lines
-                        filter_instance = SearchLineFilter()
                         output = filter_instance.feed(delta)
                         if output:
                             yield output
 
             # After streaming, extract search terms from the full response
-            "".join(answer_parts)
-            _, search_terms = filter_instance.finish()
+            remaining_text, search_terms = filter_instance.finish()
 
             # If no search terms, search with the original question
             search_query = " ".join(search_terms) if search_terms else request.question
@@ -239,6 +240,10 @@ def _answer(
 
             # Copy the citations to shown list
             shown = citations.copy()
+
+            # Also yield any remaining text that wasn't handled by the filter
+            if remaining_text:
+                yield remaining_text
         finally:
             try:
                 finish_exchange(db, transcript_id, "".join(answer_parts), shown)
