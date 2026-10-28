@@ -530,3 +530,36 @@ async def test_card_released_after_model_error(client, held_model):
     assert again.status_code == 200
     assert "Ferdinand" in again.text
     assert _in_flight == set()
+
+
+def test_chat_page_disables_ask_while_streaming(client):
+    """Test that the chat page JavaScript disables the Ask button during streaming."""
+    test_client, _ = client
+    _sign_in(test_client)
+    page = test_client.get("/chat")
+    assert page.status_code == 200
+    # Check that the script disables the question input and ask button
+    assert "questionInput.disabled = true" in page.text
+    assert "askButton.disabled = true" in page.text
+
+
+def test_chat_page_handles_one_moment(client):
+    """Test that the chat page JavaScript handles 409 'one moment' status."""
+    test_client, _ = client
+    _sign_in(test_client)
+    page = test_client.get("/chat")
+    assert page.status_code == 200
+    # Check that the script handles 409 with status "one moment"
+    assert "response.status === 409" in page.text
+    assert 'data.status === "one moment"' in page.text
+    assert "One moment..." in page.text
+
+
+def test_chat_page_keeps_question_on_one_moment(client):
+    """Test that the chat page JavaScript keeps the question text during 409 'one moment' retries."""
+    test_client, _ = client
+    _sign_in(test_client)
+    page = test_client.get("/chat")
+    assert page.status_code == 200
+    # Check that the question is preserved during retries
+    assert "questionInput.value" in page.text

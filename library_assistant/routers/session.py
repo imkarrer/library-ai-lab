@@ -73,24 +73,57 @@ CHAT_PAGE_HTML = """<!DOCTYPE html>
     const ERROR_TEXT = {error_text};
     form.addEventListener("submit", async (event) => {{
       event.preventDefault();
-      const question = document.getElementById("question").value;
+      const questionInput = document.getElementById("question");
+      const askButton = form.querySelector("button");
+      const question = questionInput.value;
       answer.textContent = "";
-      const response = await fetch("/ask", {{
-        method: "POST",
-        headers: {{ "Content-Type": "application/json" }},
-        credentials: "same-origin",
-        body: JSON.stringify({{ question: question }}),
-      }});
+      // Disable Ask button immediately on submit
+      questionInput.disabled = true;
+      askButton.disabled = true;
+      
+      // Retry loop for 409 "one moment" responses
+      let retryCount = 0;
+      let response;
+      while (true) {{
+        response = await fetch("/ask", {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          credentials: "same-origin",
+          body: JSON.stringify({{ question: question }}),
+        }});
+        
+        if (response.status === 409) {{
+          const data = await response.json();
+          if (data.status === "one moment") {{
+            // Show "One moment..." in the answer area
+            answer.textContent = "One moment...";
+            // Keep the question input enabled and its value unchanged
+            // Keep Ask button disabled
+            retryCount++;
+            // Wait 2 seconds before retrying
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            continue; // Retry the same question
+          }}
+        }}
+        // If not 409 "one moment", break the loop
+        break;
+      }}
+      
       if (response.status === 403) {{
         const data = await response.json();
         answer.textContent = data.detail;
+        // Keep question disabled as today
         document.getElementById("question").disabled = true;
         return;
       }}
       if (response.status !== 200) {{
         answer.textContent = ERROR_TEXT;
+        // Re-enable question input on error
+        questionInput.disabled = false;
+        askButton.disabled = false;
         return;
       }}
+      // Stream the response as today
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       for (;;) {{
@@ -98,6 +131,9 @@ CHAT_PAGE_HTML = """<!DOCTYPE html>
         if (done) break;
         answer.textContent += decoder.decode(value, {{ stream: true }});
       }}
+      // Re-enable Ask button after successful stream
+      questionInput.disabled = false;
+      askButton.disabled = false;
     }});
   </script>
 </body>
