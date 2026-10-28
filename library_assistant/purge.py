@@ -3,7 +3,8 @@
 Every transcript is deleted at the end of the school day it was made, except those
 attached to an open Flag, which stay until an adult closes the Flag, and those in an
 active Hold's scope, which stay until the Librarian lifts it (ADR-0003 addendum). The
-purge runs at the end of each school day (ADR-0003).
+purge runs at the end of each school day (ADR-0003). Transcripts older than flags.history_days
+are also deleted, unless they are referenced by an open Flag or covered by a Hold.
 """
 
 from __future__ import annotations
@@ -80,6 +81,9 @@ def purge(db, now: datetime, settings: Settings) -> PurgeReport:
     # Calculate the cutoff time (end of the school day before 'now')
     cutoff = last_day_end_before(now, settings)
 
+    # Calculate history cutoff based on flags_history_days setting
+    history_cutoff = now - timedelta(days=settings.flags_history_days)
+
     # Find all transcripts that are older than the cutoff
     # But keep transcripts that are referenced by open Flags (closed_at IS NULL)
     # This includes both direct references via transcript_id and references via flag_repeats
@@ -145,15 +149,32 @@ def purge(db, now: datetime, settings: Settings) -> PurgeReport:
         elif unscreened_check[0] > 0:
             kept_unscreened_count += 1
         else:
-            # Delete the transcript
-            db.execute("DELETE FROM transcripts WHERE id = ?", (transcript_id,))
+            # Check if this transcript is also older than flags_history_days
+            # If so, it should be deleted even if it passed the day-end cutoff
+            if asked_at < history_cutoff.isoformat():
+                # This transcript is older than flags_history_days, so delete it
+                # but first check if it should be kept for holds or flags
+                # (This check is redundant because it already passed the hold/flag check)
+                # But we need to make sure it's not covered by a Hold or open Flag
+                # However, it's already been through that check above, so we just delete it
+                db.execute("DELETE FROM transcripts WHERE id = ?", (transcript_id,))
 
-            # Delete related flag_repeats entries for this transcript
-            db.execute(
-                "DELETE FROM flag_repeats WHERE transcript_id = ?", (transcript_id,)
-            )
+                # Delete related flag_repeats entries for this transcript
+                db.execute(
+                    "DELETE FROM flag_repeats WHERE transcript_id = ?", (transcript_id,)
+                )
 
-            deleted_count += 1
+                deleted_count += 1
+            else:
+                # Standard day-end cutoff logic - delete if not covered by holds/flags
+                db.execute("DELETE FROM transcripts WHERE id = ?", (transcript_id,))
+
+                # Delete related flag_repeats entries for this transcript
+                db.execute(
+                    "DELETE FROM flag_repeats WHERE transcript_id = ?", (transcript_id,)
+                )
+
+                deleted_count += 1
 
     db.commit()
     # Fold any write-ahead log back into the database and truncate it, so no
