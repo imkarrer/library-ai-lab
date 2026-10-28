@@ -144,7 +144,9 @@ def test_close_removes_from_open():
         assert len(flags) == 1
 
         # Close the flag
-        close_flag(db, flag_id, "2023-12-01T12:00:00Z")
+        close_flag(
+            db, flag_id, "2023-12-01T12:00:00Z", "librarian-account", "handled", "done"
+        )
 
         # Verify it's no longer in open flags
         flags = open_flags(db)
@@ -182,7 +184,9 @@ def test_close_clears_message_hash():
         assert flag.message_hash == "abc123"
 
         # Close the flag
-        close_flag(db, flag_id, "2023-12-01T12:00:00Z")
+        close_flag(
+            db, flag_id, "2023-12-01T12:00:00Z", "librarian-account", "handled", "done"
+        )
 
         # Get the flag again - message_hash should be None
         flag = get_flag(db, flag_id)
@@ -383,7 +387,14 @@ def test_after_close_same_message_is_new_flag():
         )
 
         # Close the flag
-        close_flag(db, flag_id_1, "2023-12-01T12:00:00Z")
+        close_flag(
+            db,
+            flag_id_1,
+            "2023-12-01T12:00:00Z",
+            "librarian-account",
+            "handled",
+            "done",
+        )
 
         # Raise the same flag again
         flag_id_2, is_repeat_2 = raise_or_repeat(
