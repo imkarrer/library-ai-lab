@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from library_assistant.access import connect, get_clock, get_db, hash_token
 from library_assistant.app import app
+from library_assistant.flag_history import get_history
 from library_assistant.flags import raise_flag
 from library_assistant.staff import STAFF_SESSION_COOKIE, create_account, set_stand_in
 
@@ -129,7 +130,11 @@ def test_close_removes_from_queue(client, db):
     transcript_id = _transcript(db)
     flag_id = _flag(db, transcript_id)
 
-    response = client.post(f"/staff/flags/{flag_id}/close", follow_redirects=False)
+    response = client.post(
+        f"/staff/flags/{flag_id}/close",
+        data={"outcome": "handled", "reason": "done"},
+        follow_redirects=False,
+    )
 
     assert response.status_code == 303
     assert response.headers["location"] == "/staff/flags"
@@ -193,7 +198,11 @@ def test_stand_in_gets_full_queue_access(client, db):
     assert client.get("/staff/flags").status_code == 200
     assert client.get(f"/staff/flags/{flag_id}").status_code == 200
     assert (
-        client.post(f"/staff/flags/{flag_id}/close", follow_redirects=False).status_code
+        client.post(
+            f"/staff/flags/{flag_id}/close",
+            data={"outcome": "handled", "reason": "done"},
+            follow_redirects=False,
+        ).status_code
         == 303
     )
 
@@ -215,5 +224,173 @@ def test_unknown_flag_404(client, db):
 
     assert client.get("/staff/flags/999").status_code == 404
     assert (
-        client.post("/staff/flags/999/close", follow_redirects=False).status_code == 404
+        client.post(
+            "/staff/flags/999/close",
+            data={"outcome": "handled", "reason": "done"},
+            follow_redirects=False,
+        ).status_code
+        == 404
     )
+
+
+def test_raised_records_watchlist_entry_and_version(db):
+    transcript_id = _transcript(db)
+    flag_id = _flag(db, transcript_id, entry_id="entry-1")
+    history = get_history(db, flag_id)
+    raised = [event for event in history if event.event == "raised"]
+    assert len(raised) == 1
+    assert raised[0].source == "watchlist"
+    assert raised[0].entry_id == "entry-1"
+
+
+def test_raised_records_oversight_source(db):
+    transcript_id = _transcript(db)
+    flag_id = _flag(db, transcript_id, source="oversight", entry_id=None)
+    history = get_history(db, flag_id)
+    raised = [event for event in history if event.event == "raised"]
+    assert len(raised) == 1
+    assert raised[0].source == "oversight"
+    assert raised[0].entry_id is None
+
+
+def test_viewing_flag_records_history(client, db):
+    _sign_in_as(client, db, "librarian")
+    transcript_id = _transcript(db)
+    flag_id = _flag(db, transcript_id)
+
+    response = client.get(f"/staff/flags/{flag_id}")
+    assert response.status_code == 200
+
+    history = get_history(db, flag_id)
+    viewed = [event for event in history if event.event == "viewed"]
+    assert len(viewed) == 1
+    assert viewed[0].account == "librarian-account"
+    assert viewed[0].at == NOW.isoformat()
+
+
+def test_close_requires_outcome_and_reason(client, db):
+    _sign_in_as(client, db, "librarian")
+    transcript_id = _transcript(db)
+    flag_id = _flag(db, transcript_id)
+
+    response = client.post(
+        f"/staff/flags/{flag_id}/close",
+        data={"outcome": "not-a-real-outcome", "reason": "a reason"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 422
+
+    response = client.post(
+        f"/staff/flags/{flag_id}/close",
+        data={"outcome": "handled", "reason": "  "},
+        follow_redirects=False,
+    )
+    assert response.status_code == 422
+
+
+def test_close_records_history_with_outcome_and_account(client, db):
+    _sign_in_as(client, db, "librarian")
+    transcript_id = _transcript(db)
+    flag_id = _flag(db, transcript_id)
+
+    response = client.post(
+        f"/staff/flags/{flag_id}/close",
+        data={"outcome": "handled", "reason": "not a concern"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+
+    history = get_history(db, flag_id)
+    closed = [event for event in history if event.event == "closed"]
+    assert len(closed) == 1
+    assert closed[0].account == "librarian-account"
+    assert closed[0].outcome == "handled"
+    assert closed[0].reason == "not a concern"
+
+
+def test_reopen_requires_reason(client, db):
+    _sign_in_as(client, db, "librarian")
+    transcript_id = _transcript(db)
+    flag_id = _flag(db, transcript_id)
+    client.post(
+        f"/staff/flags/{flag_id}/close",
+        data={"outcome": "handled", "reason": "not a concern"},
+        follow_redirects=False,
+    )
+
+    response = client.post(
+        f"/staff/flags/{flag_id}/reopen",
+        data={"reason": ""},
+        follow_redirects=False,
+    )
+    assert response.status_code == 422
+
+
+def test_reopen_reopens_and_records_history(client, db):
+    _sign_in_as(client, db, "librarian")
+    transcript_id = _transcript(db)
+    flag_id = _flag(db, transcript_id)
+    client.post(
+        f"/staff/flags/{flag_id}/close",
+        data={"outcome": "handled", "reason": "not a concern"},
+        follow_redirects=False,
+    )
+
+    response = client.post(
+        f"/staff/flags/{flag_id}/reopen",
+        data={"reason": "need another look"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+
+    queue = client.get("/staff/flags")
+    assert f"/staff/flags/{flag_id}" in queue.text
+
+    history = get_history(db, flag_id)
+    reopened = [event for event in history if event.event == "reopened"]
+    assert len(reopened) == 1
+    assert reopened[0].account == "librarian-account"
+    assert reopened[0].reason == "need another look"
+
+
+def test_reopen_refused_after_exchange_purged(client, db):
+    _sign_in_as(client, db, "librarian")
+    transcript_id = _transcript(db)
+    flag_id = _flag(db, transcript_id)
+    client.post(
+        f"/staff/flags/{flag_id}/close",
+        data={"outcome": "handled", "reason": "not a concern"},
+        follow_redirects=False,
+    )
+    db.execute("DELETE FROM transcripts WHERE id = ?", (transcript_id,))
+    db.commit()
+
+    response = client.post(
+        f"/staff/flags/{flag_id}/reopen",
+        data={"reason": "need another look"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 422
+
+
+def test_overdue_flag_marked_in_queue(client, db):
+    _sign_in_as(client, db, "librarian")
+    transcript_id = _transcript(db)
+    flag_id = raise_flag(
+        db,
+        transcript_id=transcript_id,
+        class_label="Period 3",
+        card_number="14",
+        batch_expires_at=(NOW + timedelta(hours=6)).isoformat(),
+        message_hash="abc123",
+        category="content",
+        severity="high",
+        source="watchlist",
+        raised_at=(NOW - timedelta(days=8)).isoformat(),
+        entry_id="entry-1",
+    )
+
+    response = client.get("/staff/flags")
+    assert response.status_code == 200
+    assert "Overdue" in response.text
+    assert f"/staff/flags/{flag_id}" in response.text

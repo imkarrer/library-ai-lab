@@ -155,6 +155,27 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
         )
         """
     )
+    # The append-only Flag history (ADR-0003 addendum, "Flag lifecycle"). Written and
+    # read only through library_assistant.flag_history.
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS flag_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            flag_id INTEGER NOT NULL,
+            event TEXT NOT NULL CHECK (
+                event IN ('raised', 'viewed', 'closed', 'reopened', 'repeated')
+            ),
+            at TEXT NOT NULL,
+            account TEXT,
+            reason TEXT,
+            outcome TEXT,
+            source TEXT,
+            entry_id TEXT,
+            watchlist_version TEXT,
+            repeat_count INTEGER
+        )
+        """
+    )
     # Staff accounts and their sessions (library_assistant.staff). As with a Student's
     # Session, only the hash of the staff session id is stored.
     conn.execute(

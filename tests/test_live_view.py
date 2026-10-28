@@ -269,7 +269,14 @@ def test_closed_flags_do_not_mark(client, db):
         source="watchlist",
         raised_at=NOW.isoformat(),
     )
-    close_flag(db, flag_id, (NOW + timedelta(minutes=1)).isoformat())
+    close_flag(
+        db,
+        flag_id,
+        (NOW + timedelta(minutes=1)).isoformat(),
+        "librarian-account",
+        "handled",
+        "done",
+    )
 
     response = client.get("/staff/live")
 

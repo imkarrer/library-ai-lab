@@ -625,6 +625,53 @@ def test_report_counts_unscreened(db):
     assert count == 1
 
 
+def test_report_counts_overdue_flags(db):
+    """A Flag open longer than flags.overdue_days is counted in the Purge report."""
+    now = datetime(2023, 10, 2, 18, 0, 0, tzinfo=UTC)
+    raised_at = now - timedelta(days=10)
+
+    db.execute(
+        "INSERT INTO transcripts (session_hash, class_label, card_number, question, "
+        "answer, citations, asked_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (
+            "session1",
+            "Test Class",
+            "12345",
+            "Question",
+            "Answer",
+            "[]",
+            now.isoformat(),
+        ),
+    )
+    transcript_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
+    db.execute(
+        "INSERT INTO flags (transcript_id, class_label, card_number, batch_expires_at, "
+        "message_hash, category, severity, source, raised_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            transcript_id,
+            "Test Class",
+            "12345",
+            "2023-12-31T23:59:59Z",
+            "hash123",
+            "content",
+            "high",
+            "watchlist",
+            raised_at.isoformat(),
+        ),
+    )
+    db.commit()
+
+    settings = Settings(
+        school_timezone="America/Chicago",
+        school_day_end="17:00:00",
+        flags_overdue_days=7,
+    )
+    result = purge(db, now, settings)
+
+    assert result.overdue_flags == 1
+
+
 def test_startup_purges_after_missed_day_end():
     """Test that startup purge runs after a missed day end."""
     # Test using TestClient to simulate app startup and verify behavior
