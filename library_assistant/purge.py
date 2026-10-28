@@ -172,14 +172,14 @@ def purge(db, now: datetime, settings: Settings) -> PurgeReport:
         db.execute("DELETE FROM flag_repeats WHERE flag_id = ?", (flag_id,))
         db.execute("DELETE FROM flags WHERE id = ?", (flag_id,))
 
-    # Token hashes are deleted at the first Purge after their Batch expires (a Revoke
-    # deletes the Card row at once). The Batch's Class label, Card numbers, and expiry
-    # go with the hash, since nothing else keeps a Card row alive but a Session that
-    # still refers to it (ADR-0003 addendum, "other copies").
+    # Token hashes are deleted at the first Purge after their Batch expires or is
+    # Revoked (ADR-0003 addendum, "other copies"). A Revoke deletes the Card row at
+    # once; an expired Card's row goes here. Its Sessions carry the same hash, so they
+    # go too: a Session whose Card is gone or expired opens nothing (current_session
+    # refuses it), and Flags and transcripts keep their own Class label and Card number.
+    db.execute("DELETE FROM cards WHERE expires_at < ?", (now.isoformat(),))
     db.execute(
-        "DELETE FROM cards WHERE expires_at < ? "
-        "AND token_hash NOT IN (SELECT token_hash FROM sessions)",
-        (now.isoformat(),),
+        "DELETE FROM sessions WHERE token_hash NOT IN (SELECT token_hash FROM cards)"
     )
 
     db.commit()

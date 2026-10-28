@@ -488,23 +488,67 @@ def test_expired_card_hash_purged(db):
     assert db.execute("SELECT COUNT(*) FROM cards").fetchone()[0] == 0
 
 
-def test_expired_card_hash_kept_while_session_refers_to_it(db):
-    """A Card's row stays while a Session still refers to its Token hash."""
-    db.execute(
-        "INSERT INTO cards (token_hash, card_number, expires_at, class_label) "
-        "VALUES ('hash-1', '12345', '2023-01-01T00:00:00Z', 'Test Class')"
-    )
-    db.execute(
-        "INSERT INTO sessions (session_hash, token_hash, started_at) "
-        "VALUES ('session-hash-1', 'hash-1', '2023-01-01T00:00:00Z')"
-    )
-    db.commit()
-    settings = Settings(school_timezone="America/Chicago", school_day_end="17:00:00")
-    now = datetime(2023, 10, 2, 18, 0, 0, tzinfo=UTC)
+def _tables_holding(db, value):
+    """Every table with a row that carries `value` in any column."""
+    tables = [
+        name
+        for (name,) in db.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table'"
+        ).fetchall()
+    ]
+    found = []
+    for table in tables:
+        for row in db.execute(f'SELECT * FROM "{table}"').fetchall():
+            if any(value in str(cell) for cell in row if cell is not None):
+                found.append(table)
+                break
+    return found
 
-    purge(db, now, settings)
 
-    assert db.execute("SELECT COUNT(*) FROM cards").fetchone()[0] == 1
+@pytest.mark.parametrize("ending", ["expired", "revoked"])
+def test_no_token_hash_remains_after_expiry_or_revoke(tmp_path, ending):
+    """After expiry or a Revoke, the next Purge leaves the Card's Token hash in no
+    table, even while a Session started with the Card still sits in the database."""
+    from library_assistant.access import connect
+
+    db = connect(str(tmp_path / "assistant.db"))
+    try:
+        now = datetime(2023, 10, 2, 18, 0, 0, tzinfo=UTC)
+        in_date = now + timedelta(days=1)
+        expires_at = now - timedelta(days=1) if ending == "expired" else in_date
+        db.execute(
+            "INSERT INTO cards (token_hash, card_number, expires_at, class_label) "
+            "VALUES ('hash-gone', '12345', ?, 'Test Class')",
+            (expires_at.isoformat(),),
+        )
+        db.execute(
+            "INSERT INTO cards (token_hash, card_number, expires_at, class_label) "
+            "VALUES ('hash-live', '67890', ?, 'Test Class')",
+            (in_date.isoformat(),),
+        )
+        db.execute(
+            "INSERT INTO sessions (session_hash, token_hash, started_at) "
+            "VALUES ('session-gone', 'hash-gone', '2023-10-01T14:00:00+00:00')"
+        )
+        db.execute(
+            "INSERT INTO sessions (session_hash, token_hash, started_at) "
+            "VALUES ('session-live', 'hash-live', '2023-10-01T14:00:00+00:00')"
+        )
+        if ending == "revoked":
+            db.execute("DELETE FROM cards WHERE token_hash = 'hash-gone'")
+        db.commit()
+        assert "sessions" in _tables_holding(db, "hash-gone")
+
+        settings = Settings(
+            school_timezone="America/Chicago", school_day_end="17:00:00"
+        )
+        purge(db, now, settings)
+
+        assert _tables_holding(db, "hash-gone") == []
+        # A Card still in date keeps its row and its Session.
+        assert sorted(_tables_holding(db, "hash-live")) == ["cards", "sessions"]
+    finally:
+        db.close()
 
 
 def test_report_counts(db):
