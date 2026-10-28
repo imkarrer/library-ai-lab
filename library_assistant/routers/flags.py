@@ -15,7 +15,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from library_assistant.access import get_clock, get_db
+from library_assistant.access import get_clock, get_db, last_review_at, review_due_at
 from library_assistant.config import Settings, get_settings
 from library_assistant.flag_history import append_event, get_history
 from library_assistant.flags import (
@@ -69,6 +69,29 @@ def _visible_to(account: StaffDep, flag: FlagRow) -> bool:
     return flag.category == "escalated"
 
 
+def _get_settings_dict(db: sqlite3.Connection) -> dict[str, str]:
+    """Get all settings as a dictionary."""
+    rows = db.execute("SELECT key, value FROM install_settings").fetchall()
+    return dict(rows)
+
+
+@router.post("/flags/reviewed", response_model=None)
+def mark_reviewed(
+    account: StandInDep,
+    db: sqlite3.Connection = Depends(get_db),
+    clock: datetime = Depends(get_clock),
+) -> RedirectResponse:
+    """Mark that a flag review has been performed."""
+    # Record the review
+    db.execute(
+        "INSERT INTO flag_reviews (account_id, reviewed_at) VALUES (?, ?)",
+        (account.id, clock.isoformat()),
+    )
+    db.commit()
+    # Redirect back to the flag queue
+    return RedirectResponse("/staff/flags", status_code=303)
+
+
 @router.get("/flags")
 def flag_queue(
     account: QueueDep,
@@ -76,13 +99,50 @@ def flag_queue(
     clock: datetime = Depends(get_clock),
     settings: Settings = Depends(get_settings),
 ) -> HTMLResponse:
+    # Get all settings
+    settings_dict = _get_settings_dict(db)
+
+    # Get review information
+    last_review = last_review_at(db)
+    due_at = review_due_at(db, settings_dict, clock)
+
     flags = [flag for flag in open_flags(db) if _visible_to(account, flag)]
     rows = "".join(
         _queue_row_html(flag, is_overdue(flag, clock, settings.flags_overdue_days))
         for flag in flags
     )
+
+    # Build header information
+    header_info = ""
+    supervision_mode = settings_dict.get("supervision_mode", "live")
+    if supervision_mode == "periodic":
+        if last_review:
+            # Format last review time and username
+            last_review_str = last_review.strftime("%H:%M")
+            # Get username for the last review (we'll need to get this from account_id)
+            last_review_account = db.execute(
+                "SELECT username FROM staff_accounts WHERE id = (SELECT account_id FROM flag_reviews WHERE reviewed_at = ?)",
+                (last_review.isoformat(),),
+            ).fetchone()
+            last_review_username = (
+                last_review_account[0] if last_review_account else "Unknown"
+            )
+            header_info += (
+                f"Last reviewed {last_review_str} by {last_review_username}, "
+            )
+
+        if due_at:
+            due_str = due_at.strftime("%H:%M")
+            header_info += f"next due {due_str}"
+
+            # Add "overdue" if past due
+            if clock > due_at:
+                header_info += " (overdue)"
+
     body = (
-        "<h1>Flag queue</h1>"
+        f"<h1>Flag queue</h1><p>{header_info}</p>"
+        if header_info
+        else ""
         "<table><thead><tr>"
         "<th>Raised at</th><th>Category</th><th>Severity</th><th>Source</th>"
         "<th>Entry</th><th>Class</th><th>Card</th><th></th><th></th>"
