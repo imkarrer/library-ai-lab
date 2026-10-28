@@ -128,6 +128,11 @@ def purge(db, now: datetime, settings: Settings) -> PurgeReport:
 
             deleted_count += 1
 
+    db.commit()
+    # Fold any write-ahead log back into the database and truncate it, so no
+    # purged transcript survives in a -wal file (ADR-0003 addendum).
+    db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+
     # A Flag open longer than flags.overdue_days is counted here too (ADR-0003 addendum).
     overdue_cutoff = now - timedelta(days=settings.flags_overdue_days)
     overdue_count = db.execute(
