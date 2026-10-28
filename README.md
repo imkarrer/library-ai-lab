@@ -6,6 +6,9 @@ that carry no identity; the librarian watches what is being asked; a determinist
 plus an optional Oversight model when the hardware can spare it, flags messages a counselor
 needs to see. Nothing leaves the school network.
 
+It runs on Apple Silicon Macs and on x86_64 or aarch64 Linux. Intel Macs are not supported:
+nixpkgs dropped x86_64-darwin, so the environment cannot lock current packages for them.
+
 It is also a showcase for flox in education: the goal is a talk on flox for edu, then a
 session at [SLATE](https://slateinwi.com/), Wisconsin's school leadership technology
 conference, with a Wisconsin middle school library as the first real Install.
