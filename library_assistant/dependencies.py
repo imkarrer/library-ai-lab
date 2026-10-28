@@ -15,12 +15,8 @@ from fastapi import Depends
 
 from library_assistant.access import Session, current_session
 from library_assistant.catalog import Catalog
-from library_assistant.config import Settings, build_catalog
+from library_assistant.config import Settings, build_catalog, get_settings
 from library_assistant.models import Citation
-
-
-def get_settings() -> Settings:
-    return Settings.from_env()
 
 
 def get_catalog(settings: Settings = Depends(get_settings)) -> Catalog:

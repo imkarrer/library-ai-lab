@@ -17,6 +17,9 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, PlainTextResponse
 from pydantic import BaseModel
 
+from library_assistant.config import Settings, get_settings
+from library_assistant.schoolday import school_day_end_for
+
 DB_PATH = os.environ.get("LIBRARY_ASSISTANT_DB", "library_assistant.db")
 
 REFUSAL_TEXT = "This card has stopped working. Ask your teacher for a new one."
@@ -249,8 +252,21 @@ def register_batch(
     batch: BatchRegistration,
     db: sqlite3.Connection = Depends(get_db),
     registration_key: str | None = Depends(get_registration_key),
+    clock: datetime = Depends(get_clock),
+    settings: Settings = Depends(get_settings),
 ) -> dict[str, int]:
     _require_key(batch.registration_key, registration_key)
+    end = school_day_end_for(clock, settings)
+    if clock >= end:
+        raise HTTPException(
+            status_code=422,
+            detail="Registration is closed: today's school day has ended.",
+        )
+    if batch.expires_at > end:
+        raise HTTPException(
+            status_code=422,
+            detail="A Batch must expire by the end of today's school day.",
+        )
     db.executemany(
         "INSERT OR REPLACE INTO cards (token_hash, card_number, expires_at, class_label) "
         "VALUES (?, ?, ?, ?)",

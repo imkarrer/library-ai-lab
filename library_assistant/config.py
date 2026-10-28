@@ -74,3 +74,7 @@ def build_catalog(settings: Settings) -> Catalog:
     if settings.catalog_backend == "sqlite":
         return SqliteCatalog.open(settings.catalog_path)
     raise ValueError(f"unknown catalog_backend: {settings.catalog_backend!r}")
+
+
+def get_settings() -> Settings:
+    return Settings.from_env()
