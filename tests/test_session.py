@@ -22,7 +22,9 @@ from library_assistant.dependencies import get_catalog, get_settings
 from library_assistant.routers.session import BANNER_TEXT
 
 REGISTRATION_KEY = "s3cret-registration-key"
-NOW = datetime(2026, 11, 2, 9, 0, tzinfo=UTC)
+# Far in the future on purpose: sign-in sets the cookie to expire with the Card, an
+# absolute time the HTTP client compares with the real clock, so a past NOW drops it.
+NOW = datetime(2036, 11, 3, 9, 0, tzinfo=UTC)
 EXPIRES = NOW + timedelta(hours=6)
 
 RECORD = Record(
