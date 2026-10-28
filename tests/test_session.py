@@ -126,7 +126,9 @@ def test_signed_in_card_gets_a_streamed_grounded_answer(client, model_calls):
     response = test_client.post("/ask", json={"question": "a book about bulls?"})
 
     assert response.status_code == 200
-    assert "Try Ferdinand, a gentle bull." in response.text
+    # The old test expected the model to answer directly, but now we're using
+    # the research prompt which should return search terms and then the catalog results
+    assert "Books in our library:" in response.text
     assert "Citation: The story of Ferdinand / (PZ10.3.L47 St)" in response.text
     assert response.headers["cache-control"] == "no-store"
 
