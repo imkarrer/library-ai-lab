@@ -11,7 +11,7 @@ import os
 import secrets
 import sqlite3
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, PlainTextResponse
@@ -23,6 +23,8 @@ from library_assistant.schoolday import school_day_end_for
 DB_PATH = os.environ.get("LIBRARY_ASSISTANT_DB", "library_assistant.db")
 
 REFUSAL_TEXT = "This card has stopped working. Ask your teacher for a new one."
+
+IDLE_TEXT = "this session ended, scan your card again"
 
 SESSION_COOKIE = "session"
 
@@ -103,7 +105,8 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
         CREATE TABLE IF NOT EXISTS sessions (
             session_hash TEXT PRIMARY KEY,
             token_hash TEXT NOT NULL,
-            started_at TEXT NOT NULL
+            started_at TEXT NOT NULL,
+            last_seen_at TEXT NOT NULL DEFAULT '1970-01-01T00:00:00+00:00'
         )
         """
     )
@@ -396,8 +399,9 @@ def post_sign_in(
         )
 
     db.execute(
-        "INSERT INTO sessions (session_hash, token_hash, started_at) VALUES (?, ?, ?)",
-        (hash_token(session_id), token_hash, clock.isoformat()),
+        "INSERT INTO sessions (session_hash, token_hash, started_at, last_seen_at) "
+        "VALUES (?, ?, ?, ?)",
+        (hash_token(session_id), token_hash, clock.isoformat(), clock.isoformat()),
     )
     db.commit()
     sign_in_response = PlainTextResponse(
@@ -456,22 +460,41 @@ def current_session(
     The Card row is re-read every time, so Revoking a Card or Batch, or the Batch
     expiring, ends its Sessions immediately.
     """
+    # Imported here, not at module level: install_settings imports get_db from this
+    # module, so importing it up top would be circular.
+    from library_assistant.install_settings import SESSION_IDLE_MINUTES, get_int_setting
+
     session_id = request.cookies.get(SESSION_COOKIE)
     if not session_id:
         raise HTTPException(status_code=403, detail=REFUSAL_TEXT)
     session_hash = hash_token(session_id)
     row = db.execute(
-        "SELECT cards.card_number, cards.class_label, cards.expires_at "
+        "SELECT cards.card_number, cards.class_label, cards.expires_at, "
+        "sessions.last_seen_at "
         "FROM sessions JOIN cards ON cards.token_hash = sessions.token_hash "
         "WHERE sessions.session_hash = ?",
         (session_hash,),
     ).fetchone()
     if row is None:
         raise HTTPException(status_code=403, detail=REFUSAL_TEXT)
-    card_number, class_label, expires_at = row
+    card_number, class_label, expires_at, last_seen_at = row
     expires_at_dt = datetime.fromisoformat(expires_at)
     if clock > expires_at_dt:
         raise HTTPException(status_code=403, detail=REFUSAL_TEXT)
+
+    idle_minutes = get_int_setting(db, SESSION_IDLE_MINUTES, 0)
+    if idle_minutes > 0:
+        idle_for = clock - datetime.fromisoformat(last_seen_at)
+        if idle_for > timedelta(minutes=idle_minutes):
+            db.execute("DELETE FROM sessions WHERE session_hash = ?", (session_hash,))
+            db.commit()
+            raise HTTPException(status_code=403, detail=IDLE_TEXT)
+    db.execute(
+        "UPDATE sessions SET last_seen_at = ? WHERE session_hash = ?",
+        (clock.isoformat(), session_hash),
+    )
+    db.commit()
+
     return Session(
         ref=session_hash,
         card_number=card_number,
