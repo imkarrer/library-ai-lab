@@ -36,6 +36,7 @@ from library_assistant.dependencies import (
 )
 from library_assistant.models import AskRequest, Citation
 from library_assistant.prompt import SearchLineFilter, build_messages
+from library_assistant.routers.live import LiveBus, get_live_bus
 
 # Quoted word for word by the AI literacy unit (docs/curriculum/ai-literacy-unit.md).
 BANNER_TEXT = "This can be wrong, check the source."
@@ -189,18 +190,22 @@ async def ask(
     catalog: Catalog = Depends(get_catalog),
     db: sqlite3.Connection = Depends(get_db),
     clock: datetime = Depends(get_clock),
+    bus: LiveBus = Depends(get_live_bus),
 ) -> StreamingResponse | JSONResponse:
     """Ask a question in a Session and stream a Grounded answer with Citations.
 
     A Card has one message in flight at a time: another one gets 409 "one moment"
     before it is recorded, checked or sent anywhere.
+
+    The Live view hears of the question and the answer through the LiveBus; the events
+    carry the Session's row number, never its hash.
     """
     card_ref = session.card_ref
     if card_ref in _in_flight:
         return JSONResponse({"status": "one moment"}, status_code=409, headers=NO_STORE)
     _in_flight.add(card_ref)
     try:
-        return _answer(request, session, http_client, settings, catalog, db, clock)
+        return _answer(request, session, http_client, settings, catalog, db, clock, bus)
     except BaseException:
         _in_flight.discard(card_ref)
         raise
@@ -214,8 +219,23 @@ def _answer(
     catalog: Catalog,
     db: sqlite3.Connection,
     clock: datetime,
+    bus: LiveBus,
 ) -> StreamingResponse:
     transcript_id = start_exchange(db, session, request.question, clock)
+    session_no = db.execute(
+        "SELECT rowid FROM sessions WHERE session_hash = ?", (session.ref,)
+    ).fetchone()[0]
+    bus.publish(
+        "question",
+        {
+            "session_no": session_no,
+            "transcript_id": transcript_id,
+            "class_label": session.class_label,
+            "card_number": session.card_number,
+            "question": request.question,
+            "asked_at": clock.isoformat(),
+        },
+    )
 
     # First, we build the messages for the research prompt
     messages = build_messages(request.question)
@@ -288,7 +308,17 @@ def _answer(
                 yield remaining_text
         finally:
             try:
-                finish_exchange(db, transcript_id, "".join(answer_parts), shown)
+                answer = "".join(answer_parts)
+                finish_exchange(db, transcript_id, answer, shown)
+                bus.publish(
+                    "answer",
+                    {
+                        "session_no": session_no,
+                        "transcript_id": transcript_id,
+                        "answer": answer,
+                        "citations": [citation.model_dump() for citation in shown],
+                    },
+                )
             finally:
                 _in_flight.discard(session.card_ref)
 

@@ -3,17 +3,24 @@
 Binding: ADR-0002 (no Card-to-Student link), ADR-0003 addendum (`no-store`, no copies).
 A tile shows only the Class label, Card number, and conversation shape; it never shows a
 name, a Token or its stored hash, or Roster data. See `docs/design/live-view.md`.
+
+The pages stay live through the LiveBus: `/ask` publishes to it in process (ADR-0008) and
+each open Live view page holds one server-sent event stream from it. The bus keeps
+nothing: a message reaches only the streams open when it is published.
 """
 
 from __future__ import annotations
 
+import asyncio
 import html
+import json
 import sqlite3
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Form, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 
 from library_assistant.access import (
     get_clock,
@@ -26,6 +33,89 @@ from library_assistant.models import Citation
 from library_assistant.staff import LibrarianDep, StandInDep, page
 
 LATEST_QUESTION_LIMIT = 80
+
+PING_INTERVAL_SECONDS = 20
+
+# A page that stops reading loses messages past this many rather than growing memory.
+SUBSCRIBER_QUEUE_LIMIT = 256
+
+Message = tuple[str, dict]
+
+
+class LiveBus:
+    """In-process fan-out from `/ask` to the open Live view streams (ADR-0008)."""
+
+    def __init__(self) -> None:
+        self._subscribers: set[asyncio.Queue[Message]] = set()
+
+    def subscribe(self) -> asyncio.Queue[Message]:
+        queue: asyncio.Queue[Message] = asyncio.Queue(maxsize=SUBSCRIBER_QUEUE_LIMIT)
+        self._subscribers.add(queue)
+        return queue
+
+    def unsubscribe(self, queue: asyncio.Queue[Message]) -> None:
+        self._subscribers.discard(queue)
+
+    def publish(self, kind: str, data: dict) -> None:
+        for queue in list(self._subscribers):
+            try:
+                queue.put_nowait((kind, data))
+            except asyncio.QueueFull:
+                pass
+
+
+live_bus = LiveBus()
+
+
+def get_live_bus() -> LiveBus:
+    return live_bus
+
+
+async def _ping_wait() -> None:
+    await asyncio.sleep(PING_INTERVAL_SECONDS)
+
+
+def get_ping_wait() -> Callable[[], Awaitable[None]]:
+    """The wait between `: ping` comments; tests override it so nothing sleeps."""
+    return _ping_wait
+
+
+def sse_message(kind: str, data: dict) -> str:
+    return f"event: {kind}\ndata: {json.dumps(data)}\n\n"
+
+
+async def event_stream(
+    bus: LiveBus,
+    queue: asyncio.Queue[Message],
+    wait: Callable[[], Awaitable[None]],
+) -> AsyncIterator[str]:
+    """One SSE event per published message, and `: ping` each time `wait` returns.
+
+    A pending read survives a ping, so no message is lost to one. Closing the stream
+    (the page goes away) unsubscribes the queue.
+    """
+    next_message: asyncio.Future | None = None
+    ping: asyncio.Future | None = None
+    try:
+        while True:
+            if next_message is None:
+                next_message = asyncio.ensure_future(queue.get())
+            ping = asyncio.ensure_future(wait())
+            done, _ = await asyncio.wait(
+                {next_message, ping}, return_when=asyncio.FIRST_COMPLETED
+            )
+            if next_message in done:
+                ping.cancel()
+                kind, data = next_message.result()
+                next_message = None
+                yield sse_message(kind, data)
+            else:
+                yield ": ping\n\n"
+    finally:
+        for task in (next_message, ping):
+            if task is not None:
+                task.cancel()
+        bus.unsubscribe(queue)
 
 
 @dataclass(frozen=True)
@@ -49,6 +139,7 @@ class Exchange:
     question: str
     answer: str
     citations: list[Citation]
+    transcript_id: int | None = None
 
 
 def _truncate(question: str) -> str:
@@ -139,12 +230,15 @@ def _tile_html(tile: SessionTile) -> str:
         badge = f'<span class="flag-badge">Flag: {tile.flag_severity}</span>'
 
     return (
-        f'<div class="{class_attr}">'
+        f'<div class="{class_attr}" data-session-no="{tile.session_no}" '
+        f'data-message-count="{tile.message_count}">'
         f'<a href="/staff/live/sessions/{tile.session_no}">'
-        f"<p>{html.escape(tile.class_label)} &middot; card {html.escape(tile.card_number)}</p>"
-        f"<p>Last activity: {html.escape(tile.last_activity_at.isoformat())}</p>"
-        f"<p>{tile.message_count} message(s)</p>"
-        f"<p>{html.escape(tile.latest_question)}</p>"
+        f'<p class="who">{html.escape(tile.class_label)} &middot; '
+        f"card {html.escape(tile.card_number)}</p>"
+        '<p class="when">Last activity: '
+        f"{html.escape(tile.last_activity_at.isoformat())}</p>"
+        f'<p class="count">{tile.message_count} message(s)</p>'
+        f'<p class="latest">{html.escape(tile.latest_question)}</p>'
         f"{badge}"
         "</a></div>"
     )
@@ -162,10 +256,11 @@ def _exchange_html(exchange: Exchange, catalog) -> str:
         citation_html += "</div>"
 
     return (
-        '<div class="exchange">'
+        f'<div class="exchange" data-transcript-id="{exchange.transcript_id}">'
         f"<p><strong>Asked at:</strong> {html.escape(exchange.asked_at.isoformat())}</p>"
         f"<p><strong>Question:</strong> {html.escape(exchange.question)}</p>"
-        f"<p><strong>Answer:</strong> {html.escape(exchange.answer)}</p>"
+        "<p><strong>Answer:</strong> "
+        f'<span class="answer">{html.escape(exchange.answer)}</span></p>'
         f"{citation_html}"
         "</div>"
     )
@@ -208,14 +303,14 @@ def session_detail(
 
     # Get exchanges ordered by asked_at ascending (oldest first)
     transcript_rows = db.execute(
-        "SELECT asked_at, question, answer, citations FROM transcripts "
+        "SELECT id, asked_at, question, answer, citations FROM transcripts "
         "WHERE session_hash = ? "
         "ORDER BY asked_at ASC",
         (session_hash,),
     ).fetchall()
 
     exchanges = []
-    for asked_at_str, question, answer, citations_str in transcript_rows:
+    for transcript_id, asked_at_str, question, answer, citations_str in transcript_rows:
         asked_at = datetime.fromisoformat(asked_at_str)
 
         # Parse citations
@@ -250,6 +345,7 @@ def session_detail(
                 question=question,
                 answer=answer,
                 citations=citations,
+                transcript_id=transcript_id,
             )
         )
 
@@ -257,6 +353,102 @@ def session_detail(
 
 
 router = APIRouter(prefix="/staff")
+
+# Inline on purpose: the Live view loads no external script. Text from events is set with
+# textContent, never parsed as HTML.
+OVERVIEW_SCRIPT = """<script>
+(() => {
+  const LIMIT = __LIMIT__;
+  const tiles = document.getElementById("tiles");
+  const shorten = (q) => (q.length <= LIMIT ? q : q.slice(0, LIMIT) + "...");
+  const line = (cls) => {
+    const p = document.createElement("p");
+    p.className = cls;
+    return p;
+  };
+  const newTile = (data) => {
+    const tile = document.createElement("div");
+    tile.className = "tile";
+    tile.dataset.sessionNo = data.session_no;
+    tile.dataset.messageCount = "0";
+    const link = document.createElement("a");
+    link.href = "/staff/live/sessions/" + encodeURIComponent(data.session_no);
+    for (const cls of ["who", "when", "count", "latest"]) link.append(line(cls));
+    tile.append(link);
+    return tile;
+  };
+  const source = new EventSource("/staff/live/events");
+  source.addEventListener("question", (event) => {
+    const data = JSON.parse(event.data);
+    const empty = document.getElementById("no-sessions");
+    if (empty) empty.remove();
+    const selector = '[data-session-no="' + Number(data.session_no) + '"]';
+    const tile = tiles.querySelector(selector) || newTile(data);
+    const count = Number(tile.dataset.messageCount || "0") + 1;
+    tile.dataset.messageCount = String(count);
+    tile.querySelector(".who").textContent =
+      data.class_label + " \\u00b7 card " + data.card_number;
+    tile.querySelector(".when").textContent = "Last activity: " + data.asked_at;
+    tile.querySelector(".count").textContent = count + " message(s)";
+    tile.querySelector(".latest").textContent = shorten(data.question);
+    tiles.prepend(tile);
+  });
+})();
+</script>""".replace("__LIMIT__", str(LATEST_QUESTION_LIMIT))
+
+DETAIL_SCRIPT = """<script>
+(() => {
+  const SESSION_NO = __SESSION_NO__;
+  const exchanges = document.getElementById("exchanges");
+  const labelled = (label, cls) => {
+    const p = document.createElement("p");
+    const strong = document.createElement("strong");
+    strong.textContent = label;
+    const value = document.createElement("span");
+    if (cls) value.className = cls;
+    p.append(strong, " ", value);
+    return [p, value];
+  };
+  const find = (id) =>
+    exchanges.querySelector('[data-transcript-id="' + Number(id) + '"]');
+  const source = new EventSource("/staff/live/events");
+  source.addEventListener("question", (event) => {
+    const data = JSON.parse(event.data);
+    if (data.session_no !== SESSION_NO || find(data.transcript_id)) return;
+    const div = document.createElement("div");
+    div.className = "exchange";
+    div.dataset.transcriptId = data.transcript_id;
+    const [askedP, asked] = labelled("Asked at:");
+    asked.textContent = data.asked_at;
+    const [questionP, question] = labelled("Question:");
+    question.textContent = data.question;
+    const [answerP] = labelled("Answer:", "answer");
+    div.append(askedP, questionP, answerP);
+    exchanges.append(div);
+  });
+  source.addEventListener("answer", (event) => {
+    const data = JSON.parse(event.data);
+    if (data.session_no !== SESSION_NO) return;
+    const div = find(data.transcript_id);
+    if (!div) return;
+    div.querySelector(".answer").textContent = data.answer;
+    const old = div.querySelector(".citations");
+    if (old) old.remove();
+    if (!data.citations.length) return;
+    const list = document.createElement("div");
+    list.className = "citations";
+    for (const citation of data.citations) {
+      const p = document.createElement("p");
+      const link = document.createElement("a");
+      link.href = "/staff/catalog/record/" + encodeURIComponent(citation.record_id);
+      link.textContent = citation.title;
+      p.append(link);
+      list.append(p);
+    }
+    div.append(list);
+  });
+})();
+</script>"""
 
 
 @router.get("/live")
@@ -270,11 +462,28 @@ def live_view(
     body = (
         "".join(_tile_html(tile) for tile in tiles)
         if tiles
-        else "<p>No active Sessions.</p>"
+        else '<p id="no-sessions">No active Sessions.</p>'
     )
-    response = page("Live view", f"<h1>Live view</h1>{body}")
+    response = page(
+        "Live view", f'<h1>Live view</h1><div id="tiles">{body}</div>{OVERVIEW_SCRIPT}'
+    )
     response.headers["Cache-Control"] = "no-store"
     return response
+
+
+@router.get("/live/events")
+async def live_events(
+    account: LibrarianDep,
+    bus: LiveBus = Depends(get_live_bus),
+    wait: Callable[[], Awaitable[None]] = Depends(get_ping_wait),
+) -> StreamingResponse:
+    """The Live view's server-sent event stream: one event per LiveBus message."""
+    queue = bus.subscribe()
+    return StreamingResponse(
+        event_stream(bus, queue, wait),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @router.get("/live/sessions/{session_no}")
@@ -297,7 +506,8 @@ def session_detail_view(
         f"<p><strong>Class:</strong> {html.escape(class_label)}</p>"
         f"<p><strong>Card:</strong> {html.escape(card_number)}</p>"
         f'<p><a href="/staff/live">← Back to Live view</a></p>'
-        f'<div class="exchanges">{exchange_html}</div>'
+        f'<div class="exchanges" id="exchanges">{exchange_html}</div>'
+        f"{DETAIL_SCRIPT.replace('__SESSION_NO__', str(session_no))}"
         f'<form method="post" action="/staff/live/sessions/{session_no}/revoke-card">'
         f'<label><input type="checkbox" name="confirm" value="yes" required> '
         f"Yes, revoke card {html.escape(card_number)}</label>"
