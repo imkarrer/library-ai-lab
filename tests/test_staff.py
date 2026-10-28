@@ -159,3 +159,69 @@ def test_logout_ends_the_session(client, db):
 def test_create_account_refuses_unknown_role(db):
     with pytest.raises(ValueError):
         create_account(db, "someone", "pw", "admin")
+
+
+def test_librarian_can_grant_and_revoke_stand_in(client, db):
+    create_account(db, "librarian", "correct horse", "librarian")
+    account_id = create_account(db, "teacher", "correct horse", "teacher")
+    _sign_in(client)
+
+    grant = client.post(
+        f"/staff/accounts/{account_id}/stand-in/grant", follow_redirects=False
+    )
+    assert grant.status_code == 303
+    assert (
+        db.execute(
+            "SELECT is_stand_in FROM staff_accounts WHERE id = ?", (account_id,)
+        ).fetchone()[0]
+        == 1
+    )
+
+    revoke = client.post(
+        f"/staff/accounts/{account_id}/stand-in/revoke", follow_redirects=False
+    )
+    assert revoke.status_code == 303
+    assert (
+        db.execute(
+            "SELECT is_stand_in FROM staff_accounts WHERE id = ?", (account_id,)
+        ).fetchone()[0]
+        == 0
+    )
+
+
+@pytest.mark.parametrize("role", ["teacher", "counselor"])
+def test_grant_stand_in_refused_to_non_librarian(client, db, role):
+    create_account(db, role, "correct horse", role)
+    account_id = create_account(db, "other", "correct horse", "teacher")
+    _sign_in(client, username=role)
+
+    assert (
+        client.post(f"/staff/accounts/{account_id}/stand-in/grant").status_code == 403
+    )
+
+
+def test_stand_in_gets_403_on_accounts_and_keys_and_settings(client, db):
+    create_account(db, "librarian", "correct horse", "librarian")
+    account_id = create_account(db, "teacher", "correct horse", "teacher")
+    _sign_in(client)
+    client.post(f"/staff/accounts/{account_id}/stand-in/grant")
+    client.post("/staff/logout")
+
+    _sign_in(client, username="teacher")
+    assert client.get("/staff/accounts").status_code == 403
+    assert client.get("/staff/keys").status_code == 403
+    assert client.get("/staff/settings").status_code == 403
+
+
+def test_librarian_sees_accounts_and_keys_pages(client, db):
+    create_account(db, "librarian", "correct horse", "librarian")
+    create_account(db, "teacher", "correct horse", "teacher")
+    _sign_in(client)
+
+    accounts = client.get("/staff/accounts")
+    assert accounts.status_code == 200
+    assert "teacher" in accounts.text
+
+    keys = client.get("/staff/keys")
+    assert keys.status_code == 200
+    assert REGISTRATION_KEY in keys.text
