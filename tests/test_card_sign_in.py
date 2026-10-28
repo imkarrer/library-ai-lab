@@ -4,6 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from library_assistant.access import (
+    IDLE_TEXT,
     SESSION_COOKIE,
     connect,
     get_clock,
@@ -13,6 +14,7 @@ from library_assistant.access import (
 )
 from library_assistant.app import app
 from library_assistant.config import Settings
+from library_assistant.install_settings import SESSION_IDLE_MINUTES
 from library_assistant.schoolday import school_day_end_for
 
 REGISTRATION_KEY = "s3cret-registration-key"
@@ -330,3 +332,60 @@ def test_registration_after_day_end_refused(client):
     response = _register(tc, DAY_END)
     assert response.status_code == 422
     assert "Registration is closed: today's school day has ended." in response.text
+
+
+def _set_idle_minutes(db, minutes: int) -> None:
+    db.execute(
+        "INSERT INTO install_settings (key, value) VALUES (?, ?)",
+        (SESSION_IDLE_MINUTES, str(minutes)),
+    )
+    db.commit()
+
+
+def test_session_ends_after_idle_minutes(client):
+    tc, db = client
+    _register(tc, DAY_END)
+    _set_idle_minutes(db, 5)
+    tc.post("/card", json={"token": "token-1"})
+
+    tc.app.dependency_overrides[get_clock] = lambda: FIXED_CLOCK + timedelta(minutes=6)
+    response = tc.get("/chat")
+    assert response.status_code == 403
+    assert response.json()["detail"] == IDLE_TEXT
+    assert db.execute("SELECT count(*) FROM sessions").fetchone()[0] == 0
+
+
+def test_activity_keeps_session_alive(client):
+    tc, db = client
+    _register(tc, DAY_END)
+    _set_idle_minutes(db, 5)
+    tc.post("/card", json={"token": "token-1"})
+
+    tc.app.dependency_overrides[get_clock] = lambda: FIXED_CLOCK + timedelta(minutes=4)
+    assert tc.get("/chat").status_code == 200
+
+    tc.app.dependency_overrides[get_clock] = lambda: FIXED_CLOCK + timedelta(minutes=8)
+    assert tc.get("/chat").status_code == 200
+
+
+def test_zero_means_no_limit(client):
+    tc, _db = client
+    _register(tc, DAY_END)
+    tc.post("/card", json={"token": "token-1"})
+
+    tc.app.dependency_overrides[get_clock] = lambda: FIXED_CLOCK + timedelta(hours=6)
+    assert tc.get("/chat").status_code == 200
+
+
+def test_card_signs_in_again_after_idle(client):
+    tc, db = client
+    _register(tc, DAY_END)
+    _set_idle_minutes(db, 5)
+    tc.post("/card", json={"token": "token-1"})
+
+    tc.app.dependency_overrides[get_clock] = lambda: FIXED_CLOCK + timedelta(minutes=6)
+    assert tc.get("/chat").status_code == 403
+
+    response = tc.post("/card", json={"token": "token-1"})
+    assert response.status_code == 200
+    assert SESSION_COOKIE in response.cookies
