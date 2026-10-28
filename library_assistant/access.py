@@ -103,7 +103,7 @@ PURGE_RUN_COUNTS = (
 def _add_missing_columns(
     conn: sqlite3.Connection, table: str, columns: tuple[str, ...]
 ) -> None:
-    """Add integer count columns an older database's table lacks."""
+    """Add integer columns an older database's table lacks (NULL on old rows)."""
     present = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
     for column in columns:
         if column not in present:
@@ -172,7 +172,8 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
             raised_at TEXT NOT NULL,
             closed_at TEXT,
             repeat_count INTEGER NOT NULL DEFAULT 0,
-            last_repeat_at TEXT
+            last_repeat_at TEXT,
+            exported INTEGER NOT NULL DEFAULT 0
         )
         """
     )
@@ -239,6 +240,8 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
         """
     )
     _add_missing_columns(conn, "purge_runs", PURGE_RUN_COUNTS)
+    # An older flags table predates the Export record; its Flags read as not exported.
+    _add_missing_columns(conn, "flags", ("exported",))
     # Holds (ADR-0003 addendum): a scope the Purge keeps; never a Student.
     create_holds_table(conn)
     # Install settings (library_assistant.install_settings). Only the Librarian manages

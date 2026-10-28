@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Form, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from library_assistant.access import get_clock, get_db, last_review_at, review_due_at
 from library_assistant.config import Settings, get_settings
@@ -28,6 +28,7 @@ from library_assistant.flags import (
     reopen_flag,
 )
 from library_assistant.holds import active_hold_count
+from library_assistant.purge import next_purge_at
 from library_assistant.staff import StaffDep, StandInDep, page
 
 router = APIRouter(prefix="/staff")
@@ -166,6 +167,7 @@ def flag_page(
     account: QueueDep,
     db: sqlite3.Connection = Depends(get_db),
     clock: datetime = Depends(get_clock),
+    settings: Settings = Depends(get_settings),
 ) -> HTMLResponse:
     flag = get_flag(db, flag_id)
     if flag is None:
@@ -194,6 +196,17 @@ def flag_page(
     )
     action = "reopen" if flag.closed_at is not None else "close"
     button = "Reopen" if flag.closed_at is not None else "Close"
+    # A high-severity Flag that has not been exported needs the closer's explicit
+    # confirmation, since closing it is what lets the Purge delete its exchange.
+    needs_confirm = action == "close" and flag.severity == "high" and not flag.exported
+    confirm_notice = (
+        f"<p>Not yet exported. Next Purge: "
+        f"{html.escape(next_purge_at(clock, settings).isoformat())}</p>"
+        '<p><label><input type="checkbox" name="confirm" value="true"> '
+        "The school does not need this exchange</label></p>"
+        if needs_confirm
+        else ""
+    )
     form = (
         f'<form method="post" action="/staff/flags/{flag.id}/{action}">'
         + (
@@ -202,6 +215,7 @@ def flag_page(
             if action == "close"
             else ""
         )
+        + confirm_notice
         + '<p><label>Reason <input name="reason" required></label></p>'
         + f"<p><button>{button}</button></p></form>"
     )
@@ -217,6 +231,7 @@ def flag_page(
         f"<tr><th>Card</th><td>{html.escape(flag.card_number)}</td></tr>"
         f"<tr><th>Repeats</th><td>{flag.repeat_count}</td></tr>"
         "</tbody></table>"
+        f'<p><a href="/staff/flags/{flag.id}/export">Export</a></p>'
         f"<p><strong>Question</strong></p><p>{html.escape(question)}</p>"
         f"<p><strong>Answer</strong></p><p>{html.escape(answer)}</p>"
         f"{form}"
@@ -238,17 +253,92 @@ def close_flag_route(
     account: StandInDep,
     outcome: Annotated[str, Form()],
     reason: Annotated[str, Form()],
+    confirm: Annotated[bool, Form()] = False,
     db: sqlite3.Connection = Depends(get_db),
     clock: datetime = Depends(get_clock),
+    settings: Settings = Depends(get_settings),
 ) -> RedirectResponse:
     flag = get_flag(db, flag_id)
     if flag is None:
         raise HTTPException(status_code=404, detail="no such flag")
+
+    # A high-severity Flag that has not been exported needs the closer's explicit
+    # confirmation, since closing it is what lets the Purge delete its exchange.
+    if flag.severity == "high" and not flag.exported and not confirm:
+        due_at = next_purge_at(clock, settings)
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "this high-severity Flag has not been exported; confirm to close "
+                f"it anyway. Next Purge: {due_at.isoformat()}"
+            ),
+        )
+
     try:
         close_flag(db, flag_id, clock.isoformat(), account.username, outcome, reason)
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     return RedirectResponse("/staff/flags", status_code=303)
+
+
+@router.get("/flags/{flag_id}/export")
+def export_flag(
+    flag_id: int,
+    account: StaffDep,
+    db: sqlite3.Connection = Depends(get_db),
+) -> Response:
+    """Export one Flag as a text/plain attachment: its own fields and its
+    transcript's timed exchange, never a Token or hash or another Session's text."""
+    flag = get_flag(db, flag_id)
+    if flag is None:
+        raise HTTPException(status_code=404, detail="no such flag")
+
+    # A Counselor exports only an Escalated Flag; a Teacher exports nothing
+    # (ADR-0003 addendum).
+    if account.role == "teacher" or (
+        account.role == "counselor" and flag.category != "escalated"
+    ):
+        raise HTTPException(status_code=403, detail="not available to your role")
+
+    transcript = db.execute(
+        "SELECT question, answer, asked_at FROM transcripts WHERE id = ?",
+        (flag.transcript_id,),
+    ).fetchone()
+    question, answer, asked_at = transcript if transcript else ("", "", flag.raised_at)
+
+    lines = [
+        f"Class label: {flag.class_label}",
+        f"Card number: {flag.card_number}",
+        f"Date: {flag.raised_at}",
+        f"Category: {flag.category}",
+        f"Severity: {flag.severity}",
+        f"Source: {flag.source}",
+    ]
+    if flag.entry_id:
+        lines.append(f"Matched entry: {flag.entry_id}")
+    lines.append("")
+    lines.append(f"Timed message at {asked_at}:")
+    lines.append(f"  Question: {question}")
+    lines.append(f"  Answer: {answer}")
+    lines.append("")
+    lines.append("History:")
+    for event in get_history(db, flag_id):
+        lines.append(
+            f"  {event.at} {event.event} by {event.account or ''}"
+            + (f" outcome={event.outcome}" if event.outcome else "")
+            + (f" reason={event.reason}" if event.reason else "")
+        )
+    export_content = "\n".join(lines) + "\n"
+
+    db.execute("UPDATE flags SET exported = 1 WHERE id = ?", (flag_id,))
+    db.commit()
+
+    response = Response(content=export_content, media_type="text/plain")
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Content-Disposition"] = (
+        f'attachment; filename="flag-{flag_id}-export.txt"'
+    )
+    return response
 
 
 @router.post("/flags/{flag_id}/reopen", response_model=None)

@@ -243,18 +243,26 @@ def held_transcript_count(
     db: sqlite3.Connection, hold: Hold, settings: Settings
 ) -> int:
     """How many stored transcripts are in a Hold's scope: what it holds."""
+    return len(held_transcripts(db, hold, settings))
+
+
+def held_transcripts(
+    db: sqlite3.Connection, hold: Hold, settings: Settings
+) -> list[tuple[str, str, str, str, str]]:
+    """The stored transcripts in a Hold's scope: class label, card number, asked_at,
+    question, answer. Exactly what the Hold keeps, nothing outside it."""
     rows = db.execute(
-        "SELECT class_label, card_number, asked_at FROM transcripts"
+        "SELECT class_label, card_number, asked_at, question, answer FROM transcripts"
     ).fetchall()
-    return sum(
-        1
-        for class_label, card_number, asked_at in rows
+    return [
+        (class_label, card_number, asked_at, question, answer)
+        for class_label, card_number, asked_at, question, answer in rows
         if hold.covers(
             class_label,
             card_number,
             school_date(datetime.fromisoformat(asked_at), settings),
         )
-    )
+    ]
 
 
 def mark_holds_for_review(
