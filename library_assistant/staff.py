@@ -328,11 +328,28 @@ def _account_row_html(row: tuple[int, str, str, int]) -> str:
     )
 
 
+ADD_ACCOUNT_FORM = """<h2>Add an account</h2>
+<form method="post" action="/staff/accounts">
+  <p><label>Username <input name="username" required></label></p>
+  <p><label>Password <input name="password" type="password"
+     autocomplete="new-password" required></label></p>
+  <p><label>Role <select name="role" required>
+    <option value="teacher">Teacher</option>
+    <option value="counselor">Counselor</option>
+  </select></label></p>
+  <p><button>Add account</button></p>
+</form>"""
+
+# Roles a Librarian may add here; a second Librarian is never added through this page.
+ADDABLE_ROLES = ("teacher", "counselor")
+
+
 @router.get("/accounts")
 def accounts_page(
     account: LibrarianDep, db: sqlite3.Connection = Depends(get_db)
 ) -> HTMLResponse:
-    """Librarian-only: grant or revoke Stand-in on any staff account (ADR-0010)."""
+    """Librarian-only: list accounts (never a password hash), add a Teacher or
+    Counselor, and grant or revoke Stand-in (ADR-0010)."""
     rows = db.execute(
         "SELECT id, username, role, is_stand_in FROM staff_accounts ORDER BY username"
     ).fetchall()
@@ -343,8 +360,27 @@ def accounts_page(
         "</tr></thead><tbody>"
         f"{''.join(_account_row_html(row) for row in rows)}"
         "</tbody></table>"
+        f"{ADD_ACCOUNT_FORM}"
     )
     return page("Staff accounts", body)
+
+
+@router.post("/accounts", response_model=None)
+def add_account_route(
+    account: LibrarianDep,
+    username: Annotated[str, Form()],
+    password: Annotated[str, Form()],
+    role: Annotated[str, Form()],
+    db: sqlite3.Connection = Depends(get_db),
+) -> RedirectResponse:
+    """Librarian-only: add a Teacher or Counselor account; anything else is 400."""
+    if role not in ADDABLE_ROLES:
+        raise HTTPException(status_code=400, detail="role must be teacher or counselor")
+    try:
+        create_account(db, username, password, role)
+    except sqlite3.IntegrityError:
+        raise HTTPException(status_code=409, detail="username already taken") from None
+    return RedirectResponse("/staff/accounts", status_code=303)
 
 
 @router.post("/accounts/{account_id}/stand-in/grant", response_model=None)
