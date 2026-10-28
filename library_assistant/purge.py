@@ -8,10 +8,11 @@ at the end of each school day (ADR-0003).
 from __future__ import annotations
 
 from collections import namedtuple
-from datetime import datetime
+from collections.abc import Awaitable, Callable
+from datetime import datetime, timedelta
 
 from library_assistant.config import Settings
-from library_assistant.schoolday import last_day_end_before
+from library_assistant.schoolday import last_day_end_before, school_day_end_for
 
 PurgeReport = namedtuple(
     "PurgeReport", ["deleted", "kept_for_flags", "kept_unscreened"]
@@ -132,3 +133,22 @@ def purge(db, now: datetime, settings: Settings) -> PurgeReport:
         kept_for_flags=kept_for_flags_count,
         kept_unscreened=kept_unscreened_count,
     )
+
+
+async def purge_loop(
+    db,
+    settings: Settings,
+    now: Callable[[], datetime],
+    sleep: Callable[[float], Awaitable[None]],
+) -> None:
+    """Sleep until each school-day end, then purge if due (ADR-0003).
+
+    Runs forever; cancel the task to stop it.
+    """
+    while True:
+        moment = now()
+        next_end = school_day_end_for(moment, settings)
+        if next_end <= moment:
+            next_end = school_day_end_for(moment + timedelta(days=1), settings)
+        await sleep((next_end - moment).total_seconds())
+        run_if_due(db, now(), settings)

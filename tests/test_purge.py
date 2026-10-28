@@ -1,16 +1,19 @@
 """Tests for the purge functionality."""
 
+import asyncio
+import contextlib
 import os
 import sqlite3
 import tempfile
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
 
+import library_assistant.purge as purge_module
 from library_assistant.app import app
 from library_assistant.config import Settings
-from library_assistant.purge import purge, run_if_due
+from library_assistant.purge import purge, purge_loop, run_if_due
 
 
 @pytest.fixture
@@ -629,3 +632,78 @@ def test_startup_purges_after_missed_day_end():
         # The TestClient will trigger the lifespan which should run purge
         response = client.get("/health")
         assert response.status_code == 200
+
+
+def test_loop_sleeps_until_day_end_then_purges(monkeypatch):
+    """The loop sleeps until the next school-day end, then runs the purge."""
+    settings = Settings(school_timezone="UTC", school_day_end="12:00:00")
+    moment = datetime(2024, 1, 1, 6, 0, 0, tzinfo=UTC)
+    sleeps = []
+    purge_calls = []
+
+    def fake_now():
+        return moment
+
+    async def fake_sleep(seconds):
+        await asyncio.sleep(0)
+        nonlocal moment
+        sleeps.append(seconds)
+        moment = moment + timedelta(seconds=seconds)
+
+    def fake_run_if_due(db, now, settings):
+        purge_calls.append(now)
+
+    monkeypatch.setattr(purge_module, "run_if_due", fake_run_if_due)
+
+    async def scenario():
+        task = asyncio.create_task(purge_loop(None, settings, fake_now, fake_sleep))
+        while not purge_calls:
+            await asyncio.sleep(0)
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+    asyncio.run(scenario())
+
+    assert sleeps == [pytest.approx(6 * 3600)]
+    assert purge_calls == [datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)]
+
+
+def test_loop_runs_once_each_day(monkeypatch):
+    """The loop purges once per school day, and stops once cancelled."""
+    settings = Settings(school_timezone="UTC", school_day_end="12:00:00")
+    moment = datetime(2024, 1, 1, 6, 0, 0, tzinfo=UTC)
+    sleeps = []
+    purge_calls = []
+
+    def fake_now():
+        return moment
+
+    async def fake_sleep(seconds):
+        await asyncio.sleep(0)
+        nonlocal moment
+        sleeps.append(seconds)
+        moment = moment + timedelta(seconds=seconds)
+
+    def fake_run_if_due(db, now, settings):
+        purge_calls.append(now)
+
+    monkeypatch.setattr(purge_module, "run_if_due", fake_run_if_due)
+
+    async def scenario():
+        task = asyncio.create_task(purge_loop(None, settings, fake_now, fake_sleep))
+        while len(purge_calls) < 3:
+            await asyncio.sleep(0)
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+    asyncio.run(scenario())
+
+    assert len(purge_calls) == 3
+    assert purge_calls == [
+        datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC),
+        datetime(2024, 1, 2, 12, 0, 0, tzinfo=UTC),
+        datetime(2024, 1, 3, 12, 0, 0, tzinfo=UTC),
+    ]
+    assert sleeps == [pytest.approx(s) for s in (6 * 3600, 86400, 86400)]
