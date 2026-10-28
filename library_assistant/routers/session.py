@@ -7,6 +7,7 @@ the configured OpenAI-compatible endpoint (ADR-0006).
 
 from __future__ import annotations
 
+import hashlib
 import html
 import json
 import sqlite3
@@ -32,16 +33,32 @@ from library_assistant.dependencies import (
     finish_exchange,
     get_catalog,
     get_settings,
+    get_watchlist,
     start_exchange,
 )
+from library_assistant.flags import raise_or_repeat
 from library_assistant.models import AskRequest, Citation
 from library_assistant.prompt import SearchLineFilter, build_messages
 from library_assistant.routers.live import LiveBus, get_live_bus
+from library_assistant.watchlist import Watchlist, normalize
 
 # Quoted word for word by the AI literacy unit (docs/curriculum/ai-literacy-unit.md).
 BANNER_TEXT = "This can be wrong, check the source."
 
 ERROR_TEXT = "Something went wrong. Ask the librarian."
+
+# ADR-0011's self-harm text verbatim, {counselor} = "a school counselor". One reply for
+# every high-severity match until lib-irf.1 makes it per Rubric category.
+SUPPORTIVE_REPLY = """It sounds like you are going through something really hard. \
+You don't have to handle it alone.
+
+Please talk to an adult you trust today, like a school counselor or the librarian.
+
+You can call or text **988** any time, day or night. It is free, and a real person will \
+listen. If you might hurt yourself right now, tell an adult near you or call **911**.
+
+I am a library computer, so a person can help with this better than I can. An adult here \
+may check in with you, because they care how you are doing."""
 
 CHAT_PAGE_HTML = """<!DOCTYPE html>
 <html>
@@ -191,11 +208,16 @@ async def ask(
     db: sqlite3.Connection = Depends(get_db),
     clock: datetime = Depends(get_clock),
     bus: LiveBus = Depends(get_live_bus),
+    watchlist: Watchlist = Depends(get_watchlist),
 ) -> StreamingResponse | JSONResponse:
     """Ask a question in a Session and stream a Grounded answer with Citations.
 
     A Card has one message in flight at a time: another one gets 409 "one moment"
     before it is recorded, checked or sent anywhere.
+
+    Every admitted message is checked against the Watchlist (ADR-0004): each match
+    raises a Flag, or repeats the open one for the same message. A high-severity match
+    gets SUPPORTIVE_REPLY instead of an answer, with no Catalog search and no model call.
 
     The Live view hears of the question and the answer through the LiveBus; the events
     carry the Session's row number, never its hash.
@@ -205,7 +227,9 @@ async def ask(
         return JSONResponse({"status": "one moment"}, status_code=409, headers=NO_STORE)
     _in_flight.add(card_ref)
     try:
-        return _answer(request, session, http_client, settings, catalog, db, clock, bus)
+        return _answer(
+            request, session, http_client, settings, catalog, db, clock, bus, watchlist
+        )
     except BaseException:
         _in_flight.discard(card_ref)
         raise
@@ -220,6 +244,7 @@ def _answer(
     db: sqlite3.Connection,
     clock: datetime,
     bus: LiveBus,
+    watchlist: Watchlist,
 ) -> StreamingResponse:
     transcript_id = start_exchange(db, session, request.question, clock)
     session_no = db.execute(
@@ -236,6 +261,55 @@ def _answer(
             "asked_at": clock.isoformat(),
         },
     )
+
+    def finish(answer: str, shown: list[Citation]) -> None:
+        """Record what the Student saw, tell the Live view, and release the Card."""
+        try:
+            finish_exchange(db, transcript_id, answer, shown)
+            bus.publish(
+                "answer",
+                {
+                    "session_no": session_no,
+                    "transcript_id": transcript_id,
+                    "answer": answer,
+                    "citations": [citation.model_dump() for citation in shown],
+                },
+            )
+        finally:
+            _in_flight.discard(session.card_ref)
+
+    matches = watchlist.match(request.question)
+    message_hash = hashlib.sha256(normalize(request.question).encode()).hexdigest()
+    for entry in matches:
+        raise_or_repeat(
+            db,
+            transcript_id,
+            session.class_label,
+            session.card_number,
+            session.expires_at.isoformat(),
+            message_hash,
+            entry.category,
+            entry.severity,
+            "watchlist",
+            clock.isoformat(),
+            entry_id=entry.id,
+            watchlist_version=watchlist.version,
+        )
+
+    if any(entry.severity == "high" for entry in matches):
+        # Every time, repeats included; nothing reaches the Catalog or the model.
+        async def supportive():
+            try:
+                yield SUPPORTIVE_REPLY
+            finally:
+                finish(SUPPORTIVE_REPLY, [])
+
+        return _ReleasingStream(
+            supportive(),
+            media_type="text/plain",
+            headers=NO_STORE,
+            card_ref=session.card_ref,
+        )
 
     # First, we build the messages for the research prompt
     messages = build_messages(request.question)
@@ -307,20 +381,7 @@ def _answer(
             if remaining_text:
                 yield remaining_text
         finally:
-            try:
-                answer = "".join(answer_parts)
-                finish_exchange(db, transcript_id, answer, shown)
-                bus.publish(
-                    "answer",
-                    {
-                        "session_no": session_no,
-                        "transcript_id": transcript_id,
-                        "answer": answer,
-                        "citations": [citation.model_dump() for citation in shown],
-                    },
-                )
-            finally:
-                _in_flight.discard(session.card_ref)
+            finish("".join(answer_parts), shown)
 
     return _ReleasingStream(
         generate(),
