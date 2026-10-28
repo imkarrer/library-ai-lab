@@ -394,3 +394,168 @@ def test_overdue_flag_marked_in_queue(client, db):
     assert response.status_code == 200
     assert "Overdue" in response.text
     assert f"/staff/flags/{flag_id}" in response.text
+    response = client.get("/staff/flags")
+    assert response.status_code == 200
+    assert "Overdue" in response.text
+    assert f"/staff/flags/{flag_id}" in response.text
+
+
+def test_mark_reviewed_records_account_and_time(client, db):
+    """Test that marking a review records the account and time."""
+    # Create a librarian account
+    create_account(db, "librarian-account", "correct horse", "librarian")
+    response = client.post(
+        "/staff/login",
+        data={"username": "librarian-account", "password": "correct horse"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    client.cookies.set(STAFF_SESSION_COOKIE, response.cookies[STAFF_SESSION_COOKIE])
+
+    # Create a transcript and flag
+    transcript_id = _transcript(db)
+    _flag(db, transcript_id)
+
+    # Mark review
+    response = client.post("/staff/flags/reviewed", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == "/staff/flags"
+
+    # Check that a review was recorded
+    rows = db.execute("SELECT account_id, reviewed_at FROM flag_reviews").fetchall()
+    assert len(rows) == 1
+    assert rows[0][0] == 1  # librarian account ID
+    # The timestamp should be NOW (as set in the fixture)
+
+
+def test_header_shows_last_and_next_due_in_periodic(client, db):
+    """Test that the header shows last reviewed and next due times in periodic mode."""
+    # Set up periodic mode
+    db.execute(
+        "INSERT OR REPLACE INTO install_settings (key, value) VALUES (?, ?)",
+        ("supervision_mode", "periodic"),
+    )
+    db.execute(
+        "INSERT OR REPLACE INTO install_settings (key, value) VALUES (?, ?)",
+        ("reviews_every_minutes", "120"),
+    )
+    db.commit()
+
+    # Create a librarian account
+    create_account(db, "librarian-account", "correct horse", "librarian")
+    response = client.post(
+        "/staff/login",
+        data={"username": "librarian-account", "password": "correct horse"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    client.cookies.set(STAFF_SESSION_COOKIE, response.cookies[STAFF_SESSION_COOKIE])
+
+    # Create a transcript and flag
+    transcript_id = _transcript(db)
+    _flag(db, transcript_id)
+
+    # Mark a review (this sets the last review time)
+    response = client.post("/staff/flags/reviewed", follow_redirects=False)
+    assert response.status_code == 303
+
+    # Check that the queue shows the review header
+    response = client.get("/staff/flags")
+    assert response.status_code == 200
+    # Should contain last reviewed text and next due text
+    assert "Last reviewed" in response.text
+    assert "next due" in response.text
+
+
+def test_overdue_shown_after_due(client, db):
+    """Test that 'overdue' is shown when the review time has passed."""
+    # Set up periodic mode
+    db.execute(
+        "INSERT OR REPLACE INTO install_settings (key, value) VALUES (?, ?)",
+        ("supervision_mode", "periodic"),
+    )
+    db.execute(
+        "INSERT OR REPLACE INTO install_settings (key, value) VALUES (?, ?)",
+        ("reviews_every_minutes", "120"),
+    )
+    db.commit()
+
+    # Create a librarian account
+    create_account(db, "librarian-account", "correct horse", "librarian")
+    response = client.post(
+        "/staff/login",
+        data={"username": "librarian-account", "password": "correct horse"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    client.cookies.set(STAFF_SESSION_COOKIE, response.cookies[STAFF_SESSION_COOKIE])
+
+    # Create a transcript and flag
+    transcript_id = _transcript(db)
+    _flag(db, transcript_id)
+
+    # Mark review with a past time (using the NOW from fixture but moving it back)
+    # Since we're using the test fixture with NOW = 2036-10-27 14:00 UTC, we'll make the
+    # last review time 3 hours ago (so that 2 hour due period makes it overdue)
+    past_review_time = NOW - timedelta(hours=3)
+    db.execute(
+        "INSERT INTO flag_reviews (account_id, reviewed_at) VALUES (?, ?)",
+        (1, past_review_time.isoformat()),
+    )
+    db.commit()
+
+    # Check that the queue shows overdue in the header
+    response = client.get("/staff/flags")
+    assert response.status_code == 200
+    # Should contain overdue in the header info
+    assert "(overdue)" in response.text
+
+
+def test_no_review_header_in_live_mode(client, db):
+    """Test that no review header is shown in live mode."""
+    # Set up live mode
+    db.execute(
+        "INSERT OR REPLACE INTO install_settings (key, value) VALUES (?, ?)",
+        ("supervision_mode", "live"),
+    )
+    db.commit()
+
+    # Create a librarian account
+    create_account(db, "librarian-account", "correct horse", "librarian")
+    response = client.post(
+        "/staff/login",
+        data={"username": "librarian-account", "password": "correct horse"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    client.cookies.set(STAFF_SESSION_COOKIE, response.cookies[STAFF_SESSION_COOKIE])
+
+    # Create a transcript and flag
+    transcript_id = _transcript(db)
+    _flag(db, transcript_id)
+
+    # Mark a review
+    response = client.post("/staff/flags/reviewed", follow_redirects=False)
+    assert response.status_code == 303
+
+    # Check that the queue does NOT show review header in live mode
+    response = client.get("/staff/flags")
+    assert response.status_code == 200
+    # Should not crash and work normally
+
+
+def test_mark_reviewed_teacher_403(client, db):
+    """Test that teachers cannot mark reviews."""
+    # Create a teacher account
+    create_account(db, "teacher-account", "correct horse", "teacher")
+    response = client.post(
+        "/staff/login",
+        data={"username": "teacher-account", "password": "correct horse"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    client.cookies.set(STAFF_SESSION_COOKIE, response.cookies[STAFF_SESSION_COOKIE])
+
+    # Try to mark a review - should fail with 403
+    response = client.post("/staff/flags/reviewed", follow_redirects=False)
+    assert response.status_code == 403
