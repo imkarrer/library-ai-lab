@@ -33,6 +33,7 @@ class SessionTile:
     last_activity_at: datetime
     message_count: int
     latest_question: str
+    flag_severity: str | None = None
 
 
 @dataclass(frozen=True)
@@ -61,19 +62,50 @@ def active_sessions(db: sqlite3.Connection, now: datetime) -> list[SessionTile]:
         (now.isoformat(),),
     ).fetchall()
 
+    # Get all open flags and their transcript_ids
+    flag_rows = db.execute(
+        "SELECT flags.transcript_id, flags.severity "
+        "FROM flags "
+        "WHERE flags.closed_at IS NULL"
+    ).fetchall()
+
+    # Map transcript_id to highest severity ('high' > 'low')
+    transcript_severity = {}
+    for transcript_id, severity in flag_rows:
+        current = transcript_severity.get(transcript_id)
+        if current is None or (severity == "high" and current != "high"):
+            transcript_severity[transcript_id] = severity
+
     tiles = []
     for session_no, session_hash, class_label, card_number, started_at in rows:
         transcript_rows = db.execute(
-            "SELECT question, asked_at FROM transcripts WHERE session_hash = ? "
+            "SELECT id, question, asked_at FROM transcripts WHERE session_hash = ? "
             "ORDER BY asked_at DESC",
             (session_hash,),
         ).fetchall()
         if transcript_rows:
-            latest_question = _truncate(transcript_rows[0][0])
-            last_activity_at = datetime.fromisoformat(transcript_rows[0][1])
+            latest_question = _truncate(transcript_rows[0][1])
+            last_activity_at = datetime.fromisoformat(transcript_rows[0][2])
         else:
             latest_question = ""
             last_activity_at = datetime.fromisoformat(started_at)
+
+        # Find the highest severity flag for this session
+        flag_severity = None
+        for transcript_id, severity in transcript_severity.items():
+            # Join with transcripts to match session_hash
+            transcript = db.execute(
+                "SELECT session_hash FROM transcripts WHERE id = ?", (transcript_id,)
+            ).fetchone()
+            if transcript and transcript[0] == session_hash:
+                # High severity overrides any lower severity
+                if severity == "high":
+                    flag_severity = "high"
+                    break
+                # For low severity, only set if no severity yet
+                elif severity == "low" and flag_severity is None:
+                    flag_severity = "low"
+
         tiles.append(
             SessionTile(
                 session_no=session_no,
@@ -82,6 +114,7 @@ def active_sessions(db: sqlite3.Connection, now: datetime) -> list[SessionTile]:
                 last_activity_at=last_activity_at,
                 message_count=len(transcript_rows),
                 latest_question=latest_question,
+                flag_severity=flag_severity,
             )
         )
 
@@ -90,13 +123,24 @@ def active_sessions(db: sqlite3.Connection, now: datetime) -> list[SessionTile]:
 
 
 def _tile_html(tile: SessionTile) -> str:
+    classes = ["tile"]
+    if tile.flag_severity:
+        classes.append(f"flag-{tile.flag_severity}")
+
+    class_attr = " ".join(classes)
+
+    badge = ""
+    if tile.flag_severity:
+        badge = f'<span class="flag-badge">Flag: {tile.flag_severity}</span>'
+
     return (
-        '<div class="tile">'
+        f'<div class="{class_attr}">'
         f'<a href="/staff/live/sessions/{tile.session_no}">'
         f"<p>{html.escape(tile.class_label)} &middot; card {html.escape(tile.card_number)}</p>"
         f"<p>Last activity: {html.escape(tile.last_activity_at.isoformat())}</p>"
         f"<p>{tile.message_count} message(s)</p>"
         f"<p>{html.escape(tile.latest_question)}</p>"
+        f"{badge}"
         "</a></div>"
     )
 
