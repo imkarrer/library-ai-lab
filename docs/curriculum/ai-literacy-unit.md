@@ -69,8 +69,8 @@ your Catalog. Reduces, not removes: that gap is what Lesson 3 is about.
 | Lesson | Title | Students leave able to... | Hands-on |
 |---|---|---|---|
 | 1 | What is this thing? | Explain that a language model predicts likely next words, and why that can sound sure while being wrong | Card talk; first questions in groups |
-| 2 | Follow the Citation | Trace a Grounded answer from Citation to Record to call number to shelf | Citation relay to the stacks |
-| 3 | Catch it being wrong | Use Question, Check, Compare, Decide to sort answers into checked, wrong, and uncited | Answer audit against the shelf |
+| 2 | Follow the Citation | Tell an answer's two parts apart, and trace Books in our library from Citation to Record to call number to shelf | Citation relay to the stacks |
+| 3 | Catch it being wrong | Use Question, Check, Compare, Decide to sort overview claims into checked, wrong, and not in our books | Answer audit against the shelf |
 | 4 | Who sees what I type? | Say what the Card is, what the assistant does not know, who can see questions, and what happens to a worrying message | Scenario sort, no assistant needed |
 | 5 | Using AI on assignments | Read an assignment's AI Use Tier and write an honest disclosure line | Tier sort; disclosure for their Lesson 3 work |
 
@@ -170,14 +170,17 @@ Students will be able to:
 
 3. **How this assistant is different (5 min).** Project the assistant. Point out:
    - The **banner**: "this can be wrong, check the source." It never goes away, on purpose.
-   - Our assistant is given a few **Records** from *our library's Catalog* before it answers,
-     and it is told to answer from those. Each answer comes with **Citations**: links to the
-     Records it used. (Lesson 2 is all about these.)
+   - Every answer has **two parts**. First, a short overview the model writes from what it
+     already knows. That part can be wrong and has no Citations: it is the model talking.
+     Then **Books in our library**: real books from *our library's Catalog* that match the
+     question, each with a **Citation** (title and call number) taken straight from the
+     Catalog, so none of them is made up. (Lesson 2 is all about these.) If the library has
+     nothing, it says so: "The library's catalog has nothing on this yet."
    - It runs on a computer in this building. Your questions don't go to a company on the
      internet.
 
    Ask one live question on the demo Card, such as "Do we have any books about the Titanic?"
-   Read the answer aloud and point at the Citations without opening them yet.
+   Read the overview aloud, then point at Books in our library without opening them yet.
 
 4. **Card talk (7 min).** Before any student scans anything, the short version of Lesson 4.
    Keep it calm and matter-of-fact:
@@ -215,9 +218,9 @@ Item 3 tells you who is ready for Lesson 2 and who needs the Record idea retaugh
 ### What to watch for
 
 - **"So it's useless?"** Some students swing from trusting it completely to dismissing it.
-  Name the middle: it is good at some jobs (finding things in our collection, suggesting
-  books like one you liked) and weak at others (multi-step math, facts it was never given).
-  Checking is how you use it well, not a sign that it's broken.
+  Name the middle: you can ask it about almost anything, math included, and the overview is
+  often a good start, but it can be wrong about anything too. The books it lists are real and
+  are how you check. Checking is how you use it well, not a sign that it's broken.
 - **"It's alive / it's thinking."** Don't argue philosophy. Return to the warm-up: it is very
   good at next words. Ask what it would need to *know* something.
 - **Personal details in questions.** Watch the Live view during step 5. If a student types a
@@ -237,7 +240,8 @@ Item 3 tells you who is ready for Lesson 2 and who needs the Record idea retaugh
 
 Students will be able to:
 
-- Identify the parts of a Grounded answer: the claims, and the Citations behind them.
+- Identify the two parts of an answer: the overview (the model's own words, no Citations) and
+  Books in our library (real Records, each with a Citation).
 - Open a Citation and read the Record: title, author, subjects, summary, call number.
 - Use the call number to find the book on the shelf and confirm it is what the Record says.
 - Explain the difference between "the assistant said it" and "the Record says it".
@@ -258,11 +262,14 @@ Students will be able to:
 
 2. **Anatomy of an answer (10 min).** On the projector, ask a question you already know the
    answer to, from your collection. Walk through it slowly:
-   - Read the answer. Underline each claim on the board ("We have three books about volcanoes",
-     "*[Title]* is about ...").
-   - Open each Citation. Show the Record: title, author, subjects, summary, call number.
-   - Match each claim to a Record. Say: *"This claim has a Record behind it. Does the Record
-     actually say this?"*
+   - Read **part 1, the overview.** Underline each claim on the board ("Volcanoes form where
+     ...", "The biggest eruption was ..."). Say: *"These are the model's own words. Nothing here
+     has a Citation, on purpose. That's why the banner is there."*
+   - Read **part 2, Books in our library.** Open each Citation. Show the Record: title, author,
+     subjects, summary, call number. Say: *"These came straight from our Catalog. The assistant
+     didn't write them, so they can't be made up. They're real books we own."*
+   - Following a Citation works on part 2: it takes you to a real book. Checking part 1 means
+     taking its claims to those books, which is Lesson 3.
    - Point out what a Record is **not**: it is a description of a title, not the book itself,
      and it does not say whether the book is on the shelf right now.
 
@@ -271,32 +278,34 @@ Students will be able to:
    cover or table of contents aloud. Does it match what the assistant said?
 
 4. **Citation relay (20 min).** Groups ask the assistant three questions from a short list
-   you give them, chosen so the answers will cite books you own. For each answer:
-   - the *reader* reads it aloud,
-   - the *checker* opens the Citations and copies the title and call number,
+   you give them, chosen so Books in our library will list books you own. For each answer:
+   - the *reader* reads the overview aloud,
+   - the *checker* opens the Citations under Books in our library and copies the title and
+     call number,
    - the *runner* goes to the shelf,
    - the *recorder* fills in the Citation trail.
 
    If the book is checked out, the runner checks your OPAC instead and marks "checked out".
    That still counts: the Record is real.
 
-5. **Debrief (6 min).** Ask: *"Did every claim in every answer have a Record behind it? Did
-   any book on the shelf not quite match what the assistant said about it?"* Collect
-   examples on the board. Save any mismatches for Lesson 3.
+5. **Debrief (6 min).** Ask: *"Did every book in Books in our library turn out to be real? Did
+   the books seem to be about what the overview said?"* Collect examples on the board. Save
+   any overview claim the books didn't back up for Lesson 3.
 
 ### Formative check
 
 Hand each student a printed answer with two Citations (prepared from your Catalog) and ask:
 
-1. Circle one claim in the answer. Which Citation supports it?
+1. Which part of this answer is the model's own words, and which part came from our Catalog?
 2. Write the call number you would walk to.
-3. One claim in this answer has no Citation. Which one?
+3. Circle one claim in the overview. Which book from Books in our library would you check it
+   against?
 
 ### What to watch for
 
-- **Treating the Citation as the proof.** A Citation shows where the assistant *says* it got
-  something, not that it got it right. Students who stop at "it had a Citation" are ready for
-  Lesson 3.
+- **Treating the Citation as the proof.** A Citation proves the book is real and that we own
+  it. It does not prove the overview is right: the overview was written before the books
+  were found. Students who stop at "it listed books" are ready for Lesson 3.
 - **"The book isn't there."** Checked-out books, mis-shelved books, and lost books all happen.
   Use it: the Record told you the library owns it, the shelf told you where it is today. Those
   are different questions, and the assistant can't answer the second one.
@@ -310,25 +319,28 @@ Hand each student a printed answer with two Citations (prepared from your Catalo
 
 ## Lesson 3: Catch it being wrong
 
-The heart of the unit. Students audit a set of assistant answers, some live and some prepared,
-and sort them by what checking against the shelf shows.
+The heart of the unit. Students audit a set of assistant answers, some live and some prepared:
+they take the claims in each overview (part 1) to the books listed under Books in our library
+(part 2) and the shelf, and sort the claims by what they find.
 
 ### Objectives
 
 Students will be able to:
 
-- Use **Question, Check, Compare, Decide** to verify an assistant answer.
-- Tell apart: an answer that checks out; a claim the cited Record does not support; a claim
-  with no Citation; and an honest "I couldn't find that in our Catalog".
-- Explain why a Grounded answer can still be wrong.
-- Say which jobs the assistant is good at and which it is not.
+- Use **Question, Check, Compare, Decide** to verify the claims in an answer's overview.
+- Sort each overview claim as **checked** (a book in our library backs it up), **wrong** (a
+  book contradicts it), or **not in our books** (nothing we own covers it, so it stays
+  unchecked here), and recognise the honest "The library's catalog has nothing on this yet."
+- Explain why the overview can be wrong even when every listed book is real.
+- Say why any subject is fair to ask about, and why the books are how you check.
 
 ### Materials
 
 - **Prepared answer set** (librarian makes this ahead; see below), printed, one set per group.
 - One Card per group for the live round.
-- "Answer audit" sheet: for each answer, *Question / Check / Compare / Decide* boxes and a
-  verdict: ✔ checks out, ✘ Record doesn't support it, ? no Citation, ○ honest "not found".
+- "Answer audit" sheet: for each overview claim, *Question / Check / Compare / Decide* boxes
+  and a verdict: ✔ checked (a book backs it up), ✘ wrong (a book contradicts it), ○ not in
+  our books.
 - Poster or slide of DPI's four steps
   ([Ethical Use in the Classroom](https://dpi.wi.gov/imt/ai-guidance/educators/ethical-use)):
   - **Question:** What does the answer claim? What might be missing?
@@ -342,34 +354,39 @@ You need 8-10 answers, each with its Citations, drawn from your own Catalog. Col
 on your staff demo Card during the week before; most will be correct. For the ones that
 aren't, you have two honest options:
 
-- **Real mistakes you caught.** Save any answer where the assistant got a detail wrong,
-  mixed up two books, or made a claim no cited Record supports. These are the best material.
-- **Edited answers, labelled as edited.** Take a correct answer and change one claim (a wrong
-  author, a topic the book doesn't cover, an uncited "fact"). Mark these on your key. Tell
-  students afterwards which ones you edited and why: you were showing them the kinds of
-  mistakes to look for.
+- **Real mistakes you caught.** Save any answer whose overview got a fact wrong that one of
+  the listed books corrects. These are the best material.
+- **Edited answers, labelled as edited.** Take a correct answer and change one overview claim
+  (a wrong date, a wrong cause, a mixed-up name). Mark these on your key. Tell students
+  afterwards which ones you edited and why: you were showing them the kinds of mistakes to
+  look for. Never edit Books in our library: those come from the Catalog, and the lesson
+  depends on students trusting that they are real.
 
-Aim for a mix: about half that check out, two where a Citation is attached but the Record
-doesn't support the claim, one or two with an uncited claim, and one where the assistant
-honestly says the Catalog has nothing on the topic. That last one matters: "I don't know" is
-a good answer.
+Aim for a mix: overviews whose claims the books back up, two with a claim a book contradicts,
+one or two with claims none of our books covers, and one where Books in our library says
+"The library's catalog has nothing on this yet." That last one matters: an honest "nothing
+here" is a good answer, and the overview on its own is then unchecked.
 
 Do not try to trick the assistant into errors in front of students. It teaches that the game
 is beating the machine, when the habit you want is checking it.
 
 ### Plan (45 minutes)
 
-1. **Why grounding isn't a guarantee (7 min).** Recap: the assistant is handed four Records
-   and told to answer from them. Ask: *"How could it still get something wrong?"* Draw out:
-   - it can **mix up** details from two Records;
-   - it can **add** something from its general patterns that isn't in any Record;
-   - the **Record itself** can be thin or out of date (a one-line summary);
-   - it may get Records that are **close but not right** for the question.
+1. **Why real books don't make the overview right (7 min).** Recap the two parts: the model
+   writes the overview from what it already knows, then the Catalog is searched and the books
+   are listed. Ask: *"If every book is real, how could the answer still be wrong?"* Draw out:
+   - the overview was written **before** the books were found, so nothing forced it to agree
+     with them;
+   - it can **sound sure** about a date, a name, or a cause and still be guessing;
+   - the books can be **about the topic but not the claim**: a book on volcanoes may say
+     nothing about the eruption the overview described;
+   - the **Record itself** can be thin (a one-line summary), so you may need the book.
 
-   Then the capability envelope, said plainly: it is about as good as the big commercial
-   assistants at finding things in our collection and suggesting what to read next, because
-   those jobs depend on our Records. It is weaker at open-ended research questions. It is not
-   a math tutor: multi-step math is a real weakness.
+   Then the capability envelope, said plainly: you can ask it about almost any subject, math
+   included, and the overview is often a useful start. It can be wrong about any of it,
+   multi-step math especially, so check the steps yourself or in a book. Finding books in
+   our collection and suggesting what to read next is where it is strongest, because that
+   part comes straight from our Catalog.
 
 2. **Model one audit (5 min).** Project one prepared answer that has a problem. Think aloud
    through the four steps. Land on a verdict and say why.
@@ -383,19 +400,20 @@ is beating the machine, when the habit you want is checking it.
 
 5. **Share and reveal (8 min).** Each group reports its most interesting verdict. Reveal the
    key, including which answers you edited. Ask: *"Which kind of mistake was hardest to
-   catch?"* (Usually: a Citation attached to a claim the Record doesn't support, because the
-   Citation makes it look checked.)
+   catch?"* (Usually: an overview claim sitting above a list of real books on the same topic,
+   because the books make the whole answer look checked.)
 
 ### Formative check
 
 On one new printed answer, each student individually writes:
 
-1. One claim from the answer.
-2. Where they would check it (the Record, the book, or both).
-3. A verdict (✔ ✘ ? ○) and one sentence of reasoning.
+1. One claim from the overview.
+2. Which book from Books in our library they would check it against (the Record, the book,
+   or both).
+3. A verdict (✔ ✘ ○) and one sentence of reasoning.
 
-Look for students who check the claim against the Record rather than just noting that a
-Citation exists.
+Look for students who check the claim against a book rather than just noting that books were
+listed.
 
 ### What to watch for
 
@@ -407,9 +425,9 @@ Citation exists.
 - **Low-severity Flags in the Live view.** Topic questions about history (wars, violence) or
   health can match the Watchlist at low severity. The student still gets a normal answer;
   you'll see a Flag. Close it once you've looked, per your protocol.
-- **"It said the Catalog has nothing, but I know we have that book."** Good catch: either the
-  Record's subjects don't use the student's words, or retrieval missed it. Show them how to
-  search your OPAC with different words. It's a lesson in search terms, not only in AI.
+- **"It said the library's catalog has nothing, but I know we have that book."** Good catch:
+  the search terms the model chose didn't match the words in the book's Record. Show them how
+  to search your OPAC with different words. It's a lesson in search terms, not only in AI.
 
 ---
 
@@ -637,8 +655,10 @@ versus a frontier model, honestly"):
   is usually a thin Record or a retrieval miss.
 - **Research help and source evaluation:** a real but modest gap compared with the large
   commercial models.
-- **Multi-step math:** a real gap. Do not present it as a math tutor, and steer students away
-  from using it for math homework.
+- **Any subject, math included:** decided for the product (lib-f24.27). Students may ask about
+  anything; the overview is the model's own words and can be wrong, multi-step math
+  especially. The books listed under it are how students check, and for math, working the
+  steps themselves or in a textbook.
 - Transcription is mentioned in the planning notes as a strength of local models, but the
   Library Assistant does not offer it to students and this unit does not cover it. (The notes
   cite 6.32% English word error rate for Parakeet TDT v3 against 7.83% for Whisper; public
@@ -705,10 +725,10 @@ a bead or for a line in an existing one.
    gives them nowhere to report one. A flag-for-the-librarian on an answer (separate from
    safety Flags) would close the loop and give the prompt-tuning work (lib-f24.17) real cases.
    Watch the vocabulary: this is not a **Flag** in the CONTEXT.md sense.
-7. **Visible distinction between a cited claim and an uncited one.** Lesson 3 asks students to
-   spot uncited claims. If the UI could mark sentences with no Citation, or the prompt
-   (lib-f24.17) kept every sentence tied to a Citation, the lesson's "?" category shrinks to
-   real failures. Either way the behavior should be decided and documented.
+7. **Visible distinction between a cited claim and an uncited one.** *Answered by the
+   two-part design (lib-f24.27):* the overview is uncited by design and Books in our library
+   carries every Citation, so the parts themselves mark the difference. Lessons 2 and 3 now
+   teach to that.
 8. **Roster support for groups sharing a Card.** The unit uses one Card per group of 4-5 to stay
    inside ADR-0009's capacity. lib-f24.2's Roster template has one student column per Card
    number. It needs room for several names, or guidance that the Teacher writes them in.
@@ -719,7 +739,7 @@ a bead or for a line in an existing one.
     (Human-Only / AI-Assist / AI-Optional)". DPI's current pages use "Human-Only" and
     "AI-assist" but not "AI-Optional", and do not present a three-tier set. The AUP insert and
     this unit should use the same names, and say where they come from.
-11. **Expected behavior for math and off-collection questions.** The unit tells students it is
-    not a math tutor. lib-f24.17 covers "says plainly when the Catalog has nothing" but not
-    what happens when a student asks it to solve a math problem. Decide and document it, so
-    the lesson describes what students will actually see.
+11. **Expected behavior for math and off-collection questions.** *Answered by the two-part
+    design (lib-f24.27):* any subject is fair, math included; the overview answers and can be
+    wrong, and Books in our library lists what the Catalog has, or says "The library's catalog
+    has nothing on this yet."
