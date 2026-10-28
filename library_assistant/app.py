@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -8,6 +9,7 @@ from library_assistant.config import Settings
 from library_assistant.install_settings import router as install_settings_router
 
 # Import here to avoid circular imports
+from library_assistant.oversight import acquire_oversight_lock
 from library_assistant.purge import run_if_due
 from library_assistant.routers.flags import router as flags_router
 from library_assistant.routers.live import router as live_router
@@ -15,10 +17,15 @@ from library_assistant.routers.session import router as session_router
 from library_assistant.staff import StaffSignInRequired, sign_in_required_handler
 from library_assistant.staff import router as staff_router
 
+logger = logging.getLogger(__name__)
+
+# Keeps the oversight lock file open for the process's life.
+_oversight_lock_file = None
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """FastAPI lifespan context manager to run purge at startup if needed."""
+    """FastAPI lifespan context manager to run purge at startup and hold the Oversight lock."""
     # Initialize the database connection
     db = connect()
 
@@ -29,7 +36,19 @@ async def lifespan(app: FastAPI):
     # Run purge if needed at startup
     run_if_due(db, clock, settings)
 
+    # Acquire the Oversight lock if enabled; otherwise Oversight is not configured.
+    global _oversight_lock_file
+    if settings.oversight_enabled:
+        _oversight_lock_file = acquire_oversight_lock(settings.catalog_path)
+
     yield
+
+    if _oversight_lock_file is not None:
+        try:
+            _oversight_lock_file.close()
+        except OSError as e:
+            logger.warning(f"Failed to close oversight lock file: {e}")
+        _oversight_lock_file = None
 
 
 app = FastAPI(title="Library Assistant", lifespan=lifespan)
