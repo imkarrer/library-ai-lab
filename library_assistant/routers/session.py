@@ -7,6 +7,7 @@ the configured OpenAI-compatible endpoint (ADR-0006).
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import html
 import json
@@ -38,6 +39,7 @@ from library_assistant.dependencies import (
 )
 from library_assistant.flags import raise_or_repeat
 from library_assistant.models import AskRequest, Citation
+from library_assistant.oversight import OversightUnavailable, screen
 from library_assistant.prompt import SearchLineFilter, build_messages
 from library_assistant.routers.live import LiveBus, get_live_bus
 from library_assistant.watchlist import Watchlist, normalize
@@ -172,6 +174,10 @@ CHAT_PAGE_HTML = """<!DOCTYPE html>
 # logged or stored (ADR-0002).
 _in_flight: set[str] = set()
 
+# Oversight tasks that are running for in-flight messages.
+# These are kept in a set to maintain strong references and prevent cancellation.
+_oversight_tasks: set[asyncio.Task] = set()
+
 
 class _ReleasingStream(StreamingResponse):
     """Releases the Card's in-flight marker however the response ends, including a
@@ -270,7 +276,9 @@ def _answer(
         },
     )
 
-    def finish(answer: str, shown: list[Citation]) -> None:
+    def finish(
+        answer: str, shown: list[Citation], discard_in_flight: bool = True
+    ) -> None:
         """Record what the Student saw, tell the Live view, and release the Card."""
         try:
             finish_exchange(db, transcript_id, answer, shown)
@@ -284,10 +292,14 @@ def _answer(
                 },
             )
         finally:
-            _in_flight.discard(session.card_ref)
+            if discard_in_flight:
+                _in_flight.discard(session.card_ref)
 
+    # Check Watchlist matches first
     matches = watchlist.match(request.question)
     message_hash = hashlib.sha256(normalize(request.question).encode()).hexdigest()
+
+    # Handle Watchlist matches - raise flags for all matches regardless of severity
     for entry in matches:
         raise_or_repeat(
             db,
@@ -302,49 +314,6 @@ def _answer(
             clock.isoformat(),
             entry_id=entry.id,
             watchlist_version=watchlist.version,
-        )
-
-    if any(entry.severity == "high" for entry in matches):
-        # Every time, repeats included; nothing reaches the Catalog or the model.
-        async def supportive():
-            # Determine which category to use based on precedence order
-            matching_categories = [
-                entry.category for entry in matches if entry.severity == "high"
-            ]
-
-            # Apply precedence order from ADR-0011
-            selected_category = None
-            for category in PRECEDENCE_ORDER:
-                if category in matching_categories:
-                    selected_category = category
-                    break
-
-            # If no matching category found (should not happen with high severity matches),
-            # default to self-harm as per precedence
-            if selected_category is None:
-                selected_category = "self_harm"
-
-            # Get counselor name from settings or default
-            counselor_name = "a school counselor"
-
-            # Get Install overrides if available (this will be more complex in real implementation)
-            overrides = {}
-
-            # Get the supportive reply text using our new system
-            reply_text = get_supportive_reply_text(
-                selected_category, counselor_name, overrides
-            )
-
-            try:
-                yield reply_text
-            finally:
-                finish(reply_text, [])
-
-        return _ReleasingStream(
-            supportive(),
-            media_type="text/plain",
-            headers=NO_STORE,
-            card_ref=session.card_ref,
         )
 
     # First, we build the messages for the research prompt
@@ -417,7 +386,122 @@ def _answer(
             if remaining_text:
                 yield remaining_text
         finally:
-            finish("".join(answer_parts), shown)
+            # The Card stays in-flight when Oversight is enabled: _run_oversight releases
+            # it once the verdict is recorded.
+            finish(
+                "".join(answer_parts),
+                shown,
+                discard_in_flight=not settings.oversight_enabled,
+            )
+
+    # The Oversight task starts at the same moment as the Answer request (or the
+    # Supportive reply): a Supportive reply still gets screened.
+    oversight_task: asyncio.Task | None = None
+    if settings.oversight_enabled:
+        db.execute(
+            "UPDATE transcripts SET screening = ? WHERE id = ?",
+            ("oversight", transcript_id),
+        )
+        db.commit()
+
+        async def _run_oversight():
+            """Screen the message and record the verdict; never cancelled (see
+            `_oversight_tasks`), so the Card stays in-flight until this records."""
+            try:
+                # Its own client: the Oversight endpoint is not the Answer lane's.
+                async with httpx.AsyncClient() as oversight_client:
+                    verdict = await screen(oversight_client, settings, request.question)
+
+                    db.execute(
+                        "UPDATE transcripts SET verdict = ?, screened_at = ?, screening = ? WHERE id = ?",
+                        (
+                            json.dumps(
+                                {
+                                    "category": verdict.category,
+                                    "severity": verdict.severity,
+                                    "reason": verdict.reason,
+                                }
+                            ),
+                            clock.isoformat(),
+                            "oversight",
+                            transcript_id,
+                        ),
+                    )
+                    db.commit()
+
+                    if verdict.category:
+                        raise_or_repeat(
+                            db,
+                            transcript_id,
+                            session.class_label,
+                            session.card_number,
+                            session.expires_at.isoformat(),
+                            message_hash,
+                            verdict.category,
+                            verdict.severity,
+                            "oversight",
+                            clock.isoformat(),
+                            reason=verdict.reason,
+                        )
+            except OversightUnavailable:
+                # The Watchlist already ran; the Student still gets an answer.
+                pass
+            finally:
+                _oversight_tasks.discard(oversight_task)
+                _in_flight.discard(session.card_ref)
+
+        oversight_task = asyncio.create_task(_run_oversight())
+        _oversight_tasks.add(oversight_task)
+
+    # Handle high severity matches specially - they get supportive reply
+    high_severity_matches = [entry for entry in matches if entry.severity == "high"]
+    if high_severity_matches:
+        # Every time, repeats included; nothing reaches the Catalog or the model.
+        async def supportive():
+            # Apply precedence order from ADR-0011
+            matching_categories = [
+                entry.category for entry in matches if entry.severity == "high"
+            ]
+            selected_category = next(
+                (c for c in PRECEDENCE_ORDER if c in matching_categories),
+                "self_harm",
+            )
+            reply_text = get_supportive_reply_text(
+                selected_category, "a school counselor", {}
+            )
+
+            try:
+                yield reply_text
+            finally:
+                finish(
+                    reply_text,
+                    [],
+                    discard_in_flight=not settings.oversight_enabled,
+                )
+                if oversight_task is not None:
+                    await oversight_task
+
+        return _ReleasingStream(
+            supportive(),
+            media_type="text/plain",
+            headers=NO_STORE,
+            card_ref=session.card_ref,
+        )
+
+    if oversight_task is not None:
+        # The Answer lane streams through `generate()`; once its body is fully sent,
+        # we still hold the Card until the Oversight task records its verdict.
+        async def generate_with_oversight():
+            async for item in generate():
+                yield item
+            await oversight_task
+
+        return _ReleasingStream(
+            generate_with_oversight(),
+            media_type="text/plain",
+            headers=NO_STORE,
+            card_ref=session.card_ref,
+        )
 
     return _ReleasingStream(
         generate(),
