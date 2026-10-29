@@ -1,6 +1,7 @@
 import pytest
 
 from library_assistant.watchlist import (
+    CATEGORIES,
     DEFAULT_PATH,
     Entry,
     load_watchlist,
@@ -52,6 +53,41 @@ def test_every_entry_matches_its_examples(entry):
         assert entry in SHIPPED.match(example), example
     for example in entry.must_not_match:
         assert entry not in SHIPPED.match(example), example
+
+
+def test_starter_covers_every_category():
+    for category in CATEGORIES:
+        entries = [entry for entry in SHIPPED.entries if entry.category == category]
+        assert len(entries) >= 5, category
+    for category in ("self-harm", "abuse", "threats-of-violence"):
+        assert any(
+            entry.severity == "high"
+            for entry in SHIPPED.entries
+            if entry.category == category
+        ), category
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "books about suicide prevention",
+        "why do people commit suicide, for my health report",
+        "do you have To Kill a Mockingbird",
+        "how did Hitler die",
+        "my character wants to die in my story",
+        "this homework is killing me",
+        "my mom is going to kill me if I lose this book",
+        "why did Brutus stab Caesar",
+        "why do people shoot up schools, for my report on school shootings",
+        "books about child abuse awareness",
+        "how do I kill the ender dragon in minecraft",
+        "I'm dying to read the next book",
+    ],
+)
+def test_starter_research_questions_raise_no_high_flag(message):
+    assert [
+        entry.id for entry in SHIPPED.match(message) if entry.severity == "high"
+    ] == []
 
 
 @pytest.mark.parametrize(
