@@ -252,6 +252,17 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
         )
         """
     )
+    # The Install's one Watch (library_assistant.watch, ADR-0010): a row per staff account
+    # on Watch. Staff data, never a Session or a Card; the Purge does not need it.
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS watchers (
+            account_id INTEGER PRIMARY KEY REFERENCES staff_accounts (id),
+            started_at TEXT NOT NULL,
+            last_heartbeat_at TEXT NOT NULL
+        )
+        """
+    )
     # The Purge run record: one row per run, with its report (library_assistant.purge).
     # Its existence for a day end also stops the Purge running twice for it.
     conn.execute(

@@ -18,14 +18,14 @@ they step away, as they would with any pupil record on screen.
 | Who | Librarian (and Stand-in, lib-793.1) | Same |
 | One row per | Active Session, most recent activity first | Exchange, oldest first |
 | Shows | Class label, Card number, time since last activity, message count, latest question (80 chars), Flag marker | Each question, its answer streaming in as it's written, Citations |
-| Controls | **None**, so it's safe to leave on screen or share | Revoke this Card, Revoke the Batch, each behind a confirm |
+| Controls | **Start watch / End watch** only (ADR-0010): nothing that changes a Session, so it's safe to leave on screen or share | Revoke this Card, Revoke the Batch, each behind a confirm |
 | Never shows | A name, a Token or hash, Roster data, a Flag's category or reason | The same |
 
 `n` is the Session's row number in the database: opaque, and never the Session's hash.
 
 ```mermaid
 flowchart LR
-    O[Overview<br/>a tile per active Session<br/>no controls] -- click a tile --> D[Session detail<br/>questions, streaming answers,<br/>Citations]
+    O[Overview<br/>a tile per active Session<br/>only Start watch] -- click a tile --> D[Session detail<br/>questions, streaming answers,<br/>Citations]
     D -- back --> O
     D -- Revoke, confirmed --> R[Card or Batch Revoked<br/>its next ask is refused]
     R --> O
@@ -64,7 +64,7 @@ sequenceDiagram
     end
     A->>Bus: answer {session n, final answer, Citations}
     Bus-->>LV: event: answer, replaces the streamed text
-    Note over A,LV: ": ping" every 20 s keeps the stream open.<br/>The Watch heartbeat (lib-793.2) and the Alarm (lib-ppv.1) ride this stream later
+    Note over A,LV: a `ping` event every 20 s keeps the stream open,<br/>and the page answers each with a Watch heartbeat (lib-793.2).<br/>The Alarm (lib-ppv.1) rides this stream later
 ```
 
 A high-severity Flag on a watching page raises the Alarm banner without any words
