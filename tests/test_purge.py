@@ -987,3 +987,47 @@ def test_loop_runs_once_each_day(monkeypatch):
         datetime(2024, 1, 3, 12, 0, 0, tzinfo=UTC),
     ]
     assert sleeps == [pytest.approx(s) for s in (6 * 3600, 86400, 86400)]
+
+
+def test_lifespan_reads_install_settings(monkeypatch):
+    """Startup's catch-up Purge reads the Install's timezone from the environment
+    (lib-f24.86), not the Settings dataclass default (America/Chicago).
+
+    At 2036-10-28T21:00Z, the school day end (15:30 local) has already passed in
+    America/Chicago (20:30Z) but not yet in America/Denver (21:30Z). A transcript
+    asked at 2036-10-28T00:00Z is past the Chicago cutoff (would be deleted) but not
+    past the Denver one (stays) -- so which one survives proves which zone was used.
+    """
+    import library_assistant.app as app_module
+    from library_assistant.access import connect, get_clock, hash_token
+    from library_assistant.app import app
+
+    monkeypatch.setenv("LIBRARY_ASSISTANT_SCHOOL_TIMEZONE", "America/Denver")
+
+    db = connect(":memory:")
+    db.execute(
+        "INSERT INTO transcripts (session_hash, class_label, card_number, question, "
+        "answer, citations, asked_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (
+            hash_token("session-1"),
+            "Period 3",
+            "14",
+            "what do snow leopards eat?",
+            "an answer",
+            "[]",
+            datetime(2036, 10, 28, 0, 0, tzinfo=UTC).isoformat(),
+        ),
+    )
+    db.commit()
+
+    monkeypatch.setattr(app_module, "connect", lambda: db)
+    app.dependency_overrides[get_clock] = lambda: datetime(
+        2036, 10, 28, 21, 0, tzinfo=UTC
+    )
+    try:
+        with TestClient(app):
+            pass
+    finally:
+        app.dependency_overrides.clear()
+
+    assert db.execute("SELECT COUNT(*) FROM transcripts").fetchone()[0] == 1
