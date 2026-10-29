@@ -29,6 +29,8 @@ from library_assistant.access import (
     hash_token,
     issue_registration_key,
 )
+from library_assistant.config import Settings
+from library_assistant.dependencies import get_settings
 from library_assistant.watch import end_watch
 
 STAFF_SESSION_COOKIE = "staff_session"
@@ -322,8 +324,10 @@ def login(
 
 
 @router.post("/logout")
-def logout(
-    request: Request, db: sqlite3.Connection = Depends(get_db)
+async def logout(
+    request: Request,
+    db: sqlite3.Connection = Depends(get_db),
+    settings: Settings = Depends(get_settings),
 ) -> RedirectResponse:
     session_id = request.cookies.get(STAFF_SESSION_COOKIE)
     if session_id:
@@ -333,8 +337,17 @@ def logout(
             (session_hash,),
         ).fetchone()
         if row is not None:
+            account_id = row[0]
+            # Check if this account is the last watcher
+            from library_assistant.watch import watchers_count
+
+            if watchers_count(db) == 1:
+                # Wait for in-flight screens to settle before ending the watch
+                from library_assistant.routers.session import screens_settled
+
+                await screens_settled(settings.oversight_timeout_seconds)
             # Signing out ends this account's Watch; other watchers keep it (ADR-0010).
-            end_watch(db, row[0])
+            end_watch(db, account_id)
         db.execute("DELETE FROM staff_sessions WHERE session_hash = ?", (session_hash,))
         db.commit()
     response = RedirectResponse("/staff/login", status_code=303)

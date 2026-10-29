@@ -207,6 +207,10 @@ _in_flight: set[str] = set()
 # These are kept in a set to maintain strong references and prevent cancellation.
 _oversight_tasks: set[asyncio.Task] = set()
 
+# Screens that are in-flight (running Oversight tasks) for in-flight messages.
+# These are kept in a set to maintain strong references and prevent cancellation.
+_screens: set[asyncio.Task] = set()
+
 # The probe-and-catch-up task while Oversight is down or catching up, and the catch-up's
 # screen call in progress, which a Card that starts awaiting a verdict cancels: live
 # Students come first (ADR-0004 addendum).
@@ -331,6 +335,13 @@ def _oldest_unscreened(db: sqlite3.Connection) -> tuple | None:
         "AND transcripts.screened_at IS NULL "
         "ORDER BY transcripts.asked_at, transcripts.id LIMIT 1"
     ).fetchone()
+
+
+async def screens_settled(timeout: float) -> None:
+    """Wait for any in-flight oversight screens to complete, up to the given timeout."""
+    if not _screens:
+        return
+    await asyncio.wait(_screens, timeout=timeout)
 
 
 async def _probe_and_catch_up(
@@ -709,6 +720,7 @@ def _answer(
                 _oversight_down(db, settings, bus, now, probe_wait)
             finally:
                 _oversight_tasks.discard(oversight_task)
+                _screens.discard(oversight_task)
                 settle("verdict")
 
         # A Card now awaits a verdict: the catch-up gives way to it.
@@ -716,6 +728,7 @@ def _answer(
             _catch_up_call.cancel()
         oversight_task = asyncio.create_task(_run_oversight())
         _oversight_tasks.add(oversight_task)
+        _screens.add(oversight_task)
 
     # Handle high severity matches specially - they get supportive reply
     high_severity_matches = [entry for entry in matches if entry.severity == "high"]

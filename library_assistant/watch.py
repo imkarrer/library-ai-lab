@@ -81,6 +81,18 @@ def watch_is_on(db: sqlite3.Connection, now: datetime) -> bool:
     return db.execute("SELECT 1 FROM watchers LIMIT 1").fetchone() is not None
 
 
+def watchers_count(db: sqlite3.Connection, now: datetime | None = None) -> int:
+    """Return the count of watchers currently on Watch."""
+    if now is None:
+        # Imported here to avoid circular imports
+        from library_assistant.access import get_clock
+
+        now = get_clock()
+    _drop_lapsed(db, now)
+    row = db.execute("SELECT COUNT(*) FROM watchers").fetchone()
+    return row[0] if row else 0
+
+
 def gate_is_open(db: sqlite3.Connection, now: datetime) -> bool:
     """The gate on Card sign-in and asks (lib-f24.77): `live` needs a Watch; `off` is
     always open; `periodic` is open unless a review is overdue by more than the pause

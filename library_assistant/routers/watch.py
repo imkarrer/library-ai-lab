@@ -12,14 +12,14 @@ from datetime import datetime
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
-from library_assistant.access import get_clock, get_db
+from library_assistant.access import NO_STORE, get_clock, get_db
 from library_assistant.alarms import unacknowledged_alarms
+from library_assistant.config import Settings
+from library_assistant.dependencies import get_settings
 from library_assistant.staff import StaffDep, StandInDep
-from library_assistant.watch import end_watch, heartbeat, start_watch
+from library_assistant.watch import end_watch, heartbeat, start_watch, watchers_count
 
 router = APIRouter(prefix="/staff/watch")
-
-NO_STORE = {"Cache-Control": "no-store"}
 
 
 def _watching(watching: bool, status_code: int = 200) -> JSONResponse:
@@ -56,9 +56,22 @@ def heartbeat_route(
 
 
 @router.post("/end")
-def end_watch_route(
-    account: StaffDep, db: sqlite3.Connection = Depends(get_db)
+async def end_watch_route(
+    account: StaffDep,
+    db: sqlite3.Connection = Depends(get_db),
+    settings: Settings = Depends(get_settings),
 ) -> JSONResponse:
-    """This account stops watching; the Watch stays on while anyone else is watching."""
+    """This account stops watching; the Watch stays on while anyone else is watching.
+
+    If this is the last watcher, wait for in-flight Oversight screens to complete before
+    ending the watch.
+    """
+    # Check if this is the last watcher
+    if watchers_count(db) == 1:
+        # Wait for in-flight screens to settle
+        from library_assistant.routers.session import screens_settled
+
+        await screens_settled(settings.oversight_timeout_seconds)
+
     end_watch(db, account.id)
     return _watching(False)
