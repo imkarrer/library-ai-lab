@@ -49,6 +49,7 @@ CARD_PAGE_HTML = """<!DOCTYPE html>
 <body>
   <p id="status">Signing in...</p>
   <button id="finish" style="display:none">End session</button>
+  <p><a href="/about">What happens to what I type</a></p>
   <script>
     const statusEl = document.getElementById("status");
     const finishButton = document.getElementById("finish");
