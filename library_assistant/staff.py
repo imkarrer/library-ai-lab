@@ -541,24 +541,13 @@ def supportive_replies_preview(
     account: StaffDep, db: sqlite3.Connection = Depends(get_db)
 ) -> HTMLResponse:
     """Staff-only: preview of all supportive replies rendered with Install overrides."""
-    from library_assistant.install_settings import get_setting
     from library_assistant.supportive_replies import (
         PRECEDENCE_ORDER,
         get_supportive_reply_text,
+        install_overrides,
     )
 
-    # Get counselor name from install settings or default
-    counselor_name = get_setting(db, "counselor_name", "a school counselor")
-
-    # Get overrides from install settings (if any)
-    overrides = {}
-
-    # Check for each category override
-    for category in ["self_harm", "abuse", "bullying", "threats_of_violence"]:
-        override_key = f"supportive_reply_{category}"
-        override_text = get_setting(db, override_key, None)
-        if override_text:
-            overrides[category] = override_text
+    counselor_name, overrides = install_overrides(db)
 
     # Generate all reply texts
     replies = {}
