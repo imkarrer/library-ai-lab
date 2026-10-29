@@ -497,3 +497,50 @@ def test_accounts_page_escapes_username(client, db):
 
     assert "<script>alert(1)</script>" not in text
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in text
+
+
+def test_home_links_for_librarian(client, db):
+    """Test that librarian sees all expected links in staff home."""
+    create_account(db, "librarian", "correct horse", "librarian")
+    _sign_in(client)
+
+    response = client.get("/staff")
+    assert response.status_code == 200
+
+    text = response.text
+    # Check that all librarian links are present
+    assert "/staff/live" in text
+    assert "/staff/flags" in text
+    assert "/staff/accounts" in text
+    assert "/staff/holds" in text
+    assert "/staff/settings" in text
+    assert "/staff/keys" in text
+    assert "/staff/supportive-replies-preview" in text
+    # Check that teacher-specific links are NOT present
+    assert "/staff/live" in text
+    assert "/staff/flags" in text
+    assert "/staff/accounts" in text
+    assert "/staff/holds" in text
+    assert "/staff/settings" in text
+    assert "/staff/keys" in text
+    assert "/staff/supportive-replies-preview" in text
+
+
+def test_home_links_for_teacher(client, db):
+    """Test that teacher sees only supportive replies preview link."""
+    create_account(db, "teacher", "correct horse", "teacher")
+    _sign_in(client, username="teacher", password="correct horse")
+
+    response = client.get("/staff")
+    assert response.status_code == 200
+
+    text = response.text
+    # Check that only supportive replies preview link is present
+    assert "/staff/supportive-replies-preview" in text
+    # Check that other links are NOT present
+    assert "/staff/live" not in text
+    assert "/staff/flags" not in text
+    assert "/staff/accounts" not in text
+    assert "/staff/holds" not in text
+    assert "/staff/settings" not in text
+    assert "/staff/keys" not in text
