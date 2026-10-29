@@ -37,7 +37,7 @@ trap 'rm -rf "$TMP"' EXIT
 
 # The bare template lays every page out at full size with none hidden, which is what makes
 # them measurable in one pass.
-marp --config-file .marprc.yml "$DOC" --template bare -o "$TMP/bare.html" >/dev/null 2>&1
+marp --no-stdin --config-file .marprc.yml "$DOC" --template bare -o "$TMP/bare.html" >/dev/null 2>&1
 
 cat >>"$TMP/bare.html" <<'PROBE'
 <script>
