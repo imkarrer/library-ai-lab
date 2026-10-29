@@ -110,6 +110,7 @@ CHAT_PAGE_HTML = """<!DOCTYPE html>
   </form>
   <div id="answer"></div>
   <p><button id="finish">End session</button></p>
+  <p><a href="/about">What happens to what I type</a></p>
   <script>
     document.getElementById("finish").addEventListener("click", () => {{
       fetch("/card/finish", {{ method: "POST", credentials: "same-origin" }}).then(() => {{
