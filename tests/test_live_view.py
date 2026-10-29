@@ -19,7 +19,12 @@ from library_assistant.catalog import Catalog, Record
 from library_assistant.config import Settings
 from library_assistant.dependencies import get_catalog, get_settings, get_watchlist
 from library_assistant.routers.live import LiveBus, get_live_bus, live_events
-from library_assistant.staff import STAFF_SESSION_COOKIE, StaffAccount, create_account
+from library_assistant.staff import (
+    STAFF_SESSION_COOKIE,
+    StaffAccount,
+    create_account,
+    deactivate_account,
+)
 from library_assistant.watchlist import Entry, Watchlist
 
 # Far in the future on purpose, matching tests/test_staff.py's convention: a past NOW
@@ -48,12 +53,23 @@ def client(db, clock):
 
 
 def _card(
-    db, token, card_number, class_label="Period 3", expires_at=NOW + timedelta(hours=6)
+    db,
+    token,
+    card_number,
+    class_label="Period 3",
+    expires_at=NOW + timedelta(hours=6),
+    registered_by_account_id=None,
 ):
     db.execute(
-        "INSERT INTO cards (token_hash, card_number, expires_at, class_label) "
-        "VALUES (?, ?, ?, ?)",
-        (hash_token(token), card_number, expires_at.isoformat(), class_label),
+        "INSERT INTO cards (token_hash, card_number, expires_at, class_label, "
+        "registered_by_account_id) VALUES (?, ?, ?, ?, ?)",
+        (
+            hash_token(token),
+            card_number,
+            expires_at.isoformat(),
+            class_label,
+            registered_by_account_id,
+        ),
     )
     db.commit()
 
@@ -109,6 +125,25 @@ def test_tile_per_active_session_with_label_and_card(client, db):
     assert "Period 3" in response.text
     assert "14" in response.text
     assert "what do snow leopards eat?" in response.text
+
+
+def test_tile_shows_registering_teacher_even_once_deactivated(client, db):
+    _sign_in_as(client, db, "librarian")
+    teacher_id = create_account(db, "ms-alvarez", "correct horse", "teacher")
+    _card(
+        db,
+        "token-14",
+        "14",
+        class_label="Period 3",
+        registered_by_account_id=teacher_id,
+    )
+    session_hash = _session(db, "token-14")
+    _ask(db, session_hash, "Period 3", "14", "what do snow leopards eat?")
+    deactivate_account(db, teacher_id)
+
+    response = client.get("/staff/live")
+
+    assert "Registered by ms-alvarez" in response.text
 
 
 def test_expired_or_revoked_session_has_no_tile(client, db):

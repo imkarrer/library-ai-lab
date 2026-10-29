@@ -39,7 +39,6 @@ class FlagRow:
     exported: int | None
     escalated_at: str | None
     escalated_by: int | None
-    raised_by: int | None
 
 
 def raise_flag(
@@ -53,7 +52,6 @@ def raise_flag(
     severity: str,
     source: str,
     raised_at: str,
-    raised_by: int | None = None,
     entry_id: str | None = None,
     watchlist_version: str | None = None,
     reason: str | None = None,
@@ -74,9 +72,8 @@ def raise_flag(
             watchlist_version,
             reason,
             raised_at,
-            exported,
-            raised_by
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+            exported
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
         """,
         (
             transcript_id,
@@ -91,7 +88,6 @@ def raise_flag(
             watchlist_version,
             reason,
             raised_at,
-            raised_by,
         ),
     )
     db.commit()
@@ -119,7 +115,6 @@ def raise_or_repeat(
     severity: str,
     source: str,
     raised_at: str,
-    raised_by: int | None = None,
     entry_id: str | None = None,
     watchlist_version: str | None = None,
     reason: str | None = None,
@@ -185,7 +180,6 @@ def raise_or_repeat(
             severity,
             source,
             raised_at,
-            raised_by,
             entry_id,
             watchlist_version,
             reason,
@@ -216,8 +210,7 @@ def open_flags(db: sqlite3.Connection) -> list[FlagRow]:
             last_repeat_at,
             exported,
             escalated_at,
-            escalated_by,
-            raised_by
+            escalated_by
         FROM flags
         WHERE closed_at IS NULL
         ORDER BY raised_at DESC
@@ -257,8 +250,7 @@ def get_flag(db: sqlite3.Connection, flag_id: int) -> FlagRow | None:
             last_repeat_at,
             exported,
             escalated_at,
-            escalated_by,
-            raised_by
+            escalated_by
         FROM flags
         WHERE id = ?
         """,
