@@ -143,6 +143,7 @@ class SessionTile:
     message_count: int
     latest_question: str
     flag_severity: str | None = None
+    flag_raised_by: int | None = None
 
 
 @dataclass(frozen=True)
@@ -174,17 +175,21 @@ def active_sessions(db: sqlite3.Connection, now: datetime) -> list[SessionTile]:
 
     # Get all open flags and their transcript_ids
     flag_rows = db.execute(
-        "SELECT flags.transcript_id, flags.severity "
+        "SELECT flags.transcript_id, flags.severity, flags.raised_by "
         "FROM flags "
         "WHERE flags.closed_at IS NULL"
     ).fetchall()
 
     # Map transcript_id to highest severity ('high' > 'low')
     transcript_severity = {}
-    for transcript_id, severity in flag_rows:
+    transcript_raised_by = {}
+    for transcript_id, severity, raised_by in flag_rows:
         current = transcript_severity.get(transcript_id)
         if current is None or (severity == "high" and current != "high"):
             transcript_severity[transcript_id] = severity
+        # Store the staff who raised the flag (if available)
+        if raised_by is not None:
+            transcript_raised_by[transcript_id] = raised_by
 
     tiles = []
     for session_no, session_hash, class_label, card_number, started_at in rows:
@@ -202,6 +207,7 @@ def active_sessions(db: sqlite3.Connection, now: datetime) -> list[SessionTile]:
 
         # Find the highest severity flag for this session
         flag_severity = None
+        flag_raised_by = None
         for transcript_id, severity in transcript_severity.items():
             # Join with transcripts to match session_hash
             transcript = db.execute(
@@ -211,10 +217,14 @@ def active_sessions(db: sqlite3.Connection, now: datetime) -> list[SessionTile]:
                 # High severity overrides any lower severity
                 if severity == "high":
                     flag_severity = "high"
+                    # Get the staff member who raised this flag
+                    flag_raised_by = transcript_raised_by.get(transcript_id)
                     break
                 # For low severity, only set if no severity yet
                 elif severity == "low" and flag_severity is None:
                     flag_severity = "low"
+                    # Get the staff member who raised this flag
+                    flag_raised_by = transcript_raised_by.get(transcript_id)
 
         tiles.append(
             SessionTile(
@@ -225,6 +235,7 @@ def active_sessions(db: sqlite3.Connection, now: datetime) -> list[SessionTile]:
                 message_count=len(transcript_rows),
                 latest_question=latest_question,
                 flag_severity=flag_severity,
+                flag_raised_by=flag_raised_by,
             )
         )
 
@@ -232,7 +243,7 @@ def active_sessions(db: sqlite3.Connection, now: datetime) -> list[SessionTile]:
     return tiles
 
 
-def _tile_html(tile: SessionTile) -> str:
+def _tile_html(tile: SessionTile, db: sqlite3.Connection) -> str:
     classes = ["tile"]
     if tile.flag_severity:
         classes.append(f"flag-{tile.flag_severity}")
@@ -242,6 +253,23 @@ def _tile_html(tile: SessionTile) -> str:
     badge = ""
     if tile.flag_severity:
         badge = f'<span class="flag-badge">Flag: {tile.flag_severity}</span>'
+
+    # Get staff name if available
+    staff_name_html = ""
+    if tile.flag_raised_by is not None:
+        # Query the staff account name
+        staff_row = db.execute(
+            "SELECT username FROM staff_accounts WHERE id = ?", (tile.flag_raised_by,)
+        ).fetchone()
+        if staff_row:
+            staff_name_html = (
+                f'<p class="flag-raised-by">Raised by {html.escape(staff_row[0])}</p>'
+            )
+        else:
+            staff_name_html = '<p class="flag-raised-by">Raised by staff</p>'
+    elif tile.flag_severity:
+        # Show basic "Raised" if we have a flag but no specific staff info
+        staff_name_html = '<p class="flag-raised-by">Raised</p>'
 
     return (
         f'<div class="{class_attr}" data-session-no="{tile.session_no}" '
@@ -254,6 +282,7 @@ def _tile_html(tile: SessionTile) -> str:
         f'<p class="count">{tile.message_count} message(s)</p>'
         f'<p class="latest">{html.escape(tile.latest_question)}</p>'
         f"{badge}"
+        f"{staff_name_html}"
         "</a></div>"
     )
 
@@ -567,7 +596,7 @@ def live_view(
     paused, Pause (or Resume) Sessions."""
     tiles = active_sessions(db, clock)
     body = (
-        "".join(_tile_html(tile) for tile in tiles)
+        "".join(_tile_html(tile, db) for tile in tiles)
         if tiles
         else '<p id="no-sessions">No active Sessions.</p>'
     )

@@ -214,7 +214,8 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
             last_repeat_at TEXT,
             exported INTEGER NOT NULL DEFAULT 0,
             escalated_at TEXT,
-            escalated_by INTEGER
+            escalated_by INTEGER,
+            raised_by INTEGER
         )
         """
     )

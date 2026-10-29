@@ -198,7 +198,7 @@ def test_older_flags_table_gains_the_exported_column(tmp_path):
         "severity TEXT NOT NULL, source TEXT NOT NULL, entry_id TEXT, "
         "watchlist_version TEXT, reason TEXT, raised_at TEXT NOT NULL, "
         "closed_at TEXT, repeat_count INTEGER NOT NULL DEFAULT 0, "
-        "last_repeat_at TEXT)"
+        "last_repeat_at TEXT, raised_by INTEGER)"
     )
     old.execute(
         "INSERT INTO flags (transcript_id, class_label, card_number, "
