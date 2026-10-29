@@ -514,6 +514,19 @@ def test_periodic_or_off_page_open_replays(librarian, setup, mode, url):
     assert "a private question" not in json.dumps(pending)
 
 
+@pytest.mark.parametrize("url", ["/staff", "/staff/accounts", "/staff/settings"])
+def test_unacknowledged_alarm_shows_on_every_staff_page(librarian, setup, url):
+    """Every staff page carries the Alarm (lib-f24.77, ADR-0010's supervision-mode
+    amendment), not just the Live view, Session detail, Flag queue and Flag pages."""
+    db = setup
+    flag_id = _high_flag(db)
+    set_setting(db, SUPERVISION_MODE, "periodic", 1, NOW)
+
+    pending = _config(librarian.get(url).text)["pending"]
+
+    assert [alarm["flag_id"] for alarm in pending] == [flag_id]
+
+
 def test_chime_settings_reach_the_page(librarian, setup):
     db = setup
     config = _config(librarian.get("/staff/live").text)
@@ -685,6 +698,12 @@ def test_staff_pages_load_nothing_external(librarian, setup):
         (counselor, "/staff/counselor"),
         (counselor, f"/staff/counselor/flags/{flag_id}"),
         (counselor, "/staff/flags"),
+        (librarian, "/staff"),
+        (librarian, "/staff/accounts"),
+        (librarian, "/staff/settings"),
+        (librarian, "/staff/keys"),
+        (librarian, "/staff/holds"),
+        (librarian, "/staff/supportive-replies-preview"),
     ]
     for client, url in pages:
         response = client.get(url)
