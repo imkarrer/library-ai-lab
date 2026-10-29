@@ -87,8 +87,7 @@ may check in with you, because they care how you are doing."""
 
 # Import our new supportive reply handling
 from library_assistant.supportive_replies import (
-    PRECEDENCE_ORDER,
-    get_supportive_reply_text,
+    reply_for,
 )
 
 CHAT_PAGE_HTML = """<!DOCTYPE html>
@@ -716,16 +715,9 @@ def _answer(
     if high_severity_matches:
         # Every time, repeats included; nothing reaches the Catalog or the model.
         async def supportive():
-            # Apply precedence order from ADR-0011
-            matching_categories = [
-                entry.category for entry in matches if entry.severity == "high"
-            ]
-            selected_category = next(
-                (c for c in PRECEDENCE_ORDER if c in matching_categories),
-                "self_harm",
-            )
-            reply_text = get_supportive_reply_text(
-                selected_category, "a school counselor", {}
+            # ADR-0011: one reply, by precedence, with the Install's overrides.
+            reply_text = reply_for(
+                db, [entry.category for entry in high_severity_matches]
             )
 
             try:
