@@ -14,6 +14,7 @@ from library_assistant.access import (
     issue_registration_key,
 )
 from library_assistant.app import app
+from library_assistant.install_settings import SUPERVISION_MODE, set_setting
 from library_assistant.staff import (
     STAFF_SESSION_COOKIE,
     LibrarianDep,
@@ -102,6 +103,8 @@ def test_staff_home_anonymous_is_401(client):
 
 def test_student_cookie_is_401_on_staff_home(client, db):
     teacher_id = create_account(db, "teacher", "correct horse", "teacher")
+    # Not a gate test: open the gate directly so sign-in succeeds (lib-793.3).
+    set_setting(db, SUPERVISION_MODE, "off", teacher_id, NOW)
     client.post(
         "/batches",
         json={

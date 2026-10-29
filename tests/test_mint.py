@@ -14,6 +14,7 @@ from library_assistant.access import (
 )
 from library_assistant.app import app
 from library_assistant.config import Settings
+from library_assistant.install_settings import SUPERVISION_MODE, set_setting
 from library_assistant.mint import (
     mint_cards,
     qr_sheet_html,
@@ -71,16 +72,15 @@ def test_registration_payload_has_no_roster_or_student_data():
 @pytest.fixture
 def client():
     db = connect(":memory:")
+    teacher_id = create_account(db, "registering-teacher", "correct horse", "teacher")
     db.execute(
         "INSERT INTO registration_keys (account_id, key_hash, rotated_at) "
         "VALUES (?, ?, ?)",
-        (
-            create_account(db, "registering-teacher", "correct horse", "teacher"),
-            hash_token(REGISTRATION_KEY),
-            FIXED_CLOCK.isoformat(),
-        ),
+        (teacher_id, hash_token(REGISTRATION_KEY), FIXED_CLOCK.isoformat()),
     )
     db.commit()
+    # No Watch is started in this fixture: open the gate directly (lib-793.3).
+    set_setting(db, SUPERVISION_MODE, "off", teacher_id, FIXED_CLOCK)
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[get_clock] = lambda: FIXED_CLOCK
     try:

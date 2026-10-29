@@ -18,6 +18,7 @@ from library_assistant.app import app
 from library_assistant.catalog import Catalog, Record
 from library_assistant.config import Settings
 from library_assistant.dependencies import get_catalog, get_settings, get_watchlist
+from library_assistant.install_settings import SUPERVISION_MODE, set_setting
 from library_assistant.routers.live import LiveBus, get_live_bus, live_events
 from library_assistant.staff import STAFF_SESSION_COOKIE, StaffAccount, create_account
 from library_assistant.watchlist import Entry, Watchlist
@@ -491,6 +492,8 @@ def _session_no_for_card(db, card_number, class_label) -> int:
 
 def test_revoke_card_refuses_next_ask_other_cards_continue(client, db):
     _sign_in_as(client, db, "librarian")
+    # No Watch is started in this test: open the gate directly (lib-793.3).
+    set_setting(db, SUPERVISION_MODE, "off", account_id=1, now=NOW)
     expires_at = NOW + timedelta(hours=6)
     _card(db, "token-14", "14", class_label="Period 3", expires_at=expires_at)
     _card(db, "token-15", "15", class_label="Period 3", expires_at=expires_at)
@@ -526,6 +529,8 @@ def test_revoke_card_refuses_next_ask_other_cards_continue(client, db):
 
 def test_revoke_batch_refuses_every_card(client, db):
     _sign_in_as(client, db, "librarian")
+    # No Watch is started in this test: open the gate directly (lib-793.3).
+    set_setting(db, SUPERVISION_MODE, "off", account_id=1, now=NOW)
     expires_at = NOW + timedelta(hours=6)
     _card(db, "token-14", "14", class_label="Period 3", expires_at=expires_at)
     _card(db, "token-15", "15", class_label="Period 3", expires_at=expires_at)
@@ -636,16 +641,15 @@ def bus():
 @pytest.fixture
 def asking_client(client, db, bus, monkeypatch):
     """A Card signed in through the real flow, with the model endpoint faked."""
+    teacher_id = create_account(db, "registering-teacher", "correct horse", "teacher")
     db.execute(
         "INSERT INTO registration_keys (account_id, key_hash, rotated_at) "
         "VALUES (?, ?, ?)",
-        (
-            create_account(db, "registering-teacher", "correct horse", "teacher"),
-            hash_token(REGISTRATION_KEY),
-            NOW.isoformat(),
-        ),
+        (teacher_id, hash_token(REGISTRATION_KEY), NOW.isoformat()),
     )
     db.commit()
+    # No Watch is started in this fixture: open the gate directly (lib-793.3).
+    set_setting(db, SUPERVISION_MODE, "off", teacher_id, NOW)
     app.dependency_overrides[get_settings] = lambda: Settings(
         openai_endpoint="http://model.example.com:8080", openai_model="llama3"
     )
