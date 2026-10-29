@@ -360,8 +360,7 @@ from the model."* On the phone, the second part follows "Books in our library:".
 Catalog has nothing, the Student is told "The library's catalog has nothing on this yet. Ask
 the librarian."
 
-**GAP:** Citations on the Session detail page link to `/staff/catalog/record/<id>`, a route
-that does not exist (404). Do not click them on stage.
+
 
 ## Step 9. Trigger the Flag: "library demo flag", the Supportive reply, and the Alarm
 
