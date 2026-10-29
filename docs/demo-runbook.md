@@ -110,7 +110,7 @@ volunteers' questions.
    ```bash
    flox activate
    source ~/library-assistant-demo/demo.env
-   uvicorn library_assistant.app:app --host 127.0.0.1 --port 8000 --no-access-log
+   LIBRARY_ASSISTANT_HOST=127.0.0.1 flox services start assistant
    ```
 
    Always pass `--no-access-log`: uvicorn's own access log would write request paths

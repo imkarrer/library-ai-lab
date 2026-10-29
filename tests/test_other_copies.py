@@ -281,6 +281,17 @@ def test_uvicorn_access_log_off_in_the_shipped_start_command():
     assert "--no-access-log" in start
 
 
+def test_assistant_command_uses_host_and_port_variables():
+    manifest = tomllib.loads((REPO / ".flox/env/manifest.toml").read_text())
+    command = manifest["services"]["assistant"]["command"]
+    start_line = next(
+        l for l in command.splitlines() if "library_assistant.app:app" in l
+    )
+    assert "${LIBRARY_ASSISTANT_HOST:-127.0.0.1}" in start_line
+    assert "${LIBRARY_ASSISTANT_PORT:-8000}" in start_line
+    assert "--no-access-log" in start_line
+
+
 @pytest.mark.parametrize(
     ("method", "path", "body"),
     [
