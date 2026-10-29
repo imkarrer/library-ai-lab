@@ -14,6 +14,7 @@ from library_assistant.install_settings import router as install_settings_router
 # Import here to avoid circular imports
 from library_assistant.oversight import acquire_oversight_lock
 from library_assistant.purge import purge_loop, run_if_due
+from library_assistant.routers.about import router as about_router
 from library_assistant.routers.flags import router as flags_router
 from library_assistant.routers.holds import router as holds_router
 from library_assistant.routers.live import router as live_router
@@ -69,6 +70,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Library Assistant", lifespan=lifespan)
 app.include_router(access_router)
 app.include_router(session_router)
+app.include_router(about_router)
 app.include_router(staff_router)
 app.include_router(live_router)
 app.include_router(flags_router)
