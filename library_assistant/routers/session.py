@@ -239,6 +239,7 @@ def _record_verdict(
     at: datetime,
     screening: str,
     bus: LiveBus,
+    clock: Callable[[], datetime],
 ) -> None:
     """Store the verdict on its exchange, and raise its Flag (or a repeat) on a concern:
     a new high-severity Flag sounds the Alarm on the open staff pages (ADR-0010)."""
@@ -259,6 +260,8 @@ def _record_verdict(
     )
     db.commit()
     if verdict.category:
+        # Check if the gate is open (i.e., a Watch is active)
+        gate_open = gate_is_open(db, clock)
         flag_id, is_repeat = raise_or_repeat(
             db,
             transcript_id,
@@ -271,6 +274,7 @@ def _record_verdict(
             "oversight",
             at.isoformat(),
             reason=verdict.reason,
+            raised_unwatched=not gate_open,
         )
         announce_flag(db, bus.publish, flag_id, is_repeat)
 
@@ -386,6 +390,7 @@ async def _probe_and_catch_up(
                     now(),
                     "watchlist_alone",
                     bus,
+                    now,
                 )
 
 
@@ -691,6 +696,7 @@ def _answer(
                     clock,
                     "oversight",
                     bus,
+                    clock,
                 )
             except OversightUnavailable:
                 # The Watchlist already ran. The message is released as soon as its
