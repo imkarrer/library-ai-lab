@@ -840,6 +840,18 @@ def test_delta_events_carry_session_no_and_transcript_id(
     assert session_hash not in json.dumps(deltas)
 
 
+def test_answer_event_matches_shown_deltas(asking_client, bus, monkeypatch):
+    _fake_model(monkeypatch, [*SHOWN_DELTAS, "SEARCH: bulls; flowers\n"])
+    queue = bus.subscribe()
+
+    asking_client.post("/ask", json={"question": "a book about bulls?"})
+
+    messages = _drain(queue)
+    deltas = [data["text"] for kind, data in messages if kind == "delta"]
+    answer = next(data for kind, data in messages if kind == "answer")["answer"]
+    assert answer == "".join(deltas)
+
+
 def test_supportive_reply_sends_no_delta_events(asking_client, bus):
     entry = Entry(
         id="test-self-harm-high",

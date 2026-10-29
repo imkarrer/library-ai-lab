@@ -586,7 +586,7 @@ def _answer(
 
     # Then we stream the model response
     async def generate():
-        answer_parts: list[str] = []
+        shown_parts: list[str] = []
         shown: list[Citation] = []
         # finally: a model error or a hang-up still records what the Student saw.
         try:
@@ -612,16 +612,22 @@ def _answer(
                         "content", ""
                     )
                     if delta:
-                        answer_parts.append(delta)
-
                         # Use the filter to handle search lines
                         output = filter_instance.feed(delta)
                         if output:
+                            shown_parts.append(output)
                             publish_delta(output)
                             yield output
 
             # After streaming, extract search terms from the full response
             remaining_text, search_terms = filter_instance.finish()
+
+            # Yield any remaining text that wasn't handled by the filter, before the
+            # citations, so the Student sees the overview whole before the books.
+            if remaining_text:
+                shown_parts.append(remaining_text)
+                publish_delta(remaining_text)
+                yield remaining_text
 
             # If no search terms, search with the original question
             search_query = " ".join(search_terms) if search_terms else request.question
@@ -647,13 +653,8 @@ def _answer(
 
             # Copy the citations to shown list
             shown = citations.copy()
-
-            # Also yield any remaining text that wasn't handled by the filter
-            if remaining_text:
-                publish_delta(remaining_text)
-                yield remaining_text
         finally:
-            finish("".join(answer_parts), shown)
+            finish("".join(shown_parts), shown)
 
     # The Oversight task starts at the same moment as the Answer request (or the
     # Supportive reply): a Supportive reply still gets screened.
