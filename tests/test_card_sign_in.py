@@ -2,6 +2,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+from registration_helpers import batch_cards
 
 from library_assistant.access import (
     IDLE_TEXT,
@@ -52,7 +53,7 @@ def _register(client, expires_at: datetime, key: str | None = None):
         "/batches",
         json={
             "registration_key": key if key is not None else REGISTRATION_KEY,
-            "cards": [{"token": "token-1", "card_number": "14"}],
+            "cards": batch_cards(("token-1", "14")),
             "expires_at": expires_at.isoformat(),
             "class_label": "Period 3",
         },
@@ -276,10 +277,7 @@ def test_revoked_batch_refused(client):
         "/batches",
         json={
             "registration_key": REGISTRATION_KEY,
-            "cards": [
-                {"token": "token-1", "card_number": "14"},
-                {"token": "token-2", "card_number": "15"},
-            ],
+            "cards": batch_cards(("token-1", "14"), ("token-2", "15")),
             "expires_at": expires_at.isoformat(),
             "class_label": "Period 3",
         },

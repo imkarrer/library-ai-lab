@@ -69,6 +69,18 @@ def test_registration_payload_has_no_roster_or_student_data():
     assert set(result.registration_payload) == {"cards", "expires_at", "class_label"}
 
 
+def test_registration_payload_has_only_hashes():
+    """ADR-0002: only Token hashes leave the Teacher's machine, never a Token."""
+    result = mint_cards(5, "Period 3", _expiry())
+    dumped = json.dumps(result.registration_payload)
+    for card in result.cards:
+        assert card.token not in dumped
+    assert result.registration_payload["cards"] == [
+        {"token_hash": hash_token(card.token), "card_number": card.card_number}
+        for card in result.cards
+    ]
+
+
 @pytest.fixture
 def client():
     db = connect(":memory:")
@@ -109,6 +121,33 @@ def test_round_trip_registration_lets_each_card_start_a_session(client):
         assert sign_in.status_code == 200
         assert "Period 3" in sign_in.text
         assert card.card_number in sign_in.text
+
+
+@pytest.mark.parametrize(
+    "card",
+    [
+        {"token": "raw-token-1", "card_number": "1"},
+        {"token": "raw-token-1", "token_hash": "0" * 64, "card_number": "1"},
+        {"token_hash": "not-a-hash", "card_number": "1"},
+        {"token_hash": "A" * 64, "card_number": "1"},
+    ],
+    ids=["raw_token", "raw_token_beside_hash", "not_hex", "uppercase"],
+)
+def test_batches_refuses_raw_token(client, card):
+    """A Registration carrying a raw Token, or anything but a sha256 hex hash, is refused
+    and nothing is stored (ADR-0002)."""
+    tc, db = client
+    response = tc.post(
+        "/batches",
+        json={
+            "registration_key": REGISTRATION_KEY,
+            "cards": [card],
+            "expires_at": DAY_END.isoformat(),
+            "class_label": "Period 3",
+        },
+    )
+    assert response.status_code == 422
+    assert db.execute("SELECT COUNT(*) FROM cards").fetchone()[0] == 0
 
 
 def test_upload_payload_sends_no_roster_data(monkeypatch):
@@ -159,8 +198,10 @@ def test_cli_writes_html_csv_and_json(tmp_path):
     assert "card_number,students" in csv_content
     assert "1," in csv_content
 
-    payload = json.loads(paths["json"].read_text())
-    assert payload == result.registration_payload
+    payload_text = paths["json"].read_text()
+    assert json.loads(payload_text) == result.registration_payload
+    for card in result.cards:
+        assert card.token not in payload_text
 
 
 def test_qr_sheet_encodes_sign_in_url_when_base_url_given():

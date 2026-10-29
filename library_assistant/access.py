@@ -15,7 +15,7 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, PlainTextResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 from library_assistant.config import Settings, get_settings
 from library_assistant.flag_history import EVENTS
@@ -406,7 +406,15 @@ def review_due_at(
 
 
 class CardSpec(BaseModel):
-    token: str
+    """One Card in a Registration: its Token's hash, never the Token (ADR-0002).
+
+    Unknown fields are refused, so a payload that still carries a raw `token` gets a
+    422 rather than being accepted.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    token_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     card_number: str
 
 
@@ -519,7 +527,7 @@ def register_batch(
         "VALUES (?, ?, ?, ?, ?)",
         [
             (
-                hash_token(card.token),
+                card.token_hash,
                 card.card_number,
                 batch.expires_at.isoformat(),
                 batch.class_label,

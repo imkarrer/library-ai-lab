@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from registration_helpers import batch_cards
 
 from library_assistant.access import (
     SESSION_COOKIE,
@@ -109,7 +110,7 @@ def test_student_cookie_is_401_on_staff_home(client, db):
         "/batches",
         json={
             "registration_key": issue_registration_key(db, teacher_id, NOW),
-            "cards": [{"token": "token-1", "card_number": "14"}],
+            "cards": batch_cards(("token-1", "14")),
             "expires_at": (NOW + timedelta(hours=2)).isoformat(),
             "class_label": "Period 3",
         },

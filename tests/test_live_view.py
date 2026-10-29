@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+from registration_helpers import batch_cards
 
 from library_assistant.access import (
     SESSION_COOKIE,
@@ -706,7 +707,7 @@ def asking_client(client, db, bus, monkeypatch):
         "/batches",
         json={
             "registration_key": REGISTRATION_KEY,
-            "cards": [{"token": "token-14", "card_number": "14"}],
+            "cards": batch_cards(("token-14", "14")),
             "expires_at": (NOW + timedelta(hours=6)).isoformat(),
             "class_label": "Period 3",
         },

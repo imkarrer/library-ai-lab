@@ -8,6 +8,7 @@ from pathlib import Path
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+from registration_helpers import batch_cards
 
 from library_assistant.access import (
     connect,
@@ -139,7 +140,7 @@ def client(catalog, events):
             "/batches",
             json={
                 "registration_key": REGISTRATION_KEY,
-                "cards": [{"token": "token-14", "card_number": "14"}],
+                "cards": batch_cards(("token-14", "14")),
                 "expires_at": EXPIRES.isoformat(),
                 "class_label": "Period 3",
             },

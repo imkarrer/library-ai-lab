@@ -13,6 +13,7 @@ from pathlib import Path
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+from registration_helpers import batch_cards
 
 from library_assistant.access import (
     NO_STORE,
@@ -158,7 +159,7 @@ def test_canary_leaves_no_log_line_and_no_byte_after_the_purge(
         "/batches",
         json={
             "registration_key": REGISTRATION_KEY,
-            "cards": [{"token": TOKEN, "card_number": CARD_NUMBER}],
+            "cards": batch_cards((TOKEN, CARD_NUMBER)),
             "expires_at": EXPIRES.isoformat(),
             "class_label": "Period 3",
         },

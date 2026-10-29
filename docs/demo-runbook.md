@@ -300,8 +300,8 @@ Batch must expire by the end of today's school day"), and must be later than now
   carry `http://<LAN_IP>:8000/card#t=<Token>`.
 - `Conference_demo-roster.csv` and `Conference_demo-roster-printable.html`: the Roster. In a
   school it would record which Student holds which Card number; for the demo leave it blank.
-- `Conference_demo-registration.json`: what was sent to the assistant. It contains the raw
-  Tokens (the assistant stores only their hashes), so treat it like the Cards.
+- `Conference_demo-registration.json`: what was sent to the assistant: each Card's Token
+  hash and Card number, the expiry, and the Class label. It holds no Token.
 
 Getting the Cards to the volunteers, best first:
 
