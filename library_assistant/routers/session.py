@@ -50,6 +50,7 @@ ERROR_TEXT = "Something went wrong. Ask the librarian."
 # ADR-0011's self-harm text verbatim, {counselor} = "a school counselor". One reply for
 # every high-severity match until lib-irf.1 makes it per Rubric category. The ADR's **bold**
 # is dropped: the chat page shows plain text, so asterisks would reach the Student.
+# This is kept for backwards compatibility with tests.
 SUPPORTIVE_REPLY = """It sounds like you are going through something really hard. \
 You don't have to handle it alone.
 
@@ -60,6 +61,12 @@ listen. If you might hurt yourself right now, tell an adult near you or call 911
 
 I am a library computer, so a person can help with this better than I can. An adult here \
 may check in with you, because they care how you are doing."""
+
+# Import our new supportive reply handling
+from library_assistant.supportive_replies import (
+    PRECEDENCE_ORDER,
+    get_supportive_reply_text,
+)
 
 CHAT_PAGE_HTML = """<!DOCTYPE html>
 <html>
@@ -300,10 +307,38 @@ def _answer(
     if any(entry.severity == "high" for entry in matches):
         # Every time, repeats included; nothing reaches the Catalog or the model.
         async def supportive():
+            # Determine which category to use based on precedence order
+            matching_categories = [
+                entry.category for entry in matches if entry.severity == "high"
+            ]
+
+            # Apply precedence order from ADR-0011
+            selected_category = None
+            for category in PRECEDENCE_ORDER:
+                if category in matching_categories:
+                    selected_category = category
+                    break
+
+            # If no matching category found (should not happen with high severity matches),
+            # default to self-harm as per precedence
+            if selected_category is None:
+                selected_category = "self_harm"
+
+            # Get counselor name from settings or default
+            counselor_name = "a school counselor"
+
+            # Get Install overrides if available (this will be more complex in real implementation)
+            overrides = {}
+
+            # Get the supportive reply text using our new system
+            reply_text = get_supportive_reply_text(
+                selected_category, counselor_name, overrides
+            )
+
             try:
-                yield SUPPORTIVE_REPLY
+                yield reply_text
             finally:
-                finish(SUPPORTIVE_REPLY, [])
+                finish(reply_text, [])
 
         return _ReleasingStream(
             supportive(),
