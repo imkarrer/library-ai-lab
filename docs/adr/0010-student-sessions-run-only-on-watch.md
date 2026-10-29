@@ -165,7 +165,7 @@ time.
 | Mode | Students can chat | Adults are expected to |
 |---|---|---|
 | **Live** (the default for a new Install) | Only while someone is on Watch, as above | Stay on the Live view or Flag queue |
-| **Periodic review** | Any time in the school day. Optionally, they pause when a review is more than a set time overdue (default: never) | Review the Flag queue every `review_every_minutes` (default 120) and press Mark reviewed |
+| **Periodic review** | Any time in the school day. Optionally, they pause when a review is more than a set time overdue (default: never) | Review the Flag queue every `reviews_every_minutes` (default 120) and press Mark reviewed |
 | **Off** | Any time in the school day | Whatever the school's own policy says |
 
 **Also settings now:** the heartbeat grace period (`watch_grace_seconds`, 90), the Alarm chime

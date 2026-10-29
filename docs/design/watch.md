@@ -9,7 +9,7 @@ still there. The **supervision mode** is the Librarian's setting for how much th
 | Mode | Students can chat | Adults |
 |---|---|---|
 | **Live** (default) | only while at least one Watch is on | stay on the Live view or Flag queue |
-| **Periodic review** | any time in the school day; optionally paused when a review is overdue by more than a set time (default: never) | review the Flag queue every `review_every_minutes` (default 120) and press Mark reviewed |
+| **Periodic review** | any time in the school day; optionally paused when a review is overdue by more than a set time (default: never) | review the Flag queue every `reviews_every_minutes` (default 120) and press Mark reviewed |
 | **Off** | any time in the school day | the school's own policy |
 
 The Watchlist, the Supportive reply, and Flags run in every mode. In every mode, an
