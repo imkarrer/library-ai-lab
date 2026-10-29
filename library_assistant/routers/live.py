@@ -426,6 +426,15 @@ DETAIL_SCRIPT = """<script>
     div.append(askedP, questionP, answerP);
     exchanges.append(div);
   });
+  // The answer as it is written: each delta is appended to its exchange's answer,
+  // and the answer event below replaces that with the finished answer and Citations.
+  source.addEventListener("delta", (event) => {
+    const data = JSON.parse(event.data);
+    if (data.session_no !== SESSION_NO) return;
+    const div = find(data.transcript_id);
+    if (!div) return;
+    div.querySelector(".answer").textContent += data.text;
+  });
   source.addEventListener("answer", (event) => {
     const data = JSON.parse(event.data);
     if (data.session_no !== SESSION_NO) return;
