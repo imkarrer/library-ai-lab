@@ -193,11 +193,10 @@ def flag_queue(
 
     # Add watch control for librarians and stand-ins, but not counselors
     watch_control = ""
+    heartbeat_script = ""
     if account.role == "librarian" or account.is_stand_in:
         watch_control = _watch_control(is_watching(db, account.id, clock))
-
-    # Inline script that opens /staff/live/events and answers each ping with heartbeat
-    heartbeat_script = """<script>
+        heartbeat_script = """<script>
 (() => {
   const source = window.staffEvents || (window.staffEvents = new EventSource("/staff/live/events"));
   source.addEventListener("ping", () => {
