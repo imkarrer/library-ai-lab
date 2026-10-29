@@ -79,6 +79,18 @@ async def lifespan(app: FastAPI):
         pass
     _purge_task = None
 
+    # Cancel the probe task if it exists (ADR-0004 addendum)
+    # Import the session module to access _probe_task
+    import library_assistant.routers.session as session_module
+
+    if session_module._probe_task is not None:
+        session_module._probe_task.cancel()
+        try:
+            await session_module._probe_task
+        except asyncio.CancelledError:
+            pass
+        session_module._probe_task = None
+
     if _oversight_lock_file is not None:
         try:
             _oversight_lock_file.close()
