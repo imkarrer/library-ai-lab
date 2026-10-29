@@ -55,6 +55,14 @@ async def lifespan(app: FastAPI):
     # Run purge if needed at startup
     run_if_due(db, clock(), settings)
 
+    # Start catch-up if needed after purge
+    if settings.oversight_enabled:
+        from library_assistant.routers.live import get_live_bus
+        from library_assistant.routers.session import start_catch_up_if_needed
+
+        bus = get_live_bus()  # Default bus without overrides
+        start_catch_up_if_needed(db, settings, bus, clock, asyncio.sleep)
+
     # Acquire the Oversight lock if enabled; otherwise Oversight is not configured.
     global _oversight_lock_file, _purge_task
     if settings.oversight_enabled:
