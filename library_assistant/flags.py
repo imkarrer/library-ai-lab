@@ -37,6 +37,8 @@ class FlagRow:
     last_repeat_at: str | None
     # Set only by an Export, never by closing: the high-severity close gate reads it.
     exported: int | None
+    escalated_at: str | None
+    escalated_by: int | None
 
 
 def raise_flag(
@@ -206,7 +208,9 @@ def open_flags(db: sqlite3.Connection) -> list[FlagRow]:
             closed_at,
             repeat_count,
             last_repeat_at,
-            exported
+            exported,
+            escalated_at,
+            escalated_by
         FROM flags
         WHERE closed_at IS NULL
         ORDER BY raised_at DESC
@@ -244,7 +248,9 @@ def get_flag(db: sqlite3.Connection, flag_id: int) -> FlagRow | None:
             closed_at,
             repeat_count,
             last_repeat_at,
-            exported
+            exported,
+            escalated_at,
+            escalated_by
         FROM flags
         WHERE id = ?
         """,
@@ -320,3 +326,20 @@ def reopen_flag(
     append_event(
         db, flag_id, "reopened", at=reopened_at, account=account, reason=reason
     )
+
+
+def escalate_flag(
+    db: sqlite3.Connection,
+    flag_id: int,
+    at: str,
+    account_id: int,
+    account: str,
+    reason: str,
+) -> None:
+    """Mark a Flag Escalated and append the event; its Rubric category is kept."""
+    db.execute(
+        "UPDATE flags SET escalated_at = ?, escalated_by = ? WHERE id = ?",
+        (at, account_id, flag_id),
+    )
+    append_event(db, flag_id, "escalated", at=at, account=account, reason=reason)
+    db.commit()

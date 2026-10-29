@@ -59,8 +59,8 @@ def _transcript(db, question="is this ok?", answer="an answer, timed"):
     return cursor.lastrowid
 
 
-def _flag(db, transcript_id, category="content", severity="high"):
-    return raise_flag(
+def _flag(db, transcript_id, category="content", severity="high", escalated=False):
+    flag_id = raise_flag(
         db,
         transcript_id=transcript_id,
         class_label="Period 3",
@@ -73,6 +73,12 @@ def _flag(db, transcript_id, category="content", severity="high"):
         raised_at=NOW.isoformat(),
         entry_id="entry-1",
     )
+    if escalated:
+        db.execute(
+            "UPDATE flags SET escalated_at = ? WHERE id = ?", (NOW.isoformat(), flag_id)
+        )
+        db.commit()
+    return flag_id
 
 
 def test_export_has_required_fields_no_hash_no_token(client, db):
@@ -247,7 +253,7 @@ def test_high_severity_close_after_export_needs_no_confirmation(client, db):
 def test_teacher_cannot_export(client, db):
     _sign_in_as(client, db, "teacher")
     transcript_id = _transcript(db)
-    flag_id = _flag(db, transcript_id, category="escalated")
+    flag_id = _flag(db, transcript_id, escalated=True)
 
     response = client.get(f"/staff/flags/{flag_id}/export")
     assert response.status_code == 403
@@ -257,7 +263,7 @@ def test_counselor_can_export_only_escalated(client, db):
     _sign_in_as(client, db, "counselor")
     transcript_id = _transcript(db)
     open_flag_id = _flag(db, transcript_id, category="content")
-    escalated_flag_id = _flag(db, transcript_id, category="escalated")
+    escalated_flag_id = _flag(db, transcript_id, escalated=True)
 
     assert client.get(f"/staff/flags/{open_flag_id}/export").status_code == 403
     assert client.get(f"/staff/flags/{escalated_flag_id}/export").status_code == 200
