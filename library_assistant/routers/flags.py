@@ -15,7 +15,13 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
-from library_assistant.access import get_clock, get_db, last_review_at, review_due_at
+from library_assistant.access import (
+    get_clock,
+    get_db,
+    last_review_at,
+    registering_teacher,
+    review_due_at,
+)
 from library_assistant.config import Settings, get_settings
 from library_assistant.flag_history import append_event, get_history
 from library_assistant.flags import (
@@ -35,7 +41,7 @@ from library_assistant.staff import LibrarianDep, StaffDep, StandInDep, page
 router = APIRouter(prefix="/staff")
 
 
-def _queue_row_html(flag: FlagRow, overdue: bool) -> str:
+def _queue_row_html(flag: FlagRow, overdue: bool, teacher: str | None) -> str:
     return (
         "<tr>"
         f"<td>{html.escape(flag.raised_at)}</td>"
@@ -45,6 +51,7 @@ def _queue_row_html(flag: FlagRow, overdue: bool) -> str:
         f"<td>{html.escape(str(flag.entry_id or ''))}</td>"
         f"<td>{html.escape(flag.class_label)}</td>"
         f"<td>{html.escape(flag.card_number)}</td>"
+        f"<td>{html.escape(teacher or '')}</td>"
         f"<td>{'Overdue' if overdue else ''}</td>"
         f'<td><a href="/staff/flags/{flag.id}">View</a></td>'
         "</tr>"
@@ -120,7 +127,13 @@ def flag_queue(
 
     flags = [flag for flag in open_flags(db) if _visible_to(account, flag)]
     rows = "".join(
-        _queue_row_html(flag, is_overdue(flag, clock, settings.flags_overdue_days))
+        _queue_row_html(
+            flag,
+            is_overdue(flag, clock, settings.flags_overdue_days),
+            registering_teacher(
+                db, flag.class_label, flag.card_number, flag.batch_expires_at
+            ),
+        )
         for flag in flags
     )
 
@@ -163,7 +176,8 @@ def flag_queue(
         + holds_info
         + "<table><thead><tr>"
         "<th>Raised at</th><th>Category</th><th>Severity</th><th>Source</th>"
-        "<th>Entry</th><th>Class</th><th>Card</th><th></th><th></th>"
+        "<th>Entry</th><th>Class</th><th>Card</th><th>Registered by</th>"
+        "<th></th><th></th>"
         "</tr></thead><tbody>"
         f"{rows}"
         "</tbody></table>"
@@ -203,6 +217,9 @@ def flag_page(
     outcome_options = "".join(
         f'<option value="{html.escape(outcome)}">{html.escape(outcome)}</option>'
         for outcome in OUTCOMES
+    )
+    teacher = registering_teacher(
+        db, flag.class_label, flag.card_number, flag.batch_expires_at
     )
     action = "reopen" if flag.closed_at is not None else "close"
     button = "Reopen" if flag.closed_at is not None else "Close"
@@ -254,6 +271,7 @@ def flag_page(
         f"<tr><th>Entry</th><td>{html.escape(str(flag.entry_id or ''))}</td></tr>"
         f"<tr><th>Class</th><td>{html.escape(flag.class_label)}</td></tr>"
         f"<tr><th>Card</th><td>{html.escape(flag.card_number)}</td></tr>"
+        f"<tr><th>Registered by</th><td>{html.escape(teacher or '')}</td></tr>"
         f"<tr><th>Repeats</th><td>{flag.repeat_count}</td></tr>"
         "</tbody></table>"
         f'<p><a href="/staff/flags/{flag.id}/export">Export</a></p>'
@@ -340,6 +358,11 @@ def export_flag(
         f"Severity: {flag.severity}",
         f"Source: {flag.source}",
     ]
+    teacher = registering_teacher(
+        db, flag.class_label, flag.card_number, flag.batch_expires_at
+    )
+    if teacher:
+        lines.append(f"Registered by: {teacher}")
     if flag.entry_id:
         lines.append(f"Matched entry: {flag.entry_id}")
     lines.append("")
