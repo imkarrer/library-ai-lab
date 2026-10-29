@@ -38,7 +38,12 @@ from library_assistant.flags import (
 )
 from library_assistant.holds import active_hold_count
 from library_assistant.purge import next_purge_at
-from library_assistant.routers.live import LiveBus, get_live_bus
+from library_assistant.routers.live import (
+    LiveBus,
+    _watch_control,
+    get_live_bus,
+    is_watching,
+)
 from library_assistant.staff import (
     LibrarianDep,
     StaffAccount,
@@ -186,9 +191,30 @@ def flag_queue(
     if account.role == "librarian" or account.is_stand_in:
         holds_info = f"<p>Active Holds: {active_hold_count(db)}</p>"
 
+    # Add watch control for librarians and stand-ins, but not counselors
+    watch_control = ""
+    if account.role == "librarian" or account.is_stand_in:
+        watch_control = _watch_control(is_watching(db, account.id, clock))
+
+    # Inline script that opens /staff/live/events and answers each ping with heartbeat
+    heartbeat_script = """<script>
+(() => {
+  const source = window.staffEvents || (window.staffEvents = new EventSource("/staff/live/events"));
+  source.addEventListener("ping", () => {
+    fetch("/staff/watch/heartbeat", { method: "POST", credentials: "same-origin" })
+      .then((response) => {
+        document.dispatchEvent(
+          new CustomEvent("watch", { detail: { watching: response.ok } })
+        );
+      });
+  });
+})();
+</script>"""
+
     body = (
         "<h1>Flag queue</h1>"
         + alarm_banner(db, account, clock)
+        + watch_control
         + (f"<p>{header_info}</p>" if header_info else "")
         + holds_info
         + "<table><thead><tr>"
@@ -197,7 +223,7 @@ def flag_queue(
         "<th></th><th></th>"
         "</tr></thead><tbody>"
         f"{rows}"
-        "</tbody></table>"
+        "</tbody></table>" + heartbeat_script
     )
     return page("Flag queue", body)
 
