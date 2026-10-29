@@ -296,26 +296,26 @@ def _answer(
     matches = watchlist.match(request.question)
     message_hash = hashlib.sha256(normalize(request.question).encode()).hexdigest()
 
-    # Handle Watchlist matches that are high severity
+    # Handle Watchlist matches - raise flags for all matches regardless of severity
+    for entry in matches:
+        raise_or_repeat(
+            db,
+            transcript_id,
+            session.class_label,
+            session.card_number,
+            session.expires_at.isoformat(),
+            message_hash,
+            entry.category,
+            entry.severity,
+            "watchlist",
+            clock.isoformat(),
+            entry_id=entry.id,
+            watchlist_version=watchlist.version,
+        )
+
+    # Handle high severity matches specially - they get supportive reply
     high_severity_matches = [entry for entry in matches if entry.severity == "high"]
     if high_severity_matches:
-        # First, raise all matches from watchlist (including high severity ones)
-        for entry in matches:
-            raise_or_repeat(
-                db,
-                transcript_id,
-                session.class_label,
-                session.card_number,
-                session.expires_at.isoformat(),
-                message_hash,
-                entry.category,
-                entry.severity,
-                "watchlist",
-                clock.isoformat(),
-                entry_id=entry.id,
-                watchlist_version=watchlist.version,
-            )
-
         # Every time, repeats included; nothing reaches the Catalog or the model.
         async def supportive():
             # Determine which category to use based on precedence order
@@ -360,6 +360,13 @@ def _answer(
 
     # If oversight is enabled, we need to do async screening
     if settings.oversight_enabled:
+        # First, we need to update the transcript to mark it as being screened by oversight
+        db.execute(
+            "UPDATE transcripts SET screening = ? WHERE id = ?",
+            ("oversight", transcript_id),
+        )
+        db.commit()
+
         # Start oversight screening task before processing the answer
         async def _run_oversight():
             """Run oversight screening and update the transcript with verdict."""
@@ -410,7 +417,7 @@ def _answer(
                 # Remove the task from the set when done
                 _oversight_tasks.discard(task)
 
-        # Start the oversight task
+        # Start the oversight task and store reference for use in finally
         task = asyncio.create_task(_run_oversight())
         _oversight_tasks.add(task)
 
