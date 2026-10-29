@@ -41,6 +41,17 @@ async def lifespan(app: FastAPI):
     clock = app.dependency_overrides.get(get_clock, get_clock)
     settings = app.dependency_overrides.get(Settings, lambda: Settings())()
 
+    # Check for invalid overrides at startup (ADR-0011)
+    from library_assistant.supportive_replies import invalid_overrides
+
+    invalid = invalid_overrides(db)
+    if invalid:
+        # Raise RuntimeError naming each category and error, as ADR-0011 says
+        error_messages = []
+        for category, errors in invalid.items():
+            error_messages.append(f"{category}: {'; '.join(errors)}")
+        raise RuntimeError(f"Invalid overrides found: {', '.join(error_messages)}")
+
     # Run purge if needed at startup
     run_if_due(db, clock(), settings)
 
