@@ -1,8 +1,9 @@
 """The Live view overview: a tile per active Session (CONTEXT.md).
 
 Binding: ADR-0002 (no Card-to-Student link), ADR-0003 addendum (`no-store`, no copies).
-A tile shows only the Class label, Card number, and conversation shape; it never shows a
-name, a Token or its stored hash, or Roster data. See `docs/design/live-view.md`.
+A tile shows the Class label, Card number, conversation shape, and the registering
+Teacher's display name (ADR-0002 addendum); it never shows a Student's name, a Token or
+its stored hash, or Roster data. See `docs/design/live-view.md`.
 
 The pages stay live through the LiveBus: `/ask` publishes to it in process (ADR-0008) and
 each open Live view page holds one server-sent event stream from it. The bus keeps
@@ -28,6 +29,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from library_assistant.access import (
     get_clock,
     get_db,
+    registering_teacher,
     revoke_batch_of_session,
     revoke_card_of_session,
 )
@@ -142,6 +144,7 @@ class SessionTile:
     last_activity_at: datetime
     message_count: int
     latest_question: str
+    registered_by: str | None = None
     flag_severity: str | None = None
 
 
@@ -166,7 +169,7 @@ def active_sessions(db: sqlite3.Connection, now: datetime) -> list[SessionTile]:
     """Sessions whose Card row still exists and has not expired, most recent activity first."""
     rows = db.execute(
         "SELECT sessions.rowid, sessions.session_hash, cards.class_label, "
-        "cards.card_number, sessions.started_at "
+        "cards.card_number, sessions.started_at, cards.expires_at "
         "FROM sessions JOIN cards ON cards.token_hash = sessions.token_hash "
         "WHERE cards.expires_at > ?",
         (now.isoformat(),),
@@ -187,7 +190,14 @@ def active_sessions(db: sqlite3.Connection, now: datetime) -> list[SessionTile]:
             transcript_severity[transcript_id] = severity
 
     tiles = []
-    for session_no, session_hash, class_label, card_number, started_at in rows:
+    for (
+        session_no,
+        session_hash,
+        class_label,
+        card_number,
+        started_at,
+        card_expires_at,
+    ) in rows:
         transcript_rows = db.execute(
             "SELECT id, question, asked_at FROM transcripts WHERE session_hash = ? "
             "ORDER BY asked_at DESC",
@@ -224,6 +234,9 @@ def active_sessions(db: sqlite3.Connection, now: datetime) -> list[SessionTile]:
                 last_activity_at=last_activity_at,
                 message_count=len(transcript_rows),
                 latest_question=latest_question,
+                registered_by=registering_teacher(
+                    db, class_label, card_number, card_expires_at
+                ),
                 flag_severity=flag_severity,
             )
         )
@@ -243,6 +256,13 @@ def _tile_html(tile: SessionTile) -> str:
     if tile.flag_severity:
         badge = f'<span class="flag-badge">Flag: {tile.flag_severity}</span>'
 
+    registered_by_html = ""
+    if tile.registered_by:
+        registered_by_html = (
+            f'<p class="registered-by">Registered by '
+            f"{html.escape(tile.registered_by)}</p>"
+        )
+
     return (
         f'<div class="{class_attr}" data-session-no="{tile.session_no}" '
         f'data-message-count="{tile.message_count}">'
@@ -254,6 +274,7 @@ def _tile_html(tile: SessionTile) -> str:
         f'<p class="count">{tile.message_count} message(s)</p>'
         f'<p class="latest">{html.escape(tile.latest_question)}</p>'
         f"{badge}"
+        f"{registered_by_html}"
         "</a></div>"
     )
 

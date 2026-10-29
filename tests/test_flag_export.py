@@ -9,7 +9,11 @@ from fastapi.testclient import TestClient
 from library_assistant.access import connect, get_clock, get_db, hash_token
 from library_assistant.app import app
 from library_assistant.flags import get_flag, raise_flag
-from library_assistant.staff import STAFF_SESSION_COOKIE, create_account
+from library_assistant.staff import (
+    STAFF_SESSION_COOKIE,
+    create_account,
+    deactivate_account,
+)
 
 NOW = datetime(2036, 10, 27, 14, 0, tzinfo=UTC)
 
@@ -107,6 +111,43 @@ def test_export_has_required_fields_no_hash_no_token(client, db):
     assert "hash" not in body.lower()
     assert "token" not in body.lower()
     assert "session-1" not in body
+
+
+def test_export_shows_registering_teacher_even_once_deactivated(client, db):
+    _sign_in_as(client, db, "librarian")
+    teacher_id = create_account(db, "ms-alvarez", "correct horse", "teacher")
+    batch_expires_at = NOW + timedelta(hours=6)
+    db.execute(
+        "INSERT INTO cards (token_hash, card_number, expires_at, class_label, "
+        "registered_by_account_id) VALUES (?, ?, ?, ?, ?)",
+        (
+            hash_token("card-token"),
+            "14",
+            batch_expires_at.isoformat(),
+            "Period 3",
+            teacher_id,
+        ),
+    )
+    db.commit()
+    deactivate_account(db, teacher_id)
+
+    transcript_id = _transcript(db)
+    flag_id = raise_flag(
+        db,
+        transcript_id=transcript_id,
+        class_label="Period 3",
+        card_number="14",
+        batch_expires_at=batch_expires_at.isoformat(),
+        message_hash="abc123hash",
+        category="content",
+        severity="high",
+        source="watchlist",
+        raised_at=NOW.isoformat(),
+        entry_id="entry-1",
+    )
+
+    body = client.get(f"/staff/flags/{flag_id}/export").text
+    assert "Registered by: ms-alvarez" in body
 
 
 def test_export_does_not_leak_other_sessions_text(client, db):

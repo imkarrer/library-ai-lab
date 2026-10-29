@@ -440,6 +440,25 @@ def account_for_registration_key(db: sqlite3.Connection, key: str) -> int | None
     return row[0] if row else None
 
 
+def registering_teacher(
+    db: sqlite3.Connection, class_label: str, card_number: str, expires_at: str
+) -> str | None:
+    """The display name of the Teacher (or Librarian) who registered this Batch.
+
+    Looked up by the Batch's own class label, card number, and expiry, never by the
+    staff account's current state: a deactivated account's name still shows on a
+    Batch that has not expired, so a Flag or a Live view row never loses its Teacher
+    (ADR-0002 addendum).
+    """
+    row = db.execute(
+        "SELECT staff_accounts.username FROM cards "
+        "JOIN staff_accounts ON staff_accounts.id = cards.registered_by_account_id "
+        "WHERE cards.class_label = ? AND cards.card_number = ? AND cards.expires_at = ?",
+        (class_label, card_number, expires_at),
+    ).fetchone()
+    return row[0] if row else None
+
+
 def issue_registration_key(
     db: sqlite3.Connection, account_id: int, clock: datetime
 ) -> str:
