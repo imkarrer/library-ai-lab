@@ -1,3 +1,4 @@
+import sqlite3
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -5,8 +6,8 @@ from fastapi.testclient import TestClient
 
 from library_assistant.access import connect, get_clock, get_db, hash_token
 from library_assistant.app import app
-from library_assistant.flag_history import get_history
-from library_assistant.flags import raise_flag
+from library_assistant.flag_history import append_event, get_history
+from library_assistant.flags import get_flag, raise_flag
 from library_assistant.staff import STAFF_SESSION_COOKIE, create_account, set_stand_in
 
 # Far in the future on purpose, matching tests/test_staff.py's convention: a past NOW
@@ -73,8 +74,9 @@ def _flag(
     severity="high",
     source="watchlist",
     entry_id="entry-1",
+    escalated=False,
 ):
-    return raise_flag(
+    flag_id = raise_flag(
         db,
         transcript_id=transcript_id,
         class_label=class_label,
@@ -87,6 +89,12 @@ def _flag(
         raised_at=NOW.isoformat(),
         entry_id=entry_id,
     )
+    if escalated:
+        db.execute(
+            "UPDATE flags SET escalated_at = ? WHERE id = ?", (NOW.isoformat(), flag_id)
+        )
+        db.commit()
+    return flag_id
 
 
 def test_queue_lists_flag_without_exchange_text(client, db):
@@ -161,7 +169,7 @@ def test_counselor_sees_only_escalated(client, db):
     _sign_in_as(client, db, "counselor")
     transcript_id = _transcript(db)
     open_flag_id = _flag(db, transcript_id)
-    escalated_flag_id = _flag(db, transcript_id, category="escalated")
+    escalated_flag_id = _flag(db, transcript_id, escalated=True)
 
     response = client.get("/staff/flags")
     assert response.status_code == 200
@@ -563,3 +571,101 @@ def test_mark_reviewed_teacher_403(client, db):
     # Try to mark a review - should fail with 403
     response = client.post("/staff/flags/reviewed", follow_redirects=False)
     assert response.status_code == 403
+
+
+def _escalate(client, flag_id, reason="needs the counselor"):
+    return client.post(
+        f"/staff/flags/{flag_id}/escalate",
+        data={"reason": reason},
+        follow_redirects=False,
+    )
+
+
+def test_escalate_sets_escalated_and_history(client, db):
+    create_account(db, "counselor-account", "correct horse", "counselor")
+    _sign_in_as(client, db, "librarian")
+    flag_id = _flag(db, _transcript(db), category="self-harm")
+    assert "Escalate" in client.get(f"/staff/flags/{flag_id}").text
+
+    assert _escalate(client, flag_id).status_code == 303
+
+    flag = get_flag(db, flag_id)
+    assert flag.escalated_at == NOW.isoformat()
+    assert flag.escalated_by is not None
+    # The Rubric category is the Flag's, not overwritten by escalating it.
+    assert flag.category == "self-harm"
+    escalated = [
+        event for event in get_history(db, flag_id) if event.event == "escalated"
+    ]
+    assert [(event.account, event.reason) for event in escalated] == [
+        ("librarian-account", "needs the counselor")
+    ]
+    assert "<h2>Escalate</h2>" not in client.get(f"/staff/flags/{flag_id}").text
+    assert _escalate(client, flag_id).status_code == 409
+
+
+def test_escalated_flag_is_what_the_counselor_sees(client, db):
+    create_account(db, "counselor-account", "correct horse", "counselor")
+    _sign_in_as(client, db, "librarian")
+    flag_id = _flag(db, _transcript(db))
+    _escalate(client, flag_id)
+    response = client.post(
+        "/staff/login",
+        data={"username": "counselor-account", "password": "correct horse"},
+        follow_redirects=False,
+    )
+    client.cookies.set(STAFF_SESSION_COOKIE, response.cookies[STAFF_SESSION_COOKIE])
+    assert client.get(f"/staff/flags/{flag_id}").status_code == 200
+
+
+def test_escalate_absent_without_counselor(client, db):
+    _sign_in_as(client, db, "librarian")
+    flag_id = _flag(db, _transcript(db))
+
+    response = client.get(f"/staff/flags/{flag_id}")
+    assert response.status_code == 200
+    assert "Escalate" not in response.text
+    assert _escalate(client, flag_id).status_code == 409
+    assert get_flag(db, flag_id).escalated_at is None
+
+
+def test_escalate_requires_reason(client, db):
+    create_account(db, "counselor-account", "correct horse", "counselor")
+    _sign_in_as(client, db, "librarian")
+    flag_id = _flag(db, _transcript(db))
+
+    assert _escalate(client, flag_id, reason="").status_code == 400
+    assert _escalate(client, flag_id, reason="   ").status_code == 400
+    assert get_flag(db, flag_id).escalated_at is None
+
+
+def test_escalate_is_librarian_only(client, db):
+    create_account(db, "counselor-account", "correct horse", "counselor")
+    _sign_in_as(client, db, "teacher")
+    flag_id = _flag(db, _transcript(db))
+    assert _escalate(client, flag_id).status_code == 403
+
+
+def test_older_database_gains_escalation(tmp_path):
+    """An Install's database from before escalation keeps its history and can escalate."""
+    path = tmp_path / "old.db"
+    old = sqlite3.connect(path)
+    old.execute(
+        "CREATE TABLE flag_history (id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "flag_id INTEGER NOT NULL, event TEXT NOT NULL CHECK (event IN "
+        "('raised', 'viewed', 'closed', 'reopened', 'repeated')), at TEXT NOT NULL, "
+        "account TEXT, reason TEXT, outcome TEXT, source TEXT, entry_id TEXT, "
+        "watchlist_version TEXT, repeat_count INTEGER)"
+    )
+    old.execute(
+        "INSERT INTO flag_history (flag_id, event, at) VALUES (1, 'raised', 't')"
+    )
+    old.commit()
+    old.close()
+
+    db = connect(str(path))
+    columns = {row[1] for row in db.execute("PRAGMA table_info(flags)")}
+    assert {"escalated_at", "escalated_by"} <= columns
+    assert [event.event for event in get_history(db, 1)] == ["raised"]
+    append_event(db, 1, "escalated", at="t2", account="librarian", reason="r")
+    assert [event.event for event in get_history(db, 1)] == ["raised", "escalated"]
