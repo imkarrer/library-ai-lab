@@ -36,7 +36,14 @@ from library_assistant.flags import (
 )
 from library_assistant.holds import active_hold_count
 from library_assistant.purge import next_purge_at
-from library_assistant.staff import LibrarianDep, StaffDep, StandInDep, page
+from library_assistant.staff import (
+    LibrarianDep,
+    StaffAccount,
+    StaffDep,
+    StandInDep,
+    page,
+    require_role,
+)
 
 router = APIRouter(prefix="/staff")
 
@@ -428,3 +435,167 @@ def escalate_flag_route(
         raise HTTPException(status_code=400, detail="reason required")
     escalate_flag(db, flag_id, clock.isoformat(), account.id, account.username, reason)
     return RedirectResponse(f"/staff/flags/{flag_id}", status_code=303)
+
+
+@router.get("/staff/counselor")
+def counselor_flag_queue(
+    account: Annotated[StaffAccount, Depends(require_role("counselor"))],
+    db: sqlite3.Connection = Depends(get_db),
+    clock: datetime = Depends(get_clock),
+    settings: Settings = Depends(get_settings),
+) -> HTMLResponse:
+    """Counselor-only: show only Escalated Flags, each with Class label, Card number,
+    Registered by (the lookup lib-90j.2 adds), category, severity and raised_at,
+    linking to GET /staff/counselor/flags/{id}. (ADR-0004 addendum)"""
+    # Get all open flags that are escalated
+    escalated_flags = [flag for flag in open_flags(db) if flag.escalated_at is not None]
+
+    def _counselor_queue_row_html(
+        flag: FlagRow, overdue: bool, teacher: str | None
+    ) -> str:
+        return (
+            "<tr>"
+            f"<td>{html.escape(flag.raised_at)}</td>"
+            f"<td>{html.escape(flag.category)}</td>"
+            f"<td>{html.escape(flag.severity)}</td>"
+            f"<td>{html.escape(flag.source)}</td>"
+            f"<td>{html.escape(str(flag.entry_id or ''))}</td>"
+            f"<td>{html.escape(flag.class_label)}</td>"
+            f"<td>{html.escape(flag.card_number)}</td>"
+            f"<td>{html.escape(teacher or '')}</td>"
+            f"<td>{'Overdue' if overdue else ''}</td>"
+            f'<td><a href="/staff/counselor/flags/{flag.id}">View</a></td>'
+            "</tr>"
+        )
+
+    rows = "".join(
+        _counselor_queue_row_html(
+            flag,
+            is_overdue(flag, clock, settings.flags_overdue_days),
+            registering_teacher(
+                db, flag.class_label, flag.card_number, flag.batch_expires_at
+            ),
+        )
+        for flag in escalated_flags
+    )
+
+    body = (
+        "<h1>Counselor flag queue</h1>"
+        "<table><thead><tr>"
+        "<th>Raised at</th><th>Category</th><th>Severity</th><th>Source</th>"
+        "<th>Entry</th><th>Class</th><th>Card</th><th>Registered by</th>"
+        "<th></th><th></th>"
+        "</tr></thead><tbody>"
+        f"{rows}"
+        "</tbody></table>"
+    )
+    return page("Counselor flag queue", body)
+
+
+@router.get("/staff/counselor/flags/{flag_id}")
+def counselor_flag_page(
+    flag_id: int,
+    account: Annotated[StaffAccount, Depends(require_role("counselor"))],
+    db: sqlite3.Connection = Depends(get_db),
+    clock: datetime = Depends(get_clock),
+    settings: Settings = Depends(get_settings),
+) -> HTMLResponse:
+    """Counselor-only: show a Flag detail page with Cache-Control: no-store,
+    and record 'viewed' with lib-ce5.1's history function. 404 for a Flag that is not escalated."""
+    flag = get_flag(db, flag_id)
+    if flag is None:
+        raise HTTPException(status_code=404, detail="no such flag")
+    if flag.escalated_at is None:
+        raise HTTPException(status_code=404, detail="flag is not escalated")
+
+    transcript = db.execute(
+        "SELECT question, answer FROM transcripts WHERE id = ?",
+        (flag.transcript_id,),
+    ).fetchone()
+    question, answer = transcript if transcript else ("", "")
+    append_event(db, flag_id, "viewed", at=clock.isoformat(), account=account.username)
+    history_rows = "".join(
+        "<tr>"
+        f"<td>{html.escape(event.at)}</td>"
+        f"<td>{html.escape(event.event)}</td>"
+        f"<td>{html.escape(event.account or '')}</td>"
+        f"<td>{html.escape(event.outcome or '')}</td>"
+        f"<td>{html.escape(event.reason or '')}</td>"
+        "</tr>"
+        for event in get_history(db, flag_id)
+    )
+    outcome_options = "".join(
+        f'<option value="{html.escape(outcome)}">{html.escape(outcome)}</option>'
+        for outcome in OUTCOMES
+    )
+    teacher = registering_teacher(
+        db, flag.class_label, flag.card_number, flag.batch_expires_at
+    )
+    action = "reopen" if flag.closed_at is not None else "close"
+    button = "Reopen" if flag.closed_at is not None else "Close"
+    # A high-severity Flag that has not been exported needs the closer's explicit
+    # confirmation, since closing it is what lets the Purge delete its exchange.
+    needs_confirm = action == "close" and flag.severity == "high" and not flag.exported
+    confirm_notice = (
+        f"<p>Not yet exported. Next Purge: "
+        f"{html.escape(next_purge_at(clock, settings).isoformat())}</p>"
+        '<p><label><input type="checkbox" name="confirm" value="true"> '
+        "The school does not need this exchange</label></p>"
+        if needs_confirm
+        else ""
+    )
+    form = (
+        f'<form method="post" action="/staff/flags/{flag.id}/{action}">'
+        + (
+            '<p><label>Outcome <select name="outcome" required>'
+            f"{outcome_options}</select></label></p>"
+            if action == "close"
+            else ""
+        )
+        + confirm_notice
+        + '<p><label>Reason <input name="reason" required></label></p>'
+        + f"<p><button>{button}</button></p></form>"
+    )
+
+    # Only the Librarian escalates, and only when a Counselor exists (ADR-0004).
+    escalation_form = ""
+    if (
+        account.role == "librarian"
+        and flag.closed_at is None
+        and flag.escalated_at is None
+        and _counselor_exists(db)
+    ):
+        escalation_form = (
+            "<h2>Escalate</h2>"
+            f'<form method="post" action="/staff/flags/{flag.id}/escalate">'
+            '<p><label>Reason <input name="reason" required></label></p>'
+            "<p><button>Escalate</button></p></form>"
+        )
+    body = (
+        "<h1>Flag</h1>"
+        "<table><tbody>"
+        f"<tr><th>Raised at</th><td>{html.escape(flag.raised_at)}</td></tr>"
+        f"<tr><th>Category</th><td>{html.escape(flag.category)}</td></tr>"
+        f"<tr><th>Severity</th><td>{html.escape(flag.severity)}</td></tr>"
+        f"<tr><th>Source</th><td>{html.escape(flag.source)}</td></tr>"
+        f"<tr><th>Entry</th><td>{html.escape(str(flag.entry_id or ''))}</td></tr>"
+        f"<tr><th>Class</th><td>{html.escape(flag.class_label)}</td></tr>"
+        f"<tr><th>Card</th><td>{html.escape(flag.card_number)}</td></tr>"
+        f"<tr><th>Registered by</th><td>{html.escape(teacher or '')}</td></tr>"
+        f"<tr><th>Repeats</th><td>{flag.repeat_count}</td></tr>"
+        "</tbody></table>"
+        f'<p><a href="/staff/flags/{flag.id}/export">Export</a></p>'
+        f"<p><strong>Question</strong></p><p>{html.escape(question)}</p>"
+        f"<p><strong>Answer</strong></p><p>{html.escape(answer)}</p>"
+        f"{form}"
+        f"{escalation_form}"
+        "<h2>History</h2>"
+        "<table><thead><tr>"
+        "<th>At</th><th>Event</th><th>Account</th><th>Outcome</th><th>Reason</th>"
+        "</tr></thead><tbody>"
+        f"{history_rows}"
+        "</tbody></table>"
+    )
+    response = page("Flag", body)
+    response.headers["Cache-Control"] = "no-store"
+    return response
