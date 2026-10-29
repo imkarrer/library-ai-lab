@@ -7,6 +7,7 @@ the configured OpenAI-compatible endpoint (ADR-0006).
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import html
 import json
@@ -38,6 +39,7 @@ from library_assistant.dependencies import (
 )
 from library_assistant.flags import raise_or_repeat
 from library_assistant.models import AskRequest, Citation
+from library_assistant.oversight import OversightUnavailable, screen
 from library_assistant.prompt import SearchLineFilter, build_messages
 from library_assistant.routers.live import LiveBus, get_live_bus
 from library_assistant.watchlist import Watchlist, normalize
@@ -172,6 +174,10 @@ CHAT_PAGE_HTML = """<!DOCTYPE html>
 # logged or stored (ADR-0002).
 _in_flight: set[str] = set()
 
+# Oversight tasks that are running for in-flight messages.
+# These are kept in a set to maintain strong references and prevent cancellation.
+_oversight_tasks: set[asyncio.Task] = set()
+
 
 class _ReleasingStream(StreamingResponse):
     """Releases the Card's in-flight marker however the response ends, including a
@@ -286,25 +292,30 @@ def _answer(
         finally:
             _in_flight.discard(session.card_ref)
 
+    # Check Watchlist matches first
     matches = watchlist.match(request.question)
     message_hash = hashlib.sha256(normalize(request.question).encode()).hexdigest()
-    for entry in matches:
-        raise_or_repeat(
-            db,
-            transcript_id,
-            session.class_label,
-            session.card_number,
-            session.expires_at.isoformat(),
-            message_hash,
-            entry.category,
-            entry.severity,
-            "watchlist",
-            clock.isoformat(),
-            entry_id=entry.id,
-            watchlist_version=watchlist.version,
-        )
 
-    if any(entry.severity == "high" for entry in matches):
+    # Handle Watchlist matches that are high severity
+    high_severity_matches = [entry for entry in matches if entry.severity == "high"]
+    if high_severity_matches:
+        # First, raise all matches from watchlist (including high severity ones)
+        for entry in matches:
+            raise_or_repeat(
+                db,
+                transcript_id,
+                session.class_label,
+                session.card_number,
+                session.expires_at.isoformat(),
+                message_hash,
+                entry.category,
+                entry.severity,
+                "watchlist",
+                clock.isoformat(),
+                entry_id=entry.id,
+                watchlist_version=watchlist.version,
+            )
+
         # Every time, repeats included; nothing reaches the Catalog or the model.
         async def supportive():
             # Determine which category to use based on precedence order
@@ -346,6 +357,62 @@ def _answer(
             headers=NO_STORE,
             card_ref=session.card_ref,
         )
+
+    # If oversight is enabled, we need to do async screening
+    if settings.oversight_enabled:
+        # Start oversight screening task before processing the answer
+        async def _run_oversight():
+            """Run oversight screening and update the transcript with verdict."""
+            try:
+                # Create a separate client for oversight to avoid sharing the main client
+                async with httpx.AsyncClient() as oversight_client:
+                    verdict = await screen(oversight_client, settings, request.question)
+
+                    # Update the transcript with the verdict and screening info
+                    db.execute(
+                        "UPDATE transcripts SET verdict = ?, screened_at = ?, screening = ? WHERE id = ?",
+                        (
+                            json.dumps(
+                                {
+                                    "category": verdict.category,
+                                    "severity": verdict.severity,
+                                    "reason": verdict.reason,
+                                }
+                            )
+                            if verdict
+                            else None,
+                            clock.isoformat(),
+                            "oversight",
+                            transcript_id,
+                        ),
+                    )
+                    db.commit()
+
+                    # If there's a category from oversight, raise a flag
+                    if verdict.category:
+                        raise_or_repeat(
+                            db,
+                            transcript_id,
+                            session.class_label,
+                            session.card_number,
+                            session.expires_at.isoformat(),
+                            message_hash,
+                            verdict.category,
+                            verdict.severity,
+                            "oversight",
+                            clock.isoformat(),
+                            reason=verdict.reason,
+                        )
+            except OversightUnavailable:
+                # If Oversight is unavailable, we still proceed with the answer
+                pass
+            finally:
+                # Remove the task from the set when done
+                _oversight_tasks.discard(task)
+
+        # Start the oversight task
+        task = asyncio.create_task(_run_oversight())
+        _oversight_tasks.add(task)
 
     # First, we build the messages for the research prompt
     messages = build_messages(request.question)
@@ -417,6 +484,8 @@ def _answer(
             if remaining_text:
                 yield remaining_text
         finally:
+            # When oversight is enabled, we already updated the transcript in _run_oversight
+            # If oversight is disabled, we still need to complete the process normally
             finish("".join(answer_parts), shown)
 
     return _ReleasingStream(
