@@ -1,0 +1,212 @@
+"""The Alarm and Acknowledge (ADR-0010, `docs/design/watch.md`).
+
+A high-severity Flag that is not a repeat (decision lib-f24.66) sounds an Alarm on every
+open staff page: the LiveBus carries an `alarm` event to each staff stream. A low-severity
+Flag only moves the open-Flag count (`flag_count`). Acknowledge records which adult said
+"I'm on it" and when, on the Flag itself, and sends `silenced` to every stream; it never
+closes the Flag. An Escalated Flag sounds its own Alarm (`escalated`) on an open
+Counselor page, Acknowledged there separately.
+
+Binding: an Alarm carries the Flag's own fields and the registering Teacher's name
+(ADR-0002 addendum), never the Student's words (ADR-0003) and never a Student. It goes
+only to the open pages' streams, never off the Install (ADR-0006).
+
+Every function takes `publish` (a LiveBus's `publish`) and times from the caller.
+"""
+
+from __future__ import annotations
+
+import sqlite3
+from collections.abc import Callable
+from datetime import datetime
+
+from library_assistant.access import registering_teacher
+from library_assistant.flags import FlagRow, get_flag, open_flags
+from library_assistant.install_settings import (
+    ALARM_CHIME,
+    ALARM_REPEAT_SECONDS,
+    DEFAULT_ALARM_CHIME,
+    DEFAULT_ALARM_REPEAT_SECONDS,
+    DEFAULT_SUPERVISION_MODE,
+    SUPERVISION_MODE,
+    get_int_setting,
+    get_setting,
+)
+from library_assistant.watch import is_watching
+
+Publish = Callable[[str, dict], None]
+
+# LiveBus event kinds.
+ALARM = "alarm"
+ESCALATED = "escalated"
+SILENCED = "silenced"
+FLAG_COUNT = "flag_count"
+
+
+def alarm_payload(db: sqlite3.Connection, flag: FlagRow) -> dict:
+    """What an Alarm shows: the Flag's own fields, never the exchange's text."""
+    return {
+        "flag_id": flag.id,
+        "category": flag.category,
+        "severity": flag.severity,
+        "source": flag.source,
+        "class_label": flag.class_label,
+        "card_number": flag.card_number,
+        "registered_by": registering_teacher(
+            db, flag.class_label, flag.card_number, flag.batch_expires_at
+        ),
+        "raised_at": flag.raised_at,
+        "raised_unwatched": bool(flag.raised_unwatched),
+        "url": f"/staff/flags/{flag.id}",
+    }
+
+
+def escalation_payload(db: sqlite3.Connection, flag: FlagRow) -> dict:
+    """The Counselor's Alarm: the same fields, linking to the Counselor's Flag page."""
+    return {
+        **alarm_payload(db, flag),
+        "escalated_at": flag.escalated_at,
+        "url": f"/staff/counselor/flags/{flag.id}",
+    }
+
+
+def open_flag_count(db: sqlite3.Connection) -> int:
+    return db.execute("SELECT COUNT(*) FROM flags WHERE closed_at IS NULL").fetchone()[
+        0
+    ]
+
+
+def announce_flag(
+    db: sqlite3.Connection, publish: Publish, flag_id: int, is_repeat: bool
+) -> None:
+    """Tell the open staff pages about a Flag `raise_or_repeat` just returned. A repeat
+    raised no new Flag, so it sounds nothing (decision lib-f24.66); a high-severity Flag
+    sounds the Alarm; any new Flag moves the count."""
+    if is_repeat:
+        return
+    flag = get_flag(db, flag_id)
+    if flag is None:
+        return
+    if flag.severity == "high":
+        publish(ALARM, alarm_payload(db, flag))
+    publish(FLAG_COUNT, {"open": open_flag_count(db)})
+
+
+def announce_escalation(db: sqlite3.Connection, publish: Publish, flag_id: int) -> None:
+    """An Escalated Flag reaches an open Counselor page (ADR-0010)."""
+    flag = get_flag(db, flag_id)
+    if flag is not None:
+        publish(ESCALATED, escalation_payload(db, flag))
+
+
+def _acknowledge(
+    db: sqlite3.Connection,
+    publish: Publish,
+    flag_id: int,
+    account_id: int,
+    at: datetime,
+    escalation: bool,
+) -> dict:
+    """Record the first Acknowledgement (a later one changes nothing) and silence the
+    Alarm on every page."""
+    prefix = "escalation_" if escalation else ""
+    db.execute(
+        f"UPDATE flags SET {prefix}acknowledged_at = ?, {prefix}acknowledged_by = ? "
+        f"WHERE id = ? AND {prefix}acknowledged_at IS NULL",
+        (at.isoformat(), account_id, flag_id),
+    )
+    db.commit()
+    acknowledged_at, username = db.execute(
+        f"SELECT flags.{prefix}acknowledged_at, staff_accounts.username FROM flags "
+        f"LEFT JOIN staff_accounts ON staff_accounts.id = flags.{prefix}acknowledged_by "
+        "WHERE flags.id = ?",
+        (flag_id,),
+    ).fetchone()
+    silenced = {
+        "flag_id": flag_id,
+        "escalation": escalation,
+        "acknowledged_by": username,
+        "acknowledged_at": acknowledged_at,
+    }
+    publish(SILENCED, silenced)
+    return silenced
+
+
+def acknowledge_alarm(
+    db: sqlite3.Connection,
+    publish: Publish,
+    flag_id: int,
+    account_id: int,
+    at: datetime,
+) -> dict | None:
+    """The Librarian or a Stand-in Acknowledges a high-severity Flag's Alarm. None when
+    the Flag does not exist or sounds no Alarm."""
+    flag = get_flag(db, flag_id)
+    if flag is None or flag.severity != "high":
+        return None
+    return _acknowledge(db, publish, flag_id, account_id, at, escalation=False)
+
+
+def acknowledge_escalation(
+    db: sqlite3.Connection,
+    publish: Publish,
+    flag_id: int,
+    account_id: int,
+    at: datetime,
+) -> dict | None:
+    """The Counselor Acknowledges an Escalated Flag's Alarm. None when the Flag does
+    not exist or is not Escalated."""
+    flag = get_flag(db, flag_id)
+    if flag is None or flag.escalated_at is None:
+        return None
+    return _acknowledge(db, publish, flag_id, account_id, at, escalation=True)
+
+
+def acknowledgement(db: sqlite3.Connection, flag_id: int) -> tuple[str, str] | None:
+    """(account username, time) of the Alarm's Acknowledgement, or None."""
+    row = db.execute(
+        "SELECT staff_accounts.username, flags.acknowledged_at FROM flags "
+        "JOIN staff_accounts ON staff_accounts.id = flags.acknowledged_by "
+        "WHERE flags.id = ? AND flags.acknowledged_at IS NOT NULL",
+        (flag_id,),
+    ).fetchone()
+    return (row[0], row[1]) if row else None
+
+
+def _unacknowledged(db: sqlite3.Connection, column: str) -> set[int]:
+    return {
+        row[0]
+        for row in db.execute(f"SELECT id FROM flags WHERE {column} IS NULL").fetchall()
+    }
+
+
+def unacknowledged_alarms(db: sqlite3.Connection) -> list[dict]:
+    """Every open high-severity Flag nobody has Acknowledged, oldest first: what replays
+    at Start watch and on the next staff page opened."""
+    pending = _unacknowledged(db, "acknowledged_at")
+    flags = [f for f in open_flags(db) if f.severity == "high" and f.id in pending]
+    return [alarm_payload(db, flag) for flag in reversed(flags)]
+
+
+def unacknowledged_escalations(db: sqlite3.Connection) -> list[dict]:
+    """Every open Escalated Flag the Counselor has not Acknowledged, oldest first."""
+    pending = _unacknowledged(db, "escalation_acknowledged_at")
+    flags = [f for f in open_flags(db) if f.escalated_at and f.id in pending]
+    return [escalation_payload(db, flag) for flag in reversed(flags)]
+
+
+def replays_on_page_open(
+    db: sqlite3.Connection, account_id: int, now: datetime
+) -> bool:
+    """Does opening a staff page replay the unacknowledged Alarms? In periodic or off
+    mode, yes (decision lib-f24.77). In live mode they replay at Start watch, so only
+    for an account already on Watch (a reloaded watching page)."""
+    mode = get_setting(db, SUPERVISION_MODE, DEFAULT_SUPERVISION_MODE)
+    return mode != "live" or is_watching(db, account_id, now)
+
+
+def chime_settings(db: sqlite3.Connection) -> tuple[bool, int]:
+    """(chime on, repeat seconds) from the Install settings (decision lib-f24.77)."""
+    chime_on = get_setting(db, ALARM_CHIME, DEFAULT_ALARM_CHIME) == "on"
+    repeat = get_int_setting(db, ALARM_REPEAT_SECONDS, DEFAULT_ALARM_REPEAT_SECONDS)
+    return chime_on, repeat

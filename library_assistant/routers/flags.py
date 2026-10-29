@@ -22,6 +22,8 @@ from library_assistant.access import (
     registering_teacher,
     review_due_at,
 )
+from library_assistant.alarm_banner import alarm_banner
+from library_assistant.alarms import acknowledgement, announce_escalation
 from library_assistant.config import Settings, get_settings
 from library_assistant.flag_history import append_event, get_history
 from library_assistant.flags import (
@@ -36,6 +38,7 @@ from library_assistant.flags import (
 )
 from library_assistant.holds import active_hold_count
 from library_assistant.purge import next_purge_at
+from library_assistant.routers.live import LiveBus, get_live_bus
 from library_assistant.staff import (
     LibrarianDep,
     StaffAccount,
@@ -84,6 +87,12 @@ def _visible_to(account: StaffDep, flag: FlagRow) -> bool:
     if account.role == "librarian" or account.is_stand_in:
         return True
     return flag.escalated_at is not None
+
+
+def _acknowledged(db: sqlite3.Connection, flag_id: int) -> str:
+    """Who Acknowledged the Flag's Alarm and when (ADR-0010), or blank."""
+    ack = acknowledgement(db, flag_id)
+    return html.escape(f"{ack[0]} at {ack[1]}") if ack else ""
 
 
 def _counselor_exists(db: sqlite3.Connection) -> bool:
@@ -179,6 +188,7 @@ def flag_queue(
 
     body = (
         "<h1>Flag queue</h1>"
+        + alarm_banner(db, account, clock)
         + (f"<p>{header_info}</p>" if header_info else "")
         + holds_info
         + "<table><thead><tr>"
@@ -270,6 +280,7 @@ def flag_page(
         )
     body = (
         "<h1>Flag</h1>"
+        f"{alarm_banner(db, account, clock)}"
         "<table><tbody>"
         f"<tr><th>Raised at</th><td>{html.escape(flag.raised_at)}</td></tr>"
         f"<tr><th>Category</th><td>{html.escape(flag.category)}</td></tr>"
@@ -280,6 +291,8 @@ def flag_page(
         f"<tr><th>Card</th><td>{html.escape(flag.card_number)}</td></tr>"
         f"<tr><th>Registered by</th><td>{html.escape(teacher or '')}</td></tr>"
         f"<tr><th>Repeats</th><td>{flag.repeat_count}</td></tr>"
+        f"<tr><th>Raised unwatched</th><td>{'yes' if flag.raised_unwatched else ''}</td></tr>"
+        f"<tr><th>Acknowledged</th><td>{_acknowledged(db, flag.id)}</td></tr>"
         "</tbody></table>"
         f'<p><a href="/staff/flags/{flag.id}/export">Export</a></p>'
         f"<p><strong>Question</strong></p><p>{html.escape(question)}</p>"
@@ -422,8 +435,10 @@ def escalate_flag_route(
     reason: Annotated[str, Form()] = "",
     db: sqlite3.Connection = Depends(get_db),
     clock: datetime = Depends(get_clock),
+    bus: LiveBus = Depends(get_live_bus),
 ) -> RedirectResponse:
-    """Escalate a Flag to the Counselor (ADR-0004: only when a Counselor exists)."""
+    """Escalate a Flag to the Counselor (ADR-0004: only when a Counselor exists). An
+    open Counselor page hears of it at once, with no exchange text (ADR-0010)."""
     if not _counselor_exists(db):
         raise HTTPException(status_code=409, detail="no counselor account exists")
     flag = get_flag(db, flag_id)
@@ -434,6 +449,7 @@ def escalate_flag_route(
     if not reason.strip():
         raise HTTPException(status_code=400, detail="reason required")
     escalate_flag(db, flag_id, clock.isoformat(), account.id, account.username, reason)
+    announce_escalation(db, bus.publish, flag_id)
     return RedirectResponse(f"/staff/flags/{flag_id}", status_code=303)
 
 
@@ -481,6 +497,7 @@ def counselor_flag_queue(
 
     body = (
         "<h1>Counselor flag queue</h1>"
+        f"{alarm_banner(db, account, clock)}"
         "<table><thead><tr>"
         "<th>Raised at</th><th>Category</th><th>Severity</th><th>Source</th>"
         "<th>Entry</th><th>Class</th><th>Card</th><th>Registered by</th>"
@@ -573,6 +590,7 @@ def counselor_flag_page(
         )
     body = (
         "<h1>Flag</h1>"
+        f"{alarm_banner(db, account, clock)}"
         "<table><tbody>"
         f"<tr><th>Raised at</th><td>{html.escape(flag.raised_at)}</td></tr>"
         f"<tr><th>Category</th><td>{html.escape(flag.category)}</td></tr>"
@@ -583,6 +601,8 @@ def counselor_flag_page(
         f"<tr><th>Card</th><td>{html.escape(flag.card_number)}</td></tr>"
         f"<tr><th>Registered by</th><td>{html.escape(teacher or '')}</td></tr>"
         f"<tr><th>Repeats</th><td>{flag.repeat_count}</td></tr>"
+        f"<tr><th>Raised unwatched</th><td>{'yes' if flag.raised_unwatched else ''}</td></tr>"
+        f"<tr><th>Acknowledged</th><td>{_acknowledged(db, flag.id)}</td></tr>"
         "</tbody></table>"
         f'<p><a href="/staff/flags/{flag.id}/export">Export</a></p>'
         f"<p><strong>Question</strong></p><p>{html.escape(question)}</p>"

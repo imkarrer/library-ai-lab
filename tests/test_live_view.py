@@ -856,8 +856,14 @@ def test_supportive_reply_sends_no_delta_events(asking_client, bus):
     response = asking_client.post("/ask", json={"question": "a test high phrase here"})
 
     messages = _drain(queue)
-    # No model call, so nothing streams: the answer event carries the reply whole.
-    assert [kind for kind, _ in messages] == ["question", "answer"]
+    # No model call, so nothing streams: the answer event carries the reply whole. The
+    # Flag's Alarm and count (ADR-0010) come first.
+    assert [kind for kind, _ in messages] == [
+        "question",
+        "alarm",
+        "flag_count",
+        "answer",
+    ]
     assert messages[-1][1]["answer"] == response.text
 
 
