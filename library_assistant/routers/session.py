@@ -12,6 +12,7 @@ import hashlib
 import html
 import json
 import sqlite3
+from collections.abc import Awaitable, Callable
 from datetime import datetime
 
 import httpx
@@ -38,8 +39,21 @@ from library_assistant.dependencies import (
     start_exchange,
 )
 from library_assistant.flags import raise_or_repeat
+from library_assistant.install_settings import (
+    DEFAULT_OVERSIGHT_DOWN,
+    OVERSIGHT_DOWN,
+    get_setting,
+)
 from library_assistant.models import AskRequest, Citation
-from library_assistant.oversight import OversightUnavailable, screen
+from library_assistant.oversight import (
+    OversightUnavailable,
+    ScreeningState,
+    Verdict,
+    get_screening_state,
+    probe,
+    screen,
+    screening_state,
+)
 from library_assistant.prompt import SearchLineFilter, build_messages
 from library_assistant.routers.live import LiveBus, get_live_bus
 from library_assistant.watchlist import Watchlist, normalize
@@ -48,6 +62,16 @@ from library_assistant.watchlist import Watchlist, normalize
 BANNER_TEXT = "This can be wrong, check the source."
 
 ERROR_TEXT = "Something went wrong. Ask the librarian."
+
+# ADR-0010's paused wording: the assistant waits for an adult; nothing is broken.
+PAUSED_TEXT = (
+    "The Library Assistant is taking a break until the librarian is ready. "
+    "Please ask the librarian or your teacher."
+)
+
+# How long the probe waits between asking a down Oversight endpoint whether it is back,
+# and the catch-up waits while a Card awaits a verdict.
+PROBE_INTERVAL_SECONDS = 15
 
 # ADR-0011's self-harm text verbatim, {counselor} = "a school counselor". One reply for
 # every high-severity match until lib-irf.1 makes it per Rubric category. The ADR's **bold**
@@ -138,6 +162,14 @@ CHAT_PAGE_HTML = """<!DOCTYPE html>
         break;
       }}
       
+      if (response.status === 503) {{
+        const data = await response.json();
+        answer.textContent = data.detail;
+        // Paused: the question stays in the box to send again once Sessions resume.
+        questionInput.disabled = false;
+        askButton.disabled = false;
+        return;
+      }}
       if (response.status === 403) {{
         const data = await response.json();
         answer.textContent = data.detail;
@@ -177,6 +209,183 @@ _in_flight: set[str] = set()
 # Oversight tasks that are running for in-flight messages.
 # These are kept in a set to maintain strong references and prevent cancellation.
 _oversight_tasks: set[asyncio.Task] = set()
+
+# The probe-and-catch-up task while Oversight is down or catching up, and the catch-up's
+# screen call in progress, which a Card that starts awaiting a verdict cancels: live
+# Students come first (ADR-0004 addendum).
+_probe_task: asyncio.Task | None = None
+_catch_up_call: asyncio.Future | None = None
+
+
+async def _probe_wait() -> None:
+    await asyncio.sleep(PROBE_INTERVAL_SECONDS)
+
+
+def get_probe_wait() -> Callable[[], Awaitable[None]]:
+    """The wait between probes; tests override it so nothing sleeps."""
+    return _probe_wait
+
+
+def get_now() -> Callable[[], datetime]:
+    """The clock for work that outlives the request (the probe and the catch-up)."""
+    return get_clock
+
+
+def _record_verdict(
+    db: sqlite3.Connection,
+    transcript_id: int,
+    class_label: str,
+    card_number: str,
+    batch_expires_at: str,
+    message_hash: str,
+    verdict: Verdict,
+    at: datetime,
+    screening: str,
+) -> None:
+    """Store the verdict on its exchange, and raise its Flag (or a repeat) on a concern."""
+    db.execute(
+        "UPDATE transcripts SET verdict = ?, screened_at = ?, screening = ? WHERE id = ?",
+        (
+            json.dumps(
+                {
+                    "category": verdict.category,
+                    "severity": verdict.severity,
+                    "reason": verdict.reason,
+                }
+            ),
+            at.isoformat(),
+            screening,
+            transcript_id,
+        ),
+    )
+    db.commit()
+    if verdict.category:
+        raise_or_repeat(
+            db,
+            transcript_id,
+            class_label,
+            card_number,
+            batch_expires_at,
+            message_hash,
+            verdict.category,
+            verdict.severity,
+            "oversight",
+            at.isoformat(),
+            reason=verdict.reason,
+        )
+
+
+def _publish_screening(bus: LiveBus) -> None:
+    """Tell the Live view that screening went down or came back."""
+    bus.publish(
+        "screening", {"unavailable": screening_state.unavailable_since is not None}
+    )
+
+
+def _oversight_down(
+    db: sqlite3.Connection,
+    settings: Settings,
+    bus: LiveBus,
+    now: Callable[[], datetime],
+    wait: Callable[[], Awaitable[None]],
+) -> None:
+    """Note that Oversight stopped answering, and make sure the probe runs."""
+    state = screening_state
+    if state.unavailable_since is None:
+        state.unavailable_since = now()
+        oversight_down = get_setting(db, OVERSIGHT_DOWN, DEFAULT_OVERSIGHT_DOWN)
+        if oversight_down == "pause" and not state.paused:
+            state.paused = True
+            state.paused_by_setting = True
+        _publish_screening(bus)
+    global _probe_task
+    if _probe_task is None or _probe_task.done():
+        _probe_task = asyncio.create_task(
+            _probe_and_catch_up(db, settings, bus, now, wait)
+        )
+
+
+def _oversight_up(bus: LiveBus) -> None:
+    state = screening_state
+    state.unavailable_since = None
+    if state.paused_by_setting:
+        state.paused = False
+        state.paused_by_setting = False
+    _publish_screening(bus)
+
+
+def _oldest_unscreened(db: sqlite3.Connection) -> tuple | None:
+    """The oldest exchange admitted on the Watchlist alone and not yet screened, with
+    its Card's expiry for a Flag ('' once the Card is gone)."""
+    return db.execute(
+        "SELECT transcripts.id, transcripts.class_label, transcripts.card_number, "
+        "transcripts.question, COALESCE(cards.expires_at, '') "
+        "FROM transcripts "
+        "LEFT JOIN sessions ON sessions.session_hash = transcripts.session_hash "
+        "LEFT JOIN cards ON cards.token_hash = sessions.token_hash "
+        "WHERE transcripts.screening = 'watchlist_alone' "
+        "AND transcripts.screened_at IS NULL "
+        "ORDER BY transcripts.asked_at, transcripts.id LIMIT 1"
+    ).fetchone()
+
+
+async def _probe_and_catch_up(
+    db: sqlite3.Connection,
+    settings: Settings,
+    bus: LiveBus,
+    now: Callable[[], datetime],
+    wait: Callable[[], Awaitable[None]],
+) -> None:
+    """Probe until Oversight answers, then screen the exchanges admitted while it was
+    down, oldest first and one at a time, only while no Card awaits a verdict. Ends
+    when none is left; a failure on the way goes back to probing."""
+    global _catch_up_call
+    # Its own client: the Oversight endpoint is not the Answer lane's.
+    async with httpx.AsyncClient() as client:
+        while True:
+            if screening_state.unavailable_since is not None:
+                await wait()
+                if not await probe(client, settings):
+                    continue
+                _oversight_up(bus)
+            row = _oldest_unscreened(db)
+            if row is None:
+                return
+            if _oversight_tasks:
+                await wait()
+                continue
+            transcript_id, class_label, card_number, question, expires_at = row
+            call = asyncio.ensure_future(screen(client, settings, question))
+            _catch_up_call = call
+            try:
+                await asyncio.wait({call})
+            finally:
+                _catch_up_call = None
+                call.cancel()
+            if call.cancelled():
+                # A Card started awaiting a verdict: this exchange is screened later.
+                continue
+            try:
+                verdict = call.result()
+            except OversightUnavailable:
+                _oversight_down(db, settings, bus, now, wait)
+                continue
+            # No Flag on an exchange that is gone (the Purge keeps unscreened ones, so
+            # this is only a guard).
+            if db.execute(
+                "SELECT 1 FROM transcripts WHERE id = ?", (transcript_id,)
+            ).fetchone():
+                _record_verdict(
+                    db,
+                    transcript_id,
+                    class_label,
+                    card_number,
+                    expires_at,
+                    hashlib.sha256(normalize(question).encode()).hexdigest(),
+                    verdict,
+                    now(),
+                    "watchlist_alone",
+                )
 
 
 class _ReleasingStream(StreamingResponse):
@@ -223,6 +432,9 @@ async def ask(
     clock: datetime = Depends(get_clock),
     bus: LiveBus = Depends(get_live_bus),
     watchlist: Watchlist = Depends(get_watchlist),
+    state: ScreeningState = Depends(get_screening_state),
+    now: Callable[[], datetime] = Depends(get_now),
+    probe_wait: Callable[[], Awaitable[None]] = Depends(get_probe_wait),
 ) -> StreamingResponse | JSONResponse:
     """Ask a question in a Session and stream a Grounded answer with Citations.
 
@@ -236,6 +448,10 @@ async def ask(
     The Live view hears of the question, each piece of the answer as the Student is
     shown it (`delta`), and the finished answer through the LiveBus; the events carry
     the Session's row number, never its hash.
+
+    While Oversight is down the message skips it and is marked `watchlist_alone`, to be
+    screened once it is back. While Sessions are paused, a message the Watchlist does
+    not answer with a Supportive reply gets 503 and PAUSED_TEXT (ADR-0004 addendum).
     """
     card_ref = session.card_ref
     if card_ref in _in_flight:
@@ -243,7 +459,18 @@ async def ask(
     _in_flight.add(card_ref)
     try:
         return _answer(
-            request, session, http_client, settings, catalog, db, clock, bus, watchlist
+            request,
+            session,
+            http_client,
+            settings,
+            catalog,
+            db,
+            clock,
+            bus,
+            watchlist,
+            state,
+            now,
+            probe_wait,
         )
     except BaseException:
         _in_flight.discard(card_ref)
@@ -260,7 +487,13 @@ def _answer(
     clock: datetime,
     bus: LiveBus,
     watchlist: Watchlist,
+    state: ScreeningState,
+    now: Callable[[], datetime],
+    probe_wait: Callable[[], Awaitable[None]],
 ) -> StreamingResponse:
+    # Oversight down: carry on at once with the Watchlist alone (ADR-0004 addendum).
+    use_oversight = settings.oversight_enabled and state.unavailable_since is None
+    watchlist_alone = settings.oversight_enabled and not use_oversight
     transcript_id = start_exchange(db, session, request.question, clock)
     session_no = db.execute(
         "SELECT rowid FROM sessions WHERE session_hash = ?", (session.ref,)
@@ -277,9 +510,16 @@ def _answer(
         },
     )
 
-    def finish(
-        answer: str, shown: list[Citation], discard_in_flight: bool = True
-    ) -> None:
+    # The Card is released once its answer has ended and, with Oversight up, once its
+    # verdict is recorded or Oversight has failed: whichever comes last.
+    pending = {"answer": True, "verdict": use_oversight}
+
+    def settle(part: str) -> None:
+        pending[part] = False
+        if not any(pending.values()):
+            _in_flight.discard(session.card_ref)
+
+    def finish(answer: str, shown: list[Citation]) -> None:
         """Record what the Student saw, tell the Live view, and release the Card."""
         try:
             finish_exchange(db, transcript_id, answer, shown)
@@ -293,8 +533,7 @@ def _answer(
                 },
             )
         finally:
-            if discard_in_flight:
-                _in_flight.discard(session.card_ref)
+            settle("answer")
 
     def publish_delta(text: str) -> None:
         """Tell the Live view of answer text as the Student is shown it: SEARCH lines
@@ -398,18 +637,19 @@ def _answer(
                 publish_delta(remaining_text)
                 yield remaining_text
         finally:
-            # The Card stays in-flight when Oversight is enabled: _run_oversight releases
-            # it once the verdict is recorded.
-            finish(
-                "".join(answer_parts),
-                shown,
-                discard_in_flight=not settings.oversight_enabled,
-            )
+            finish("".join(answer_parts), shown)
 
     # The Oversight task starts at the same moment as the Answer request (or the
     # Supportive reply): a Supportive reply still gets screened.
     oversight_task: asyncio.Task | None = None
-    if settings.oversight_enabled:
+    if watchlist_alone:
+        # screened_at stays NULL: the catch-up screens it once Oversight is back.
+        db.execute(
+            "UPDATE transcripts SET screening = ? WHERE id = ?",
+            ("watchlist_alone", transcript_id),
+        )
+        db.commit()
+    if use_oversight:
         db.execute(
             "UPDATE transcripts SET screening = ? WHERE id = ?",
             ("oversight", transcript_id),
@@ -423,45 +663,33 @@ def _answer(
                 # Its own client: the Oversight endpoint is not the Answer lane's.
                 async with httpx.AsyncClient() as oversight_client:
                     verdict = await screen(oversight_client, settings, request.question)
-
-                    db.execute(
-                        "UPDATE transcripts SET verdict = ?, screened_at = ?, screening = ? WHERE id = ?",
-                        (
-                            json.dumps(
-                                {
-                                    "category": verdict.category,
-                                    "severity": verdict.severity,
-                                    "reason": verdict.reason,
-                                }
-                            ),
-                            clock.isoformat(),
-                            "oversight",
-                            transcript_id,
-                        ),
-                    )
-                    db.commit()
-
-                    if verdict.category:
-                        raise_or_repeat(
-                            db,
-                            transcript_id,
-                            session.class_label,
-                            session.card_number,
-                            session.expires_at.isoformat(),
-                            message_hash,
-                            verdict.category,
-                            verdict.severity,
-                            "oversight",
-                            clock.isoformat(),
-                            reason=verdict.reason,
-                        )
+                _record_verdict(
+                    db,
+                    transcript_id,
+                    session.class_label,
+                    session.card_number,
+                    session.expires_at.isoformat(),
+                    message_hash,
+                    verdict,
+                    clock,
+                    "oversight",
+                )
             except OversightUnavailable:
-                # The Watchlist already ran; the Student still gets an answer.
-                pass
+                # The Watchlist already ran. The message is released as soon as its
+                # answer ends, and screened when Oversight is back (ADR-0004 addendum).
+                db.execute(
+                    "UPDATE transcripts SET screening = ? WHERE id = ?",
+                    ("watchlist_alone", transcript_id),
+                )
+                db.commit()
+                _oversight_down(db, settings, bus, now, probe_wait)
             finally:
                 _oversight_tasks.discard(oversight_task)
-                _in_flight.discard(session.card_ref)
+                settle("verdict")
 
+        # A Card now awaits a verdict: the catch-up gives way to it.
+        if _catch_up_call is not None:
+            _catch_up_call.cancel()
         oversight_task = asyncio.create_task(_run_oversight())
         _oversight_tasks.add(oversight_task)
 
@@ -485,17 +713,32 @@ def _answer(
             try:
                 yield reply_text
             finally:
-                finish(
-                    reply_text,
-                    [],
-                    discard_in_flight=not settings.oversight_enabled,
-                )
+                finish(reply_text, [])
                 if oversight_task is not None:
                     await oversight_task
 
         return _ReleasingStream(
             supportive(),
             media_type="text/plain",
+            headers=NO_STORE,
+            card_ref=session.card_ref,
+        )
+
+    if state.paused:
+        # Paused by an adult (or by oversight_down = pause): the Watchlist ran above and
+        # a high-severity match got its Supportive reply; nothing reaches the model.
+        async def paused():
+            try:
+                yield json.dumps({"detail": PAUSED_TEXT})
+            finally:
+                finish(PAUSED_TEXT, [])
+                if oversight_task is not None:
+                    await oversight_task
+
+        return _ReleasingStream(
+            paused(),
+            status_code=503,
+            media_type="application/json",
             headers=NO_STORE,
             card_ref=session.card_ref,
         )

@@ -4,6 +4,10 @@ Binding: ADR-0004, and the request/verdict contract decided in lib-f24.28. `scre
 only thing that talks to the Oversight endpoint; it retries once on an unparseable reply or
 an unknown category, and raises `OversightUnavailable` for a connection error, a timeout, or
 two bad replies in a row so the caller can fall back to the Watchlist alone.
+
+While Oversight is down (ADR-0004 addendum, "Oversight down does not hold Students") the
+module-level `screening_state` says since when, and whether an adult paused Sessions over
+it; `probe` asks the endpoint whether it is back.
 """
 
 from __future__ import annotations
@@ -14,6 +18,7 @@ import logging
 import os
 import re
 from dataclasses import dataclass
+from datetime import datetime
 from typing import IO
 
 import httpx
@@ -41,6 +46,46 @@ class Verdict:
 
 class OversightUnavailable(Exception):
     """The Oversight endpoint gave no usable verdict for this message."""
+
+
+# A fixed message, never a Student's words: the probe only asks whether a verdict comes back.
+PROBE_TEXT = "Is there a library book about clouds?"
+
+
+@dataclass
+class ScreeningState:
+    """Whether Oversight is answering, and whether Sessions are paused.
+
+    Process memory only (one process, ADR-0008): nothing here is stored or logged.
+    `paused_by_setting` marks a pause the Install made itself (`oversight_down = pause`,
+    decision lib-f24.77), which lifts when Oversight answers again; a pause an adult
+    chose lifts only when an adult resumes.
+    """
+
+    unavailable_since: datetime | None = None
+    paused: bool = False
+    paused_by_setting: bool = False
+
+    def reset(self) -> None:
+        self.unavailable_since = None
+        self.paused = False
+        self.paused_by_setting = False
+
+
+screening_state = ScreeningState()
+
+
+def get_screening_state() -> ScreeningState:
+    return screening_state
+
+
+async def probe(client: httpx.AsyncClient, settings) -> bool:
+    """True when the Oversight endpoint gives a verdict again."""
+    try:
+        await screen(client, settings, PROBE_TEXT)
+    except OversightUnavailable:
+        return False
+    return True
 
 
 def acquire_oversight_lock(db_path: str) -> IO | None:
