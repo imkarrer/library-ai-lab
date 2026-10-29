@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
 from library_assistant.access import get_clock, get_db
+from library_assistant.alarms import unacknowledged_alarms
 from library_assistant.staff import StaffDep, StandInDep
 from library_assistant.watch import end_watch, heartbeat, start_watch
 
@@ -33,9 +34,13 @@ def start_watch_route(
     db: sqlite3.Connection = Depends(get_db),
     clock: datetime = Depends(get_clock),
 ) -> JSONResponse:
-    """The Librarian or a Stand-in goes on Watch; anyone else gets 403."""
+    """The Librarian or a Stand-in goes on Watch; anyone else gets 403. The answer
+    carries every unacknowledged high-severity Alarm, which the page sounds before
+    anything else (ADR-0010, "Replay")."""
     start_watch(db, account.id, clock)
-    return _watching(True)
+    return JSONResponse(
+        {"watching": True, "alarms": unacknowledged_alarms(db)}, headers=NO_STORE
+    )
 
 
 @router.post("/heartbeat")

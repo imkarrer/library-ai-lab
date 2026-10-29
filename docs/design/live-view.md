@@ -64,7 +64,7 @@ sequenceDiagram
     end
     A->>Bus: answer {session n, final answer, Citations}
     Bus-->>LV: event: answer, replaces the streamed text
-    Note over A,LV: a `ping` event every 20 s keeps the stream open,<br/>and the page answers each with a Watch heartbeat (lib-793.2).<br/>The Alarm (lib-ppv.1) rides this stream later
+    Note over A,LV: a `ping` event every 20 s keeps the stream open,<br/>and the page answers each with a Watch heartbeat (lib-793.2).<br/>The Alarm rides this stream too: alarm, silenced, flag_count (lib-ppv.1)
 ```
 
 A high-severity Flag on a watching page raises the Alarm banner without any words

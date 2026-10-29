@@ -223,7 +223,11 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
             exported INTEGER NOT NULL DEFAULT 0,
             escalated_at TEXT,
             escalated_by INTEGER,
-            raised_unwatched INTEGER NOT NULL DEFAULT 0
+            raised_unwatched INTEGER NOT NULL DEFAULT 0,
+            acknowledged_at TEXT,
+            acknowledged_by INTEGER,
+            escalation_acknowledged_at TEXT,
+            escalation_acknowledged_by INTEGER
         )
         """
     )
@@ -303,6 +307,14 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
     # An older flags table predates the gate; its Flags read as raised while watched.
     _add_missing_columns(
         conn, "flags", ("raised_unwatched",), "INTEGER NOT NULL DEFAULT 0"
+    )
+    # An older flags table predates the Alarm (ADR-0010): who Acknowledged it and when,
+    # and the same for the Counselor's Alarm on an Escalated Flag. Staff data only.
+    _add_missing_columns(
+        conn, "flags", ("acknowledged_by", "escalation_acknowledged_by")
+    )
+    _add_missing_columns(
+        conn, "flags", ("acknowledged_at", "escalation_acknowledged_at"), "TEXT"
     )
     # An older staff_accounts table predates deactivation; its accounts stay active.
     _add_missing_columns(

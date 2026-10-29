@@ -81,7 +81,7 @@ def test_no_watch_until_start(db, librarian):
     response = librarian.post("/staff/watch/start")
 
     assert response.status_code == 200
-    assert response.json() == {"watching": True}
+    assert response.json() == {"watching": True, "alarms": []}
     assert response.headers["cache-control"] == "no-store"
     assert watch_is_on(db, NOW)
 
