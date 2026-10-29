@@ -715,3 +715,43 @@ def test_older_database_gains_escalation(tmp_path):
     assert [event.event for event in get_history(db, 1)] == ["raised"]
     append_event(db, 1, "escalated", at="t2", account="librarian", reason="r")
     assert [event.event for event in get_history(db, 1)] == ["raised", "escalated"]
+
+
+def test_flag_queue_has_watch_control_for_librarian(client, db):
+    """Test that the Flag queue page shows watch control for librarians."""
+    _sign_in_as(client, db, "librarian")
+    transcript_id = _transcript(db)
+    _flag(db, transcript_id)
+
+    response = client.get("/staff/flags")
+    assert response.status_code == 200
+    # Should contain the watch control HTML
+    assert 'id="watch"' in response.text
+    assert "Start watch" in response.text or "End watch" in response.text
+
+
+def test_flag_queue_script_answers_ping_with_heartbeat(client, db):
+    """Test that the Flag queue page includes script that handles ping events with heartbeat."""
+    _sign_in_as(client, db, "librarian")
+    transcript_id = _transcript(db)
+    _flag(db, transcript_id)
+
+    response = client.get("/staff/flags")
+    assert response.status_code == 200
+    # The page should contain the script that opens /staff/live/events and answers ping with heartbeat
+    assert "/staff/live/events" in response.text
+    assert "/staff/watch/heartbeat" in response.text
+    assert "EventSource" in response.text
+    assert 'addEventListener("ping"' in response.text
+
+
+def test_flag_queue_no_watch_control_for_counselor(client, db):
+    """Test that the Flag queue page does not show watch control for counselors."""
+    _sign_in_as(client, db, "counselor")
+    transcript_id = _transcript(db)
+    _flag(db, transcript_id, escalated=True)
+
+    response = client.get("/staff/flags")
+    assert response.status_code == 200
+    # Should NOT contain the watch control HTML
+    assert 'id="watch"' not in response.text
