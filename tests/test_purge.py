@@ -990,46 +990,44 @@ def test_loop_runs_once_each_day(monkeypatch):
 
 
 def test_lifespan_reads_install_settings(monkeypatch):
-    """Test that the lifespan reads the install settings from the environment."""
-    # Set up a non-default timezone
-    import os
+    """Startup's catch-up Purge reads the Install's timezone from the environment
+    (lib-f24.86), not the Settings dataclass default (America/Chicago).
 
-    os.environ["LIBRARY_ASSISTANT_SCHOOL_TIMEZONE"] = "America/Denver"
-
-    # Create a mock database and settings
-    from library_assistant.access import connect
+    At 2036-10-28T21:00Z, the school day end (15:30 local) has already passed in
+    America/Chicago (20:30Z) but not yet in America/Denver (21:30Z). A transcript
+    asked at 2036-10-28T00:00Z is past the Chicago cutoff (would be deleted) but not
+    past the Denver one (stays) -- so which one survives proves which zone was used.
+    """
+    import library_assistant.app as app_module
+    from library_assistant.access import connect, get_clock, hash_token
     from library_assistant.app import app
 
-    # Mock the database connection
-    mock_db = connect(":memory:")
+    monkeypatch.setenv("LIBRARY_ASSISTANT_SCHOOL_TIMEZONE", "America/Denver")
 
-    # Set up the lifespan test
-    import asyncio
+    db = connect(":memory:")
+    db.execute(
+        "INSERT INTO transcripts (session_hash, class_label, card_number, question, "
+        "answer, citations, asked_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (
+            hash_token("session-1"),
+            "Period 3",
+            "14",
+            "what do snow leopards eat?",
+            "an answer",
+            "[]",
+            datetime(2036, 10, 28, 0, 0, tzinfo=UTC).isoformat(),
+        ),
+    )
+    db.commit()
 
-    # Monkey patch the connect function to return our mock db
-    import library_assistant.app as app_module
-    from library_assistant.app import lifespan
-
-    original_connect = app_module.connect
-    app_module.connect = lambda: mock_db
-
+    monkeypatch.setattr(app_module, "connect", lambda: db)
+    app.dependency_overrides[get_clock] = lambda: datetime(
+        2036, 10, 28, 21, 0, tzinfo=UTC
+    )
     try:
-        # Test the lifespan context manager
-        async def test_lifespan():
-            async with lifespan(app):
-                # Check that purge ran with the correct timezone by verifying
-                # that the purge run was recorded with the timezone
-                # The test should verify that the purge ran with the correct settings
-                # The specific check is that the settings are read from the environment
-                # rather than default values - we can verify by checking that the purge
-                # actually ran with the correct timezone context
-                pass
-
-        # Run the lifespan test
-        asyncio.run(test_lifespan())
-
-        # Clean up
-        mock_db.close()
+        with TestClient(app):
+            pass
     finally:
-        # Restore the original connect function
-        app_module.connect = original_connect
+        app.dependency_overrides.clear()
+
+    assert db.execute("SELECT COUNT(*) FROM transcripts").fetchone()[0] == 1
