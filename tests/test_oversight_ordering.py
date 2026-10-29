@@ -18,16 +18,16 @@ from library_assistant.access import (
     connect,
     get_clock,
     get_db,
-    get_registration_key,
+    issue_registration_key,
 )
 from library_assistant.app import app
 from library_assistant.catalog import Catalog, Record
 from library_assistant.config import Settings
 from library_assistant.dependencies import get_catalog, get_settings, get_watchlist
 from library_assistant.routers.session import SUPPORTIVE_REPLY, _in_flight
+from library_assistant.staff import create_account
 from library_assistant.watchlist import Entry, Watchlist
 
-REGISTRATION_KEY = "s3cret-registration-key"
 NOW = datetime(2036, 11, 3, 9, 0, tzinfo=UTC)
 EXPIRES = NOW + timedelta(hours=6)
 WAIT = 5
@@ -150,7 +150,9 @@ def lanes(monkeypatch) -> FakeLanes:
 def client(lanes):
     db = connect(":memory:")
     app.dependency_overrides[get_db] = lambda: db
-    app.dependency_overrides[get_registration_key] = lambda: REGISTRATION_KEY
+    registration_key = issue_registration_key(
+        db, create_account(db, "registering-teacher", "correct horse", "teacher"), NOW
+    )
     app.dependency_overrides[get_settings] = lambda: OVERSIGHT_SETTINGS
     app.dependency_overrides[get_catalog] = lambda: FakeCatalog()
     app.dependency_overrides[get_clock] = lambda: NOW
@@ -160,7 +162,7 @@ def client(lanes):
         response = test_client.post(
             "/batches",
             json={
-                "registration_key": REGISTRATION_KEY,
+                "registration_key": registration_key,
                 "cards": [
                     {"token": "token-14", "card_number": "14"},
                     {"token": "token-15", "card_number": "15"},

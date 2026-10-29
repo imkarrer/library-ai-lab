@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 import pytest
 from fastapi.testclient import TestClient
 
-from library_assistant.access import connect, get_clock, get_db, get_registration_key
+from library_assistant.access import connect, get_clock, get_db
 from library_assistant.app import app
 from library_assistant.install_settings import (
     SESSION_IDLE_MINUTES,
@@ -13,7 +13,6 @@ from library_assistant.install_settings import (
 from library_assistant.staff import create_account
 
 NOW = datetime(2026, 10, 26, 14, 0, tzinfo=UTC)
-REGISTRATION_KEY = "s3cret-registration-key"
 
 
 @pytest.fixture
@@ -30,7 +29,6 @@ def clock():
 def client(db, clock):
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[get_clock] = lambda: clock["now"]
-    app.dependency_overrides[get_registration_key] = lambda: REGISTRATION_KEY
     try:
         yield TestClient(app)
     finally:

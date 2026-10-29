@@ -17,13 +17,14 @@ from library_assistant.access import (
     connect,
     get_clock,
     get_db,
-    get_registration_key,
+    hash_token,
 )
 from library_assistant.app import app
 from library_assistant.catalog import Catalog, Record
 from library_assistant.config import Settings
 from library_assistant.dependencies import get_catalog, get_settings
 from library_assistant.routers.session import BANNER_TEXT, _in_flight
+from library_assistant.staff import create_account
 
 REGISTRATION_KEY = "s3cret-registration-key"
 # Far in the future on purpose: sign-in sets the cookie to expire with the Card, an
@@ -64,8 +65,17 @@ def clock():
 @pytest.fixture
 def client(settings, clock):
     db = connect(":memory:")
+    db.execute(
+        "INSERT INTO registration_keys (account_id, key_hash, rotated_at) "
+        "VALUES (?, ?, ?)",
+        (
+            create_account(db, "registering-teacher", "correct horse", "teacher"),
+            hash_token(REGISTRATION_KEY),
+            NOW.isoformat(),
+        ),
+    )
+    db.commit()
     app.dependency_overrides[get_db] = lambda: db
-    app.dependency_overrides[get_registration_key] = lambda: REGISTRATION_KEY
     app.dependency_overrides[get_settings] = lambda: settings
     app.dependency_overrides[get_catalog] = lambda: FakeCatalog()
     app.dependency_overrides[get_clock] = lambda: clock["now"]

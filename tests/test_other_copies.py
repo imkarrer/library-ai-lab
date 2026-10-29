@@ -20,7 +20,6 @@ from library_assistant.access import (
     connect,
     get_clock,
     get_db,
-    get_registration_key,
     hash_token,
 )
 from library_assistant.access_log import UNMATCHED
@@ -30,6 +29,7 @@ from library_assistant.config import Settings
 from library_assistant.dependencies import get_catalog, get_settings
 from library_assistant.flags import close_flag, raise_flag
 from library_assistant.purge import purge
+from library_assistant.staff import create_account
 
 REPO = Path(__file__).resolve().parent.parent
 REGISTRATION_KEY = "s3cret-registration-key"
@@ -101,12 +101,21 @@ def app_db(request, tmp_path):
     db_path = tmp_path / "assistant.db"
     db = connect(str(db_path))
     db.execute(f"PRAGMA journal_mode = {request.param}")
+    db.execute(
+        "INSERT INTO registration_keys (account_id, key_hash, rotated_at) "
+        "VALUES (?, ?, ?)",
+        (
+            create_account(db, "registering-teacher", "correct horse", "teacher"),
+            hash_token(REGISTRATION_KEY),
+            NOW.isoformat(),
+        ),
+    )
+    db.commit()
     clock = {"now": NOW}
     settings = Settings(
         openai_endpoint="http://model.example.com:8080", openai_model="llama3"
     )
     app.dependency_overrides[get_db] = lambda: db
-    app.dependency_overrides[get_registration_key] = lambda: REGISTRATION_KEY
     app.dependency_overrides[get_settings] = lambda: settings
     app.dependency_overrides[get_catalog] = lambda: FakeCatalog()
     app.dependency_overrides[get_clock] = lambda: clock["now"]

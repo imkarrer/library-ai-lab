@@ -13,7 +13,7 @@ from library_assistant.access import (
     connect,
     get_clock,
     get_db,
-    get_registration_key,
+    hash_token,
 )
 from library_assistant.app import app
 from library_assistant.catalog import Catalog, Record
@@ -21,6 +21,7 @@ from library_assistant.config import Settings
 from library_assistant.dependencies import get_catalog, get_settings, get_watchlist
 from library_assistant.routers.live import LiveBus, get_live_bus
 from library_assistant.routers.session import SUPPORTIVE_REPLY, _in_flight
+from library_assistant.staff import create_account
 from library_assistant.watchlist import Entry, Watchlist
 
 ADR_0011 = (
@@ -103,11 +104,20 @@ def events(monkeypatch) -> list[tuple[str, dict]]:
 @pytest.fixture
 def client(catalog, events):
     db = connect(":memory:")
+    db.execute(
+        "INSERT INTO registration_keys (account_id, key_hash, rotated_at) "
+        "VALUES (?, ?, ?)",
+        (
+            create_account(db, "registering-teacher", "correct horse", "teacher"),
+            hash_token(REGISTRATION_KEY),
+            NOW.isoformat(),
+        ),
+    )
+    db.commit()
     settings = Settings(
         openai_endpoint="http://model.example.com:8080", openai_model="llama3"
     )
     app.dependency_overrides[get_db] = lambda: db
-    app.dependency_overrides[get_registration_key] = lambda: REGISTRATION_KEY
     app.dependency_overrides[get_settings] = lambda: settings
     app.dependency_overrides[get_catalog] = lambda: catalog
     app.dependency_overrides[get_clock] = lambda: NOW

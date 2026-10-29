@@ -2,8 +2,9 @@
 
 Decision lib-f24.22: passwords are hashed with the standard library's scrypt, staff pages
 are plain HTML forms, and the `staff_session` cookie is stored only as its hash, the way a
-Student's Session is. A Student's `session` cookie never opens a staff page. Registration
-keys are not part of staff accounts (lib-90j.1).
+Student's Session is. A Student's `session` cookie never opens a staff page. Each account's
+Registration key is a separate secret (ADR-0002 addendum, lib-90j): see
+`library_assistant.access.issue_registration_key`.
 """
 
 from __future__ import annotations
@@ -22,7 +23,12 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from library_assistant.access import get_clock, get_db, get_registration_key, hash_token
+from library_assistant.access import (
+    get_clock,
+    get_db,
+    hash_token,
+    issue_registration_key,
+)
 from library_assistant.watch import end_watch
 
 STAFF_SESSION_COOKIE = "staff_session"
@@ -148,7 +154,7 @@ def current_staff(
         "staff_accounts.is_stand_in, staff_sessions.expires_at "
         "FROM staff_sessions JOIN staff_accounts "
         "ON staff_accounts.id = staff_sessions.account_id "
-        "WHERE staff_sessions.session_hash = ?",
+        "WHERE staff_sessions.session_hash = ? AND staff_accounts.is_active = 1",
         (hash_token(session_id),),
     ).fetchone()
     if row is None:
@@ -202,6 +208,30 @@ def set_stand_in(db: sqlite3.Connection, account_id: int, is_stand_in: bool) -> 
     if cursor.rowcount == 0:
         raise HTTPException(status_code=404, detail="no such account")
     db.commit()
+
+
+def deactivate_account(db: sqlite3.Connection, account_id: int) -> None:
+    """Deactivate a Teacher or Counselor account (ADR-0002 addendum).
+
+    Its Registration key is refused at once (`access.account_for_registration_key`
+    checks the flag), it can no longer sign in to staff pages, and its open staff
+    sessions and its Watch end now. Its row stays, so Batches it registered keep their reference.
+    The Librarian account is never deactivated: the Install has no other way back in.
+    """
+    row = db.execute(
+        "SELECT role FROM staff_accounts WHERE id = ?", (account_id,)
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="no such account")
+    if row[0] == "librarian":
+        raise HTTPException(
+            status_code=400, detail="the librarian account cannot be deactivated"
+        )
+    db.execute("UPDATE staff_accounts SET is_active = 0 WHERE id = ?", (account_id,))
+    db.execute("DELETE FROM staff_sessions WHERE account_id = ?", (account_id,))
+    db.commit()
+    # As at sign-out, it stops being a watcher; others keep the Watch on (ADR-0010).
+    end_watch(db, account_id)
 
 
 router = APIRouter(prefix="/staff")
@@ -277,10 +307,12 @@ def login(
     clock: datetime = Depends(get_clock),
 ) -> HTMLResponse | RedirectResponse:
     row = db.execute(
-        "SELECT id, password_hash FROM staff_accounts WHERE username = ?", (username,)
+        "SELECT id, password_hash, is_active FROM staff_accounts WHERE username = ?",
+        (username,),
     ).fetchone()
     stored = row[1] if row else _unknown_user_hash()
-    if not verify_password(password, stored) or row is None:
+    # A deactivated account gets the same answer as a wrong password, after the same work.
+    if not verify_password(password, stored) or row is None or not row[2]:
         return page(
             "Sign in",
             LOGIN_FORM.format(message="<p>Wrong username or password.</p>"),
@@ -320,9 +352,18 @@ def staff_home(account: StaffDep) -> HTMLResponse:
     )
 
 
-def _account_row_html(row: tuple[int, str, str, int]) -> str:
-    account_id, username, role, is_stand_in = row
+def _account_row_html(row: tuple[int, str, str, int, int]) -> str:
+    account_id, username, role, is_stand_in, is_active = row
     action = "revoke" if is_stand_in else "grant"
+    if not is_active:
+        deactivate = "deactivated"
+    elif role == "librarian":
+        deactivate = ""
+    else:
+        deactivate = (
+            f'<form method="post" action="/staff/accounts/{account_id}/deactivate">'
+            "<button>Deactivate</button></form>"
+        )
     return (
         "<tr>"
         f"<td>{html.escape(username)}</td>"
@@ -330,6 +371,7 @@ def _account_row_html(row: tuple[int, str, str, int]) -> str:
         f"<td>{'yes' if is_stand_in else 'no'}</td>"
         f'<td><form method="post" action="/staff/accounts/{account_id}/stand-in/{action}">'
         f"<button>{action.capitalize()} Stand-in</button></form></td>"
+        f"<td>{deactivate}</td>"
         "</tr>"
     )
 
@@ -357,12 +399,13 @@ def accounts_page(
     """Librarian-only: list accounts (never a password hash), add a Teacher or
     Counselor, and grant or revoke Stand-in (ADR-0010)."""
     rows = db.execute(
-        "SELECT id, username, role, is_stand_in FROM staff_accounts ORDER BY username"
+        "SELECT id, username, role, is_stand_in, is_active FROM staff_accounts "
+        "ORDER BY username"
     ).fetchall()
     body = (
         "<h1>Staff accounts</h1>"
         "<table><thead><tr>"
-        "<th>Username</th><th>Role</th><th>Stand-in</th><th></th>"
+        "<th>Username</th><th>Role</th><th>Stand-in</th><th></th><th></th>"
         "</tr></thead><tbody>"
         f"{''.join(_account_row_html(row) for row in rows)}"
         "</tbody></table>"
@@ -409,16 +452,88 @@ def revoke_stand_in_route(
     return RedirectResponse("/staff/accounts", status_code=303)
 
 
+@router.post("/accounts/{account_id}/deactivate", response_model=None)
+def deactivate_account_route(
+    account_id: int,
+    account: LibrarianDep,
+    db: sqlite3.Connection = Depends(get_db),
+) -> RedirectResponse:
+    """Librarian-only: deactivate a Teacher or Counselor; its key is refused at once."""
+    deactivate_account(db, account_id)
+    return RedirectResponse("/staff/accounts", status_code=303)
+
+
+def _key_row_html(row: tuple[int, str, str]) -> str:
+    account_id, username, role = row
+    return (
+        "<tr>"
+        f"<td>{html.escape(username)}</td>"
+        f"<td>{html.escape(role)}</td>"
+        f'<td><form method="post" action="/staff/accounts/{account_id}/key/rotate">'
+        "<button>Rotate key</button></form></td>"
+        "</tr>"
+    )
+
+
 @router.get("/keys")
 def keys_page(
-    account: LibrarianDep, key: str | None = Depends(get_registration_key)
+    account: LibrarianDep, db: sqlite3.Connection = Depends(get_db)
 ) -> HTMLResponse:
-    """Librarian-only: the Install's Registration key. Per-Teacher keys are lib-90j.1."""
+    """Librarian-only: every account's Registration key, rotated here (ADR-0002 addendum).
+
+    The key itself is never shown again after it is issued; this page only lists who
+    holds one and lets the Librarian rotate it.
+    """
+    rows = db.execute(
+        "SELECT id, username, role FROM staff_accounts ORDER BY username"
+    ).fetchall()
     body = (
-        "<h1>Registration key</h1>"
-        f"<p>{html.escape(key) if key else 'No registration key is set.'}</p>"
+        "<h1>Registration keys</h1>"
+        "<table><thead><tr><th>Username</th><th>Role</th><th></th></tr></thead><tbody>"
+        f"{''.join(_key_row_html(row) for row in rows)}"
+        "</tbody></table>"
+        '<form method="post" action="/staff/key/rotate">'
+        "<button>Rotate my own key</button></form>"
     )
-    return page("Registration key", body)
+    return page("Registration keys", body)
+
+
+@router.post("/accounts/{account_id}/key/rotate", response_model=None)
+def rotate_account_key_route(
+    account_id: int,
+    account: LibrarianDep,
+    db: sqlite3.Connection = Depends(get_db),
+    clock: datetime = Depends(get_clock),
+) -> HTMLResponse:
+    """Librarian-only: rotate any account's Registration key, shown once."""
+    row = db.execute(
+        "SELECT username FROM staff_accounts WHERE id = ?", (account_id,)
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="no such account")
+    key = issue_registration_key(db, account_id, clock)
+    return page(
+        "New registration key",
+        f"<h1>New Registration key for {html.escape(row[0])}</h1>"
+        "<p>Shown once; it will not be shown again.</p>"
+        f"<pre>{html.escape(key)}</pre>",
+    )
+
+
+@router.post("/key/rotate", response_model=None)
+def rotate_own_key_route(
+    account: StaffDep,
+    db: sqlite3.Connection = Depends(get_db),
+    clock: datetime = Depends(get_clock),
+) -> HTMLResponse:
+    """Any signed-in staff account rotates its own Registration key, shown once."""
+    key = issue_registration_key(db, account.id, clock)
+    return page(
+        "New registration key",
+        "<h1>Your new Registration key</h1>"
+        "<p>Shown once; it will not be shown again.</p>"
+        f"<pre>{html.escape(key)}</pre>",
+    )
 
 
 @router.get("/supportive-replies-preview")

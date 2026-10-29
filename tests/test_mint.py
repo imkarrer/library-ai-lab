@@ -10,7 +10,6 @@ from library_assistant.access import (
     connect,
     get_clock,
     get_db,
-    get_registration_key,
     hash_token,
 )
 from library_assistant.app import app
@@ -22,6 +21,7 @@ from library_assistant.mint import (
     roster_sheet_html,
 )
 from library_assistant.schoolday import school_day_end_for
+from library_assistant.staff import create_account
 from scripts.mint_batch import main, upload_payload, write_batch_files
 
 REGISTRATION_KEY = "s3cret-registration-key"
@@ -69,11 +69,19 @@ def test_registration_payload_has_no_roster_or_student_data():
 
 
 @pytest.fixture
-def client(monkeypatch):
-    monkeypatch.setenv("LIBRARY_ASSISTANT_REGISTRATION_KEY", REGISTRATION_KEY)
+def client():
     db = connect(":memory:")
+    db.execute(
+        "INSERT INTO registration_keys (account_id, key_hash, rotated_at) "
+        "VALUES (?, ?, ?)",
+        (
+            create_account(db, "registering-teacher", "correct horse", "teacher"),
+            hash_token(REGISTRATION_KEY),
+            FIXED_CLOCK.isoformat(),
+        ),
+    )
+    db.commit()
     app.dependency_overrides[get_db] = lambda: db
-    app.dependency_overrides[get_registration_key] = lambda: REGISTRATION_KEY
     app.dependency_overrides[get_clock] = lambda: FIXED_CLOCK
     try:
         yield TestClient(app), db
