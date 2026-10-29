@@ -18,6 +18,7 @@ from library_assistant.routers.flags import router as flags_router
 from library_assistant.routers.holds import router as holds_router
 from library_assistant.routers.live import router as live_router
 from library_assistant.routers.session import router as session_router
+from library_assistant.routers.watch import router as watch_router
 from library_assistant.staff import StaffSignInRequired, sign_in_required_handler
 from library_assistant.staff import router as staff_router
 
@@ -73,6 +74,7 @@ app.include_router(live_router)
 app.include_router(flags_router)
 app.include_router(holds_router)
 app.include_router(install_settings_router)
+app.include_router(watch_router)
 app.add_exception_handler(StaffSignInRequired, sign_in_required_handler)
 # The only access log: route template, status, duration (ADR-0003 addendum).
 access_log.configure()

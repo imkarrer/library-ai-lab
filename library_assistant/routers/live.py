@@ -6,7 +6,9 @@ name, a Token or its stored hash, or Roster data. See `docs/design/live-view.md`
 
 The pages stay live through the LiveBus: `/ask` publishes to it in process (ADR-0008) and
 each open Live view page holds one server-sent event stream from it. The bus keeps
-nothing: a message reaches only the streams open when it is published.
+nothing: a message reaches only the streams open when it is published. The same stream
+sends a `ping` event every 20 s, which each page answers with a Watch heartbeat
+(ADR-0010, `library_assistant.watch`).
 """
 
 from __future__ import annotations
@@ -31,6 +33,7 @@ from library_assistant.access import (
 from library_assistant.dependencies import get_catalog
 from library_assistant.models import Citation
 from library_assistant.staff import LibrarianDep, StandInDep, page
+from library_assistant.watch import is_watching
 
 LATEST_QUESTION_LIMIT = 80
 
@@ -76,7 +79,7 @@ async def _ping_wait() -> None:
 
 
 def get_ping_wait() -> Callable[[], Awaitable[None]]:
-    """The wait between `: ping` comments; tests override it so nothing sleeps."""
+    """The wait between pings; tests override it so nothing sleeps."""
     return _ping_wait
 
 
@@ -84,15 +87,21 @@ def sse_message(kind: str, data: dict) -> str:
     return f"event: {kind}\ndata: {json.dumps(data)}\n\n"
 
 
+# A named event, not an SSE comment: a page's EventSource never sees a comment, and the
+# page answers each ping with a Watch heartbeat.
+PING = sse_message("ping", {})
+
+
 async def event_stream(
     bus: LiveBus,
     queue: asyncio.Queue[Message],
     wait: Callable[[], Awaitable[None]],
 ) -> AsyncIterator[str]:
-    """One SSE event per published message, and `: ping` each time `wait` returns.
+    """One SSE event per published message, and a `ping` event each time `wait` returns.
 
-    A pending read survives a ping, so no message is lost to one. Closing the stream
-    (the page goes away) unsubscribes the queue.
+    A pending read survives a ping, so no message is lost to one, and a pending ping
+    survives a message, so a busy class does not hold back the Watch heartbeat. Closing
+    the stream (the page goes away) unsubscribes the queue.
     """
     next_message: asyncio.Future | None = None
     ping: asyncio.Future | None = None
@@ -100,17 +109,19 @@ async def event_stream(
         while True:
             if next_message is None:
                 next_message = asyncio.ensure_future(queue.get())
-            ping = asyncio.ensure_future(wait())
+            if ping is None:
+                ping = asyncio.ensure_future(wait())
             done, _ = await asyncio.wait(
                 {next_message, ping}, return_when=asyncio.FIRST_COMPLETED
             )
             if next_message in done:
-                ping.cancel()
                 kind, data = next_message.result()
                 next_message = None
                 yield sse_message(kind, data)
             else:
-                yield ": ping\n\n"
+                done_ping, ping = ping, None
+                done_ping.result()  # a failed wait ends the stream, never spins
+                yield PING
     finally:
         for task in (next_message, ping):
             if task is not None:
@@ -354,6 +365,52 @@ def session_detail(
 
 router = APIRouter(prefix="/staff")
 
+# Each ping on the stream is answered with a heartbeat. The page answers network events,
+# not its own timers, which browsers slow in background tabs (ADR-0010). A heartbeat from
+# an account that is not on Watch changes nothing.
+HEARTBEAT_SCRIPT = """  source.addEventListener("ping", () => {
+    fetch("/staff/watch/heartbeat", { method: "POST", credentials: "same-origin" })
+      .then((response) => {
+        document.dispatchEvent(
+          new CustomEvent("watch", { detail: { watching: response.ok } })
+        );
+      });
+  });"""
+
+# The overview's one control: Start watch / End watch for this account (ADR-0010). It
+# changes no Session, so the overview stays safe to leave on screen or share.
+WATCH_CONTROL = """<p id="watch"><span id="watch-status">__STATUS__</span>
+<button id="watch-toggle" type="button" data-watching="__WATCHING__">__LABEL__</button></p>
+<script>
+(() => {
+  const button = document.getElementById("watch-toggle");
+  const status = document.getElementById("watch-status");
+  const show = (watching) => {
+    button.dataset.watching = watching ? "yes" : "no";
+    button.textContent = watching ? "End watch" : "Start watch";
+    status.textContent = watching ? "You are on Watch." : "You are not on Watch.";
+  };
+  document.addEventListener("watch", (event) => show(event.detail.watching));
+  button.addEventListener("click", () => {
+    const action = button.dataset.watching === "yes" ? "end" : "start";
+    fetch("/staff/watch/" + action, { method: "POST", credentials: "same-origin" })
+      .then((response) => response.json())
+      .then((data) => show(data.watching));
+  });
+})();
+</script>"""
+
+
+def _watch_control(watching: bool) -> str:
+    return (
+        WATCH_CONTROL.replace(
+            "__STATUS__", "You are on Watch." if watching else "You are not on Watch."
+        )
+        .replace("__WATCHING__", "yes" if watching else "no")
+        .replace("__LABEL__", "End watch" if watching else "Start watch")
+    )
+
+
 # Inline on purpose: the Live view loads no external script. Text from events is set with
 # textContent, never parsed as HTML.
 OVERVIEW_SCRIPT = """<script>
@@ -378,6 +435,7 @@ OVERVIEW_SCRIPT = """<script>
     return tile;
   };
   const source = new EventSource("/staff/live/events");
+__HEARTBEAT__
   source.addEventListener("question", (event) => {
     const data = JSON.parse(event.data);
     const empty = document.getElementById("no-sessions");
@@ -394,7 +452,9 @@ OVERVIEW_SCRIPT = """<script>
     tiles.prepend(tile);
   });
 })();
-</script>""".replace("__LIMIT__", str(LATEST_QUESTION_LIMIT))
+</script>""".replace("__LIMIT__", str(LATEST_QUESTION_LIMIT)).replace(
+    "__HEARTBEAT__", HEARTBEAT_SCRIPT
+)
 
 DETAIL_SCRIPT = """<script>
 (() => {
@@ -412,6 +472,7 @@ DETAIL_SCRIPT = """<script>
   const find = (id) =>
     exchanges.querySelector('[data-transcript-id="' + Number(id) + '"]');
   const source = new EventSource("/staff/live/events");
+__HEARTBEAT__
   source.addEventListener("question", (event) => {
     const data = JSON.parse(event.data);
     if (data.session_no !== SESSION_NO || find(data.transcript_id)) return;
@@ -457,7 +518,7 @@ DETAIL_SCRIPT = """<script>
     div.append(list);
   });
 })();
-</script>"""
+</script>""".replace("__HEARTBEAT__", HEARTBEAT_SCRIPT)
 
 
 @router.get("/live")
@@ -466,15 +527,18 @@ def live_view(
     db: sqlite3.Connection = Depends(get_db),
     clock: datetime = Depends(get_clock),
 ) -> HTMLResponse:
-    """The overview: one tile per active Session, no forms or buttons, safe to leave on screen."""
+    """The overview: one tile per active Session and the Watch control, no forms; safe to
+    leave on screen."""
     tiles = active_sessions(db, clock)
     body = (
         "".join(_tile_html(tile) for tile in tiles)
         if tiles
         else '<p id="no-sessions">No active Sessions.</p>'
     )
+    watch_control = _watch_control(is_watching(db, account.id, clock))
     response = page(
-        "Live view", f'<h1>Live view</h1><div id="tiles">{body}</div>{OVERVIEW_SCRIPT}'
+        "Live view",
+        f'<h1>Live view</h1>{watch_control}<div id="tiles">{body}</div>{OVERVIEW_SCRIPT}',
     )
     response.headers["Cache-Control"] = "no-store"
     return response
@@ -482,7 +546,7 @@ def live_view(
 
 @router.get("/live/events")
 async def live_events(
-    account: LibrarianDep,
+    account: StandInDep,
     bus: LiveBus = Depends(get_live_bus),
     wait: Callable[[], Awaitable[None]] = Depends(get_ping_wait),
 ) -> StreamingResponse:

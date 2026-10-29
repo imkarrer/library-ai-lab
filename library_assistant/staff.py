@@ -23,6 +23,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from library_assistant.access import get_clock, get_db, get_registration_key, hash_token
+from library_assistant.watch import end_watch
 
 STAFF_SESSION_COOKIE = "staff_session"
 STAFF_SESSION_LIFETIME = timedelta(hours=12)
@@ -294,10 +295,15 @@ def logout(
 ) -> RedirectResponse:
     session_id = request.cookies.get(STAFF_SESSION_COOKIE)
     if session_id:
-        db.execute(
-            "DELETE FROM staff_sessions WHERE session_hash = ?",
-            (hash_token(session_id),),
-        )
+        session_hash = hash_token(session_id)
+        row = db.execute(
+            "SELECT account_id FROM staff_sessions WHERE session_hash = ?",
+            (session_hash,),
+        ).fetchone()
+        if row is not None:
+            # Signing out ends this account's Watch; other watchers keep it (ADR-0010).
+            end_watch(db, row[0])
+        db.execute("DELETE FROM staff_sessions WHERE session_hash = ?", (session_hash,))
         db.commit()
     response = RedirectResponse("/staff/login", status_code=303)
     response.delete_cookie(STAFF_SESSION_COOKIE, httponly=True, samesite="strict")

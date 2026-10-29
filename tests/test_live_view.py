@@ -175,8 +175,11 @@ def test_overview_has_no_forms(client, db):
 
     response = client.get("/staff/live")
 
+    # The one control is Start watch (ADR-0010); nothing that changes a Session.
     assert "<form" not in response.text
-    assert "<button" not in response.text
+    assert response.text.count("<button") == 1
+    assert '<button id="watch-toggle"' in response.text
+    assert "Revoke" not in response.text
 
 
 def test_page_has_no_token_or_hash(client, db):
@@ -882,7 +885,7 @@ def test_events_ping_each_time_the_wait_returns():
 
     ping, message = asyncio.run(scenario())
 
-    assert ping == ": ping\n\n"
+    assert ping == "event: ping\ndata: {}\n\n"
     assert message == 'event: question\ndata: {"session_no": 3}\n\n'
 
 
