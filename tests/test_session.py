@@ -10,6 +10,7 @@ import anyio
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+from registration_helpers import batch_cards
 
 from library_assistant.access import (
     REFUSAL_TEXT,
@@ -85,10 +86,7 @@ def client(settings, clock):
             "/batches",
             json={
                 "registration_key": REGISTRATION_KEY,
-                "cards": [
-                    {"token": "token-14", "card_number": "14"},
-                    {"token": "token-15", "card_number": "15"},
-                ],
+                "cards": batch_cards(("token-14", "14"), ("token-15", "15")),
                 "expires_at": EXPIRES.isoformat(),
                 "class_label": "Period 3",
             },
