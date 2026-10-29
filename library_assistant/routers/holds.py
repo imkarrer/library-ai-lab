@@ -124,7 +124,7 @@ def holds_page(
         "</tbody></table>"
         f"{_set_form_html()}"
     )
-    response = page("Holds", body)
+    response = page("Holds", body, account=account, db=db, now=clock)
     response.headers["Cache-Control"] = "no-store"
     return response
 

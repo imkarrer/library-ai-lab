@@ -33,7 +33,6 @@ from library_assistant.access import (
     revoke_batch_of_session,
     revoke_card_of_session,
 )
-from library_assistant.alarm_banner import alarm_banner
 from library_assistant.catalog import Catalog
 from library_assistant.config import Settings
 from library_assistant.dependencies import get_catalog, get_settings
@@ -610,8 +609,11 @@ def live_view(
     screening = _screening_html(state, settings.school_timezone)
     response = page(
         "Live view",
-        f"<h1>Live view</h1>{alarm_banner(db, account, clock)}{watch_control}"
+        f"<h1>Live view</h1>{watch_control}"
         f'{screening}<div id="tiles">{body}</div>{OVERVIEW_SCRIPT}',
+        account=account,
+        db=db,
+        now=clock,
     )
     response.headers["Cache-Control"] = "no-store"
     return response
@@ -665,7 +667,7 @@ def session_detail_view(
 
     # Build page content
     content = (
-        f"<h1>Session Detail</h1>{alarm_banner(db, account, clock)}"
+        f"<h1>Session Detail</h1>"
         f"<p><strong>Class:</strong> {html.escape(class_label)}</p>"
         f"<p><strong>Card:</strong> {html.escape(card_number)}</p>"
         f'<p><a href="/staff/live">← Back to Live view</a></p>'
@@ -683,7 +685,7 @@ def session_detail_view(
         "</form>"
     )
 
-    response = page("Session Detail", content)
+    response = page("Session Detail", content, account=account, db=db, now=clock)
     response.headers["Cache-Control"] = "no-store"
     return response
 

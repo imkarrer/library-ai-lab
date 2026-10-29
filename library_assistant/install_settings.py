@@ -13,7 +13,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from library_assistant.access import get_db
+from library_assistant.access import get_clock, get_db
 from library_assistant.staff import LibrarianDep, page
 from library_assistant.supportive_replies import (
     PRECEDENCE_ORDER,
@@ -170,7 +170,9 @@ router = APIRouter(prefix="/staff")
 
 @router.get("/settings")
 def settings_page(
-    account: LibrarianDep, db: sqlite3.Connection = Depends(get_db)
+    account: LibrarianDep,
+    db: sqlite3.Connection = Depends(get_db),
+    clock: datetime = Depends(get_clock),
 ) -> HTMLResponse:
     # Get current values
     idle_minutes = get_int_setting(db, SESSION_IDLE_MINUTES, 0)
@@ -254,6 +256,9 @@ def settings_page(
             supportive_reply_inputs=supportive_reply_inputs_str,
             recent_changes=recent_changes_html,
         ),
+        account=account,
+        db=db,
+        now=clock,
     )
 
 
@@ -276,6 +281,7 @@ def update_settings(
     supportive_reply_abuse: Annotated[str, Form()] = "",
     supportive_reply_bullying: Annotated[str, Form()] = "",
     db: sqlite3.Connection = Depends(get_db),
+    clock: datetime = Depends(get_clock),
 ) -> RedirectResponse:
     # Validate supervision_mode
     if supervision_mode not in ["live", "periodic", "off"]:
@@ -447,6 +453,9 @@ def update_settings(
                 supportive_reply_inputs=supportive_reply_inputs_str,
                 recent_changes=recent_changes_html,
             ),
+            account=account,
+            db=db,
+            now=clock,
         )
 
     # Set all settings

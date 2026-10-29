@@ -74,9 +74,24 @@ SETUP_FORM = """<h1>Create the librarian account</h1>
 </form>"""
 
 
-def page(title: str, body: str, status_code: int = 200) -> HTMLResponse:
+def page(
+    title: str,
+    body: str,
+    status_code: int = 200,
+    *,
+    account: StaffAccount | None = None,
+    db: sqlite3.Connection | None = None,
+    now: datetime | None = None,
+) -> HTMLResponse:
+    """Any staff page. Pass `account`, `db`, and `now` for a signed-in page so it
+    carries the Alarm (or, for a Counselor, the Escalation banner) from
+    `alarm_banner.alarm_banner` (decision lib-f24.77, ADR-0010)."""
+    # Imported here, not at module level: alarm_banner -> alarms -> install_settings -> staff.
+    from library_assistant.alarm_banner import alarm_banner
+
+    banner = alarm_banner(db, account, now) if account is not None else ""
     return HTMLResponse(
-        PAGE_HTML.format(title=html.escape(title), body=body),
+        PAGE_HTML.format(title=html.escape(title), body=banner + body),
         status_code=status_code,
         headers={"Cache-Control": "no-store"},
     )
@@ -356,12 +371,19 @@ async def logout(
 
 
 @router.get("")
-def staff_home(account: StaffDep) -> HTMLResponse:
+def staff_home(
+    account: StaffDep,
+    db: sqlite3.Connection = Depends(get_db),
+    clock: datetime = Depends(get_clock),
+) -> HTMLResponse:
     return page(
         "Staff",
         f"<h1>Library Assistant staff</h1>"
         f"<p>Signed in as {html.escape(account.username)} ({account.role}).</p>"
         '<form method="post" action="/staff/logout"><button>Sign out</button></form>',
+        account=account,
+        db=db,
+        now=clock,
     )
 
 
@@ -407,7 +429,9 @@ ADDABLE_ROLES = ("teacher", "counselor")
 
 @router.get("/accounts")
 def accounts_page(
-    account: LibrarianDep, db: sqlite3.Connection = Depends(get_db)
+    account: LibrarianDep,
+    db: sqlite3.Connection = Depends(get_db),
+    clock: datetime = Depends(get_clock),
 ) -> HTMLResponse:
     """Librarian-only: list accounts (never a password hash), add a Teacher or
     Counselor, and grant or revoke Stand-in (ADR-0010)."""
@@ -424,7 +448,7 @@ def accounts_page(
         "</tbody></table>"
         f"{ADD_ACCOUNT_FORM}"
     )
-    return page("Staff accounts", body)
+    return page("Staff accounts", body, account=account, db=db, now=clock)
 
 
 @router.post("/accounts", response_model=None)
@@ -490,7 +514,9 @@ def _key_row_html(row: tuple[int, str, str]) -> str:
 
 @router.get("/keys")
 def keys_page(
-    account: LibrarianDep, db: sqlite3.Connection = Depends(get_db)
+    account: LibrarianDep,
+    db: sqlite3.Connection = Depends(get_db),
+    clock: datetime = Depends(get_clock),
 ) -> HTMLResponse:
     """Librarian-only: every account's Registration key, rotated here (ADR-0002 addendum).
 
@@ -508,7 +534,7 @@ def keys_page(
         '<form method="post" action="/staff/key/rotate">'
         "<button>Rotate my own key</button></form>"
     )
-    return page("Registration keys", body)
+    return page("Registration keys", body, account=account, db=db, now=clock)
 
 
 @router.post("/accounts/{account_id}/key/rotate", response_model=None)
@@ -530,6 +556,9 @@ def rotate_account_key_route(
         f"<h1>New Registration key for {html.escape(row[0])}</h1>"
         "<p>Shown once; it will not be shown again.</p>"
         f"<pre>{html.escape(key)}</pre>",
+        account=account,
+        db=db,
+        now=clock,
     )
 
 
@@ -546,12 +575,17 @@ def rotate_own_key_route(
         "<h1>Your new Registration key</h1>"
         "<p>Shown once; it will not be shown again.</p>"
         f"<pre>{html.escape(key)}</pre>",
+        account=account,
+        db=db,
+        now=clock,
     )
 
 
 @router.get("/supportive-replies-preview")
 def supportive_replies_preview(
-    account: StaffDep, db: sqlite3.Connection = Depends(get_db)
+    account: StaffDep,
+    db: sqlite3.Connection = Depends(get_db),
+    clock: datetime = Depends(get_clock),
 ) -> HTMLResponse:
     """Staff-only: preview of all supportive replies rendered with Install overrides."""
     from library_assistant.supportive_replies import (
@@ -650,4 +684,9 @@ def supportive_replies_preview(
     """
     )
 
+    from library_assistant.alarm_banner import alarm_banner
+
+    preview_html = preview_html.replace(
+        "<body>", f"<body>\n{alarm_banner(db, account, clock)}", 1
+    )
     return HTMLResponse(preview_html, headers={"Cache-Control": "no-store"})
