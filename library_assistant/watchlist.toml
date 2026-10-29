@@ -1,27 +1,745 @@
-# Placeholder Watchlist: inert phrases that prove the loader and matcher. The real content
-# is lib-f24.15. Format: library_assistant/watchlist.py.
-version = "2026-10-28.1"
+# The starter Watchlist (ADR-0004). Format and matching: library_assistant/watchlist.py.
+#
+# This file is a STARTING POINT. Each Install's adults own their copy: a school counselor
+# reviews it before any Student uses the Install (lib-sdo), adds the euphemisms, slang and
+# misspellings Students at that school actually use, and keeps a dated record of which
+# version is in use (escalation protocol, section 10). A miss is a Watchlist bug: report it
+# to this public repo as a pattern only, never a Student's words.
+#
+# How to read it:
+# - severity "high" means an adult must see it today, and the Student gets the Supportive
+#   reply for the entry's category (ADR-0011) instead of an answer. High entries are written
+#   in the first person or with clear intent, so report research ("books about suicide
+#   prevention", "how did Hitler die", "To Kill a Mockingbird") does not raise them.
+# - severity "low" raises a silent Flag for the end-of-day read. Low entries cast wider and
+#   will catch some jokes and hyperbole; the adult reading the exchange decides.
+# - Phrases match whole words after normalize(): case, accents, repeated letters ("kiiill")
+#   and the digits/symbols 0 1 3 4 5 7 @ $ are folded already. Apostrophes become spaces,
+#   so "don't" and "dont" are different phrases and both are listed.
+# - must_match and must_not_match are checked every time the file loads: a near miss in
+#   must_not_match is a promise that it does not fire.
+version = "2026-10-29.1"
+
+# ---------------------------------------------------------------------------------------
+# self-harm
+# ---------------------------------------------------------------------------------------
 
 [[entries]]
-id = "placeholder-high"
+id = "self-harm-kill-myself"
 category = "self-harm"
 severity = "high"
-phrases = ["watchlist placeholder high"]
+phrases = [
+  "kill myself", "killing myself", "kill my self", "killing my self", "kill myslef",
+  "k1ll myself", "k i l l myself", "end my life", "ending my life", "end my own life", "take my own life",
+  "taking my own life", "i want to commit suicide", "i wanna commit suicide",
+  "i'm going to commit suicide", "im going to commit suicide", "i'm gonna commit suicide",
+  "im gonna commit suicide", "i will commit suicide", "i want to commit sucide",
+  "i wanna commit sucide", "i want to comit suicide", "i want to commit suiside",
+]
 must_match = [
-  "watchlist placeholder high",
-  "this is a W4TCHLIST Placeholder HIIIGH test",
-  "watchlist-placeholder-high!",
+  "i want to kill myself",
+  "im going to k i l l myself tonight",
+  "sometimes i think about ending my life",
+  "I'm going to kiiill my self",
+  "i want to commit sucide",
 ]
 must_not_match = [
-  "watchlist placeholder",
-  "watchlist placeholder highest",
-  "watchlist placeholder low",
+  "this homework is killing me",
+  "books about suicide prevention",
+  "how did Hitler die",
+  "why do people commit suicide, for my health report",
+  "do you have To Kill a Mockingbird",
 ]
 
 [[entries]]
-id = "placeholder-low"
+id = "self-harm-kms"
+category = "self-harm"
+severity = "high"
+phrases = [
+  "wanna kms", "want to kms", "gonna kms", "going to kms", "about to kms", "abt to kms",
+  "finna kms", "imma kms", "i'm gonna kms", "should kms", "should just kms", "i'll kms",
+  "ill kms", "i will kms", "kms rn", "kms now", "kms tonight", "kms fr", "might kms",
+  "lowkey kms", "i kms",
+]
+must_match = [
+  "this class makes me wanna kms",
+  "ngl i should just kms",
+  "imma kms fr",
+  "im about to kms rn",
+]
+must_not_match = [
+  "how many kms is a marathon",
+  "the trail is 5 kms long",
+  "what does kms stand for in science",
+]
+
+[[entries]]
+id = "self-harm-unalive"
+category = "self-harm"
+severity = "high"
+phrases = [
+  "unalive myself", "unaliving myself", "unalive my self", "want to unalive",
+  "wanna unalive", "gonna unalive", "going to unalive", "about to unalive", "should unalive",
+  "un alive myself",
+]
+must_match = [
+  "i want to unalive myself",
+  "sometimes i wanna unalive",
+  "im going to un-alive myself",
+]
+must_not_match = [
+  "what does unalive mean",
+  "why do youtubers say unalive instead of die",
+]
+
+[[entries]]
+id = "self-harm-want-to-die"
+category = "self-harm"
+severity = "high"
+phrases = [
+  "i want to die", "i wanna die", "i wan to die", "i want 2 die", "i just want to die",
+  "i just wanna die", "i really want to die", "i really wanna die", "lowkey want to die",
+  "lowkey wanna die", "i wish i was dead", "i wish i were dead", "wish i was dead",
+  "i wish i could die", "i wish i wasnt alive", "i wish i wasn't alive",
+  "i wish i was never born", "i wish i had never been born", "i should just die",
+  "i'd rather be dead", "id rather be dead", "i'd be better off dead",
+  "id be better off dead", "i'm better off dead", "im better off dead",
+  "would be better off without me", "better off if i was dead", "better off if i was gone",
+  "i want to be dead", "i wanna be dead",
+]
+must_match = [
+  "i want to die",
+  "honestly i just wanna diee",
+  "everyone would be better off without me",
+  "i wish i was never born",
+  "I w4nt t0 die",
+]
+must_not_match = [
+  "I don't want to die in the zombie book, how does it end",
+  "my character wants to die in my story",
+  "is there a book where the main character wants to be dead",
+  "how did Hitler die",
+  "Better Off Dead is an old movie, do you have it",
+]
+
+[[entries]]
+id = "self-harm-not-be-here"
+category = "self-harm"
+severity = "high"
+phrases = [
+  "don't want to be here anymore", "dont want to be here anymore",
+  "don't wanna be here anymore", "dont wanna be here anymore",
+  "don't want to be here any more", "dont want to be here any more",
+  "dont want to be here no more", "don't want to live anymore", "dont want to live anymore",
+  "dont wanna live anymore", "don't wanna live anymore", "don't want to be alive",
+  "dont want to be alive", "dont wanna be alive", "don't wanna be alive",
+  "don't want to exist", "dont want to exist", "dont wanna exist", "don't wanna exist",
+  "no reason to live", "nothing to live for", "tired of living", "tired of being alive",
+  "i want to disappear forever", "dont want to wake up", "don't want to wake up",
+  "hope i dont wake up", "hope i don't wake up",
+]
+must_match = [
+  "i dont want to be here anymore",
+  "I don't want to be alive",
+  "i have nothing to live for",
+  "im so tired of living",
+  "i hope i dont wake up tomorrow",
+]
+must_not_match = [
+  "I don't want to be here for the fire drill",
+  "I don't want to live in a big city when I grow up",
+  "a book about animals that are no longer alive",
+  "I don't want to wait for the bus",
+]
+
+[[entries]]
+id = "self-harm-suicidal"
+category = "self-harm"
+severity = "high"
+phrases = [
+  "i'm suicidal", "im suicidal", "i am suicidal", "i feel suicidal", "feeling suicidal",
+  "i've been suicidal", "ive been suicidal", "i'm sucidal", "im sucidal", "im suicidle",
+  "i have suicidal thoughts", "i've been having suicidal thoughts",
+  "ive been having suicidal thoughts", "i keep thinking about suicide",
+  "i think about suicide", "i've been thinking about suicide",
+  "ive been thinking about suicide", "thinking about killing myself",
+]
+must_match = [
+  "i think im suicidal",
+  "I've been having suicidal thoughts again",
+  "i keep thinking about suicide",
+  "ive been feeling suicidal lately",
+]
+must_not_match = [
+  "books about suicide prevention",
+  "how many teens have suicidal thoughts, for my health report",
+  "what are warning signs that a friend is suicidal",
+]
+
+[[entries]]
+id = "self-harm-cutting"
+category = "self-harm"
+severity = "high"
+phrases = [
+  "cutting myself", "cutting my self", "cut myself on purpose", "i want to cut myself",
+  "i wanna cut myself", "i cut myself again", "i started cutting", "hide my cuts",
+  "hide the cuts on my", "hiding my cuts", "hurt myself on purpose",
+  "hurting myself on purpose", "i self harm", "i've been self harming",
+  "ive been self harming", "i started self harming", "i hurt myself again",
+  "burning myself", "i burn myself", "scratch myself until i bleed",
+]
+must_match = [
+  "i've been cutting myself",
+  "how do i hide my cuts from my mom",
+  "i started self-harming last month",
+  "sometimes i hurt myself on purpose",
+]
+must_not_match = [
+  "I cut myself on the paper cutter by accident",
+  "books about self harm for a health project",
+  "I burned myself on the stove yesterday",
+]
+
+[[entries]]
+id = "self-harm-method"
+category = "self-harm"
+severity = "high"
+phrases = [
+  "hang myself", "hanging myself", "slit my wrists", "slit my wrist", "slitting my wrists",
+  "shoot myself in the head", "want to shoot myself", "gonna shoot myself",
+  "overdose on purpose", "i want to overdose", "i wanna overdose",
+  "take all my pills", "take all the pills", "swallow all the pills",
+  "pills does it take to die", "how many pills to die", "pills to kill myself",
+  "painless way to die", "painless ways to die", "easiest way to die",
+  "quickest way to die", "jump in front of a car",
+  "jump in front of a train",
+]
+must_match = [
+  "how many pills does it take to die",
+  "whats the most painless way to die",
+  "im going to take all my pills tonight",
+  "i want to hang myself",
+]
+must_not_match = [
+  "how many pills should I take for a headache",
+  "Romeo takes poison, so how did Juliet die",
+  "the picture is hanging on my wall",
+  "what is the easiest way to draw a dragon",
+]
+
+[[entries]]
+id = "self-harm-goodbye"
+category = "self-harm"
+severity = "high"
+phrases = [
+  "my suicide note", "write a suicide note", "writing a suicide note", "my goodbye letter",
+  "my last day alive", "won't be alive tomorrow", "wont be alive tomorrow",
+  "won't be alive much longer", "wont be alive much longer", "won't be around much longer",
+  "wont be around much longer", "giving away all my stuff", "this is my last goodbye",
+  "goodbye forever everyone",
+]
+must_match = [
+  "help me write my suicide note",
+  "today is my last day alive",
+  "i wont be around much longer",
+  "im giving away all my stuff",
+]
+must_not_match = [
+  "I won't be here tomorrow, I have a dentist appointment",
+  "how do I write a goodbye card for my teacher",
+  "a book about a cat who is the last one alive",
+]
+
+[[entries]]
+id = "self-harm-hopeless"
+category = "self-harm"
+severity = "low"
+phrases = [
+  "i hate my life", "i hate myself", "i hate being alive", "nobody would miss me",
+  "no one would miss me", "nobody would care if i died", "no one would care if i died",
+  "nobody would care if i was gone", "no one would care if i was gone",
+  "i'm worthless", "im worthless", "i am worthless", "i'm a burden", "im a burden",
+  "i'm such a burden", "im such a burden", "i give up on everything", "whats the point of living",
+  "what's the point of living", "what is the point of living", "i want to disappear",
+  "i wish i could disappear", "i'm so done with life", "im so done with life",
+  "done with life",
+]
+must_match = [
+  "i hate myself so much",
+  "nobody would care if i died",
+  "im such a burden on everyone",
+  "whats the point of living",
+]
+must_not_match = [
+  "is there a book about a girl who hates herself and gets better",
+  "what is the point of the story",
+  "how to make a coin disappear magic trick",
+]
+
+# ---------------------------------------------------------------------------------------
+# abuse
+# ---------------------------------------------------------------------------------------
+
+[[entries]]
+id = "abuse-hit-by-adult"
+category = "abuse"
+severity = "high"
+phrases = [
+  "my dad hits me", "my dad hit me", "my dad beats me", "my dad beat me up", "my dad beats me up", "my dad slaps me", "my dad slapped me", "my dad punches me", "my dad punched me", "my dad chokes me", "my dad choked me", "my dad hurts me", "my dad hurt me",
+  "my mom hits me", "my mom hit me", "my mom beats me", "my mom beat me up", "my mom beats me up", "my mom slaps me", "my mom slapped me", "my mom punches me", "my mom punched me", "my mom chokes me", "my mom choked me", "my mom hurts me", "my mom hurt me",
+  "my stepdad hits me", "my stepdad hit me", "my stepdad beats me", "my stepdad beat me up", "my stepdad beats me up", "my stepdad slaps me", "my stepdad slapped me", "my stepdad punches me", "my stepdad punched me", "my stepdad chokes me", "my stepdad choked me", "my stepdad hurts me", "my stepdad hurt me",
+  "my step dad hits me", "my step dad hit me", "my step dad beats me", "my step dad beat me up", "my step dad beats me up", "my step dad slaps me", "my step dad slapped me", "my step dad punches me", "my step dad punched me", "my step dad chokes me", "my step dad choked me", "my step dad hurts me", "my step dad hurt me",
+  "my stepmom hits me", "my stepmom hit me", "my stepmom beats me", "my stepmom beat me up", "my stepmom beats me up", "my stepmom slaps me", "my stepmom slapped me", "my stepmom punches me", "my stepmom punched me", "my stepmom chokes me", "my stepmom choked me", "my stepmom hurts me", "my stepmom hurt me",
+  "my step mom hits me", "my step mom hit me", "my step mom beats me", "my step mom beat me up", "my step mom beats me up", "my step mom slaps me", "my step mom slapped me", "my step mom punches me", "my step mom punched me", "my step mom chokes me", "my step mom choked me", "my step mom hurts me", "my step mom hurt me",
+  "my father hits me", "my father hit me", "my father beats me", "my father beat me up", "my father beats me up", "my father slaps me", "my father slapped me", "my father punches me", "my father punched me", "my father chokes me", "my father choked me", "my father hurts me", "my father hurt me",
+  "my mother hits me", "my mother hit me", "my mother beats me", "my mother beat me up", "my mother beats me up", "my mother slaps me", "my mother slapped me", "my mother punches me", "my mother punched me", "my mother chokes me", "my mother choked me", "my mother hurts me", "my mother hurt me",
+  "my parents hit me", "my parents beat me up", "my parents slapped me", "my parents punched me", "my parents choked me", "my parents hurt me",
+  "my mom's boyfriend hits me", "my mom's boyfriend hit me", "my mom's boyfriend beats me", "my mom's boyfriend beat me up", "my mom's boyfriend beats me up", "my mom's boyfriend slaps me", "my mom's boyfriend slapped me", "my mom's boyfriend punches me", "my mom's boyfriend punched me", "my mom's boyfriend chokes me", "my mom's boyfriend choked me", "my mom's boyfriend hurts me", "my mom's boyfriend hurt me",
+  "my moms boyfriend hits me", "my moms boyfriend hit me", "my moms boyfriend beats me", "my moms boyfriend beat me up", "my moms boyfriend beats me up", "my moms boyfriend slaps me", "my moms boyfriend slapped me", "my moms boyfriend punches me", "my moms boyfriend punched me", "my moms boyfriend chokes me", "my moms boyfriend choked me", "my moms boyfriend hurts me", "my moms boyfriend hurt me",
+  "my uncle hits me", "my uncle hit me", "my uncle beats me", "my uncle beat me up", "my uncle beats me up", "my uncle slaps me", "my uncle slapped me", "my uncle punches me", "my uncle punched me", "my uncle chokes me", "my uncle choked me", "my uncle hurts me", "my uncle hurt me",
+  "my grandpa hits me", "my grandpa hit me", "my grandpa beats me", "my grandpa beat me up", "my grandpa beats me up", "my grandpa slaps me", "my grandpa slapped me", "my grandpa punches me", "my grandpa punched me", "my grandpa chokes me", "my grandpa choked me", "my grandpa hurts me", "my grandpa hurt me",
+  "my foster mom hits me", "my foster mom hit me", "my foster mom beats me", "my foster mom beat me up", "my foster mom beats me up", "my foster mom slaps me", "my foster mom slapped me", "my foster mom punches me", "my foster mom punched me", "my foster mom chokes me", "my foster mom choked me", "my foster mom hurts me", "my foster mom hurt me",
+  "my foster dad hits me", "my foster dad hit me", "my foster dad beats me", "my foster dad beat me up", "my foster dad beats me up", "my foster dad slaps me", "my foster dad slapped me", "my foster dad punches me", "my foster dad punched me", "my foster dad chokes me", "my foster dad choked me", "my foster dad hurts me", "my foster dad hurt me",
+]
+must_match = [
+  "my dad hits me when he gets mad",
+  "my moms boyfriend choked me last night",
+  "My step-dad beats me",
+  "my parents hit me and i have bruises",
+]
+must_not_match = [
+  "my dad always beats me at chess",
+  "my mom hugged me before school",
+  "my brother hit the ball over the fence",
+  "do you have books about how to talk to my dad",
+]
+
+[[entries]]
+id = "abuse-injuries"
+category = "abuse"
+severity = "high"
+phrases = [
+  "hits me with a belt", "hit me with a belt", "hits me with his belt", "hit me with his belt",
+  "whips me", "whipped me with", "burned me with", "burns me with", "left bruises on me",
+  "gave me bruises", "gives me bruises", "bruises from my dad", "bruises from my mom",
+  "bruises from my stepdad", "hide the bruises", "hide my bruises", "threw me against the wall",
+  "throws me against the wall", "pushed me down the stairs", "pushes me down the stairs",
+]
+must_match = [
+  "he hit me with a belt again",
+  "how do i hide my bruises so nobody asks",
+  "she burned me with a cigarette",
+  "he threw me against the wall",
+]
+must_not_match = [
+  "my mom whipped up pancakes this morning",
+  "a book about how bruises heal for science class",
+  "what is a black belt in karate",
+]
+
+[[entries]]
+id = "abuse-sexual"
+category = "abuse"
+severity = "high"
+phrases = [
+  "touches me where", "touched me where", "touches me down there", "touched me down there",
+  "touch me down there", "touches my privates", "touched my privates", "touch my privates",
+  "touches my private parts", "touched my private parts", "made me touch his",
+  "makes me touch his", "made me touch her", "makes me touch her",
+  "made me take my clothes off", "makes me take my clothes off",
+  "asked me for nudes", "asks me for nudes", "asking me for nudes", "wants me to send nudes",
+  "made me send nudes", "molested me", "molests me", "raped me", "rapes me", "r4ped me",
+  "sexually abused me", "sexually abusing me", "sexually abuses me",
+  "comes into my room at night and", "touches me at night",
+]
+must_match = [
+  "my uncle touches me where i dont want",
+  "an older guy keeps asking me for nudes",
+  "he made me take my clothes off",
+  "he molested me when i was little",
+]
+must_not_match = [
+  "the ending of the book really touched me",
+  "books about sexual abuse awareness for kids",
+  "what are the private parts of a flower called",
+]
+
+[[entries]]
+id = "abuse-unsafe-at-home"
+category = "abuse"
+severity = "high"
+phrases = [
+  "scared to go home", "afraid to go home", "scared to go back home", "afraid to go back home",
+  "not safe at home", "don't feel safe at home", "dont feel safe at home", "unsafe at home",
+  "scared of my dad", "scared of my stepdad", "scared of my mom", "scared of my mom's boyfriend",
+  "scared of my moms boyfriend", "afraid of my dad", "afraid of my stepdad", "afraid of my mom",
+  "hurt me if i tell", "hurt me if i told", "hurt me if i tell anyone",
+  "said he would hurt me if", "said she would hurt me if",
+]
+must_match = [
+  "im scared to go home today",
+  "I don't feel safe at home",
+  "he said he would hurt me if i tell anyone",
+  "im really scared of my stepdad",
+]
+must_not_match = [
+  "I want to go home early, I feel sick",
+  "a book about a dog who is scared of thunder",
+  "is it safe to stay home alone at age 12",
+]
+
+[[entries]]
+id = "abuse-neglect"
+category = "abuse"
+severity = "high"
+phrases = [
+  "no food at home", "nothing to eat at home", "haven't eaten in days", "havent eaten in days",
+  "haven't eaten in two days", "havent eaten in two days", "nobody feeds me", "no one feeds me",
+  "they don't feed me", "they dont feed me", "locks me in my room", "locked me in my room",
+  "locks me in the closet", "locked me in the closet", "locks me outside", "locked me outside",
+  "left me home alone for days", "left alone for days", "kicked me out of the house",
+]
+must_match = [
+  "there is no food at home again",
+  "my mom locked me in my room all weekend",
+  "i havent eaten in 2 days",
+  "they left me home alone for days",
+]
+must_not_match = [
+  "I haven't eaten since breakfast, I'm starving",
+  "a book about a kid locked out of the library",
+  "what food did the pilgrims eat",
+]
+
+[[entries]]
+id = "abuse-secret-or-grooming"
+category = "abuse"
+severity = "low"
+phrases = [
+  "our little secret", "told me not to tell my mom", "told me not to tell my parents",
+  "told me not to tell anyone what he", "told me not to tell anyone what she",
+  "don't tell your parents about", "dont tell your parents about",
+  "a grown man online", "an adult online asked", "older guy online", "older man online",
+  "wants to meet me in person", "asked me to meet up alone", "asked me to keep it secret",
+  "send him pictures of me", "send pics of myself",
+]
+must_match = [
+  "he says its our little secret",
+  "an older guy online wants to meet me in person",
+  "he told me not to tell anyone what he did",
+]
+must_not_match = [
+  "do you have The Secret Garden",
+  "how do I keep a secret diary",
+  "can I tell my parents about the book fair",
+]
+
+[[entries]]
+id = "abuse-emotional"
+category = "abuse"
+severity = "low"
+phrases = [
+  "wishes i was never born", "wishes i wasn't born", "wishes i wasnt born",
+  "says i'm worthless", "says im worthless", "calls me worthless", "says i'm stupid and useless",
+  "says im stupid and useless", "screams at me every day", "screams at me all the time",
+  "threatens to hurt me", "threatened to hurt me", "throws things at me", "threw things at me",
+]
+must_match = [
+  "my mom says she wishes i was never born",
+  "my dad calls me worthless",
+  "my stepdad throws things at me when he is drunk",
+]
+must_not_match = [
+  "is there a book about a kid who feels worthless and finds friends",
+  "my coach screams on the sideline during games",
+  "how do you throw a frisbee",
+]
+
+# ---------------------------------------------------------------------------------------
+# bullying
+# ---------------------------------------------------------------------------------------
+
+[[entries]]
+id = "bullying-being-bullied"
 category = "bullying"
 severity = "low"
-phrases = ["watchlist placeholder low"]
-must_match = ["Watchlist placeholder low", "wätchlist plac3holder l0w"]
-must_not_match = ["watchlist placeholder", "watchlist placeholder lower"]
+phrases = [
+  "i'm being bullied", "im being bullied", "i am being bullied", "i get bullied",
+  "i got bullied", "i keep getting bullied", "they bully me", "bullies me", "bullying me",
+  "everyone bullies me", "being bullyed", "they all h8 me", "they bulli me", "picks on me", "pick on me",
+  "picking on me",
+]
+must_match = [
+  "im being bullied at school",
+  "they all h8 me",
+  "these kids keep bullying me at lunch",
+  "everyone picks on me",
+]
+must_not_match = [
+  "books about bullying for my report",
+  "what is cyberbullying",
+  "how does the main character stop the bully in Wonder",
+]
+
+[[entries]]
+id = "bullying-excluded"
+category = "bullying"
+severity = "low"
+phrases = [
+  "nobody sits with me", "no one sits with me", "nobody talks to me", "no one talks to me",
+  "i have no friends", "i don't have any friends", "i dont have any friends",
+  "i dont have friends", "i don't have friends", "everyone ignores me", "they left me out",
+  "nobody likes me", "no one likes me", "everyone hates me", "they all hate me",
+]
+must_match = [
+  "nobody sits with me at lunch",
+  "i have no friends at this school",
+  "everyone hates me",
+]
+must_not_match = [
+  "a book about a kid who has no friends and then makes one",
+  "do you have a book about a dog everyone likes",
+  "which books does everyone like",
+]
+
+[[entries]]
+id = "bullying-names-and-mocking"
+category = "bullying"
+severity = "low"
+phrases = [
+  "call me names", "calls me names", "called me names", "making fun of me", "make fun of me",
+  "makes fun of me", "made fun of me", "laugh at me", "laughs at me", "laughing at me",
+  "calls me fat", "call me fat", "called me fat", "calls me ugly", "call me ugly",
+  "called me ugly", "calls me stupid", "call me stupid", "called me a loser",
+  "call me a loser", "calls me a loser", "calling me names", "calling me fat",
+  "calling me ugly", "calling me stupid", "calling me a loser",
+]
+must_match = [
+  "the kids in my class call me names",
+  "everyone laughs at me when i talk",
+  "they keep calling me fat",
+  "they c4ll me ugly",
+]
+must_not_match = [
+  "a funny book that makes you laugh",
+  "what is the name of the book about a fat cat",
+  "why do people call it the Big Apple",
+]
+
+[[entries]]
+id = "bullying-physical"
+category = "bullying"
+severity = "low"
+phrases = [
+  "they push me", "pushed me into the lockers", "shoved me into the lockers",
+  "shoved me into a locker", "pushes me around", "push me around", "they trip me",
+  "tripped me in the hall", "jumped me after school", "they jumped me", "beat me up at school",
+  "took my lunch money", "take my lunch money", "steal my lunch", "stole my lunch",
+  "threw my backpack", "throw my stuff",
+]
+must_match = [
+  "some kids shoved me into the lockers",
+  "they jumped me after school yesterday",
+  "these 8th graders take my lunch money",
+]
+must_not_match = [
+  "how do I push myself to read more",
+  "a book about a lunch lady who is a superhero",
+  "how high can a frog jump",
+]
+
+[[entries]]
+id = "bullying-online"
+category = "bullying"
+severity = "low"
+phrases = [
+  "posting about me", "posted about me", "posted a picture of me", "posted pics of me",
+  "posted a video of me", "made a fake account of me", "fake account pretending to be me",
+  "fake account about me", "group chat about me", "spreading rumors about me",
+  "spread rumors about me", "spreading rumours about me", "leaked my pics",
+  "leaked my pictures", "screenshotted my", "kicked me out of the group chat",
+]
+must_match = [
+  "they made a group chat about me",
+  "someone made a fake account pretending to be me",
+  "she is spreading rumors about me",
+]
+must_not_match = [
+  "how do I make a group chat for my book club",
+  "what is a rumor in the story",
+  "posting a picture of the book on the library site",
+]
+
+[[entries]]
+id = "bullying-told-to-die"
+category = "bullying"
+severity = "low"
+phrases = [
+  "kys", "k y s", "kill yourself", "kill urself", "kill ur self", "go kill yourself",
+  "unalive yourself", "go die", "you should die", "told me to kill myself",
+  "told me to kys", "tell me to kill myself", "tell me to kys", "tells me to kill myself", "tells me to kys", "nobody would care if you died",
+]
+must_match = [
+  "kys",
+  "they told me to kys",
+  "everyone tells me to kill myself",
+  "go die in a hole",
+]
+must_not_match = [
+  "where are the keys to the computer cart",
+  "the sky is the limit",
+  "how did the dinosaurs die out",
+]
+
+# ---------------------------------------------------------------------------------------
+# threats-of-violence
+# ---------------------------------------------------------------------------------------
+
+[[entries]]
+id = "threats-kill-someone"
+category = "threats-of-violence"
+severity = "high"
+phrases = [
+  "i'm going to kill him", "i'm going to kill her", "i'm going to kill everyone", "i'm going to kill my teacher",
+  "im going to kill him", "im going to kill her", "im going to kill everyone", "im going to kill my teacher",
+  "i'm gonna kill him", "i'm gonna kill her", "i'm gonna kill everyone", "i'm gonna kill my teacher",
+  "im gonna kill him", "im gonna kill her", "im gonna kill everyone", "im gonna kill my teacher",
+  "i want to kill him", "i want to kill her", "i want to kill everyone", "i want to kill my teacher",
+  "i wanna kill him", "i wanna kill her", "i wanna kill everyone", "i wanna kill my teacher",
+  "i will kill him", "i will kill her", "i will kill everyone", "i will kill my teacher",
+  "i'll kill him", "i'll kill her", "i'll kill everyone", "i'll kill my teacher",
+  "imma kill him", "imma kill her", "imma kill everyone", "imma kill my teacher",
+  "i'm about to kill him", "i'm about to kill her", "i'm about to kill everyone", "i'm about to kill my teacher",
+  "im about to kill him", "im about to kill her", "im about to kill everyone", "im about to kill my teacher",
+  "i'm finna kill him", "i'm finna kill her", "i'm finna kill everyone", "i'm finna kill my teacher",
+  "im finna kill him", "im finna kill her", "im finna kill everyone", "im finna kill my teacher",
+  "kill everyone at school", "kill everyone in this school", "kill everyone in my class",
+  "kill them all tomorrow",
+]
+must_match = [
+  "im gonna kill him after school",
+  "I'm going to kill everyone",
+  "i want to kill my teacher",
+  "imma ki11 her",
+]
+must_not_match = [
+  "this homework is killing me",
+  "my mom is going to kill me if I lose this book",
+  "Do you have To Kill a Mockingbird",
+  "how did Hitler die",
+]
+
+[[entries]]
+id = "threats-school-attack"
+category = "threats-of-violence"
+severity = "high"
+phrases = [
+  "shoot up the school", "shoot up this school", "shoot up our school", "shoot up the class",
+  "shoot up the cafeteria", "shooting up the school", "shoot everyone at school",
+  "shoot everyone tomorrow",
+  "blow up the school", "blow up this school", "bomb the school", "bomb this school",
+  "there's a bomb in", "theres a bomb in", "i have a bomb", "i made a bomb",
+  "planting a bomb", "stab everyone", "i want to stab", "i wanna stab",
+  "im going to stab", "i'm going to stab", "gonna stab", "i will stab", "i'll stab",
+]
+must_match = [
+  "im going to shoot up the school",
+  "there's a bomb in the gym",
+  "i want to stab him",
+  "i'll sh00t everyone tomorrow",
+]
+must_not_match = [
+  "why do people shoot up schools, I'm writing a report on school shootings",
+  "a book about the atomic bomb for history",
+  "how do you shoot a basketball",
+  "why did Brutus stab Caesar",
+]
+
+[[entries]]
+id = "threats-weapon-to-school"
+category = "threats-of-violence"
+severity = "high"
+phrases = [
+  "i'm bringing a gun", "im bringing a gun", "i'll bring a gun", "ill bring a gun",
+  "i will bring a gun", "gonna bring a gun", "going to bring a gun", "bring my dad's gun",
+  "bring my dads gun", "bring my gun to school", "bringing my gun to school",
+  "i'm bringing a knife", "im bringing a knife", "i'll bring a knife", "ill bring a knife",
+  "i will bring a knife", "gonna bring a knife", "going to bring a knife",
+  "gun in my backpack", "knife in my backpack", "gun in my locker", "knife in my locker",
+  "gun in my bag", "knife in my bag",
+]
+must_match = [
+  "im bringing a gun tomorrow",
+  "i have a knife in my backpack",
+  "im gonna bring my dads gun",
+]
+must_not_match = [
+  "books about the history of the gun for my report",
+  "should students who bring weapons be expelled, for debate class",
+  "how do I bring a book back late",
+]
+
+[[entries]]
+id = "threats-hit-list"
+category = "threats-of-violence"
+severity = "high"
+phrases = [
+  "my hit list", "on my hit list", "my kill list", "a kill list", "list of people i want to kill",
+  "people i want to kill", "people i want to hurt", "they will all pay", "they'll all pay",
+  "theyll all pay", "make them all pay", "everyone will pay for", "they'll all be sorry",
+  "theyll all be sorry", "they will all be sorry", "you'll all be sorry", "youll all be sorry",
+]
+must_match = [
+  "hes on my hit list",
+  "i have a list of people i want to kill",
+  "theyll all pay for what they did",
+]
+must_not_match = [
+  "do you have the book Hit List",
+  "how do I make a reading list",
+  "who is going to pay for the field trip",
+]
+
+[[entries]]
+id = "threats-dont-come-tomorrow"
+category = "threats-of-violence"
+severity = "high"
+phrases = [
+  "don't come to school tomorrow", "dont come to school tomorrow", "don't come to school on",
+  "dont come to school on", "don't go to school tomorrow", "dont go to school tomorrow",
+  "something bad is going to happen at school", "something big is going to happen at school",
+  "stay away from school tomorrow",
+]
+must_match = [
+  "dont come to school tomorrow",
+  "tell my friend dont come to school on friday",
+  "something bad is going to happen at school",
+]
+must_not_match = [
+  "I don't want to come to school tomorrow",
+  "is there school tomorrow",
+  "what happened at the school in the book",
+]
+
+[[entries]]
+id = "threats-fight-or-hurt"
+category = "threats-of-violence"
+severity = "low"
+phrases = [
+  "beat him up", "beat her up", "gonna beat you up", "fight him after school",
+  "fight her after school", "jump him after school", "jump her after school",
+  "punch him in the face", "punch her in the face", "make him pay", "make her pay",
+  "make them pay", "kill them", "kill you", "hurt him", "hurt her", "i want to hurt someone",
+  "im going to hurt", "i'm going to hurt",
+]
+must_match = [
+  "im gonna beat him up at recess",
+  "i want to punch him in the face",
+  "i'll make them pay",
+  "i will kill you",
+]
+must_not_match = [
+  "how do I beat this level",
+  "what does the punch line mean",
+  "the book about the hurt bird",
+]
