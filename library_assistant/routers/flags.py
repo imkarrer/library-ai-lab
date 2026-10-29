@@ -340,6 +340,15 @@ def export_flag(
         f"Severity: {flag.severity}",
         f"Source: {flag.source}",
     ]
+    # Add the teacher who raised the flag
+    if flag.raised_by is not None:
+        staff_row = db.execute(
+            "SELECT username FROM staff_accounts WHERE id = ?", (flag.raised_by,)
+        ).fetchone()
+        if staff_row:
+            lines.append(f"Raised by: {staff_row[0]}")
+        else:
+            lines.append("Raised by: [Unknown Staff]")
     if flag.entry_id:
         lines.append(f"Matched entry: {flag.entry_id}")
     lines.append("")
