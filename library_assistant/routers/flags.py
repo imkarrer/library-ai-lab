@@ -437,7 +437,7 @@ def escalate_flag_route(
     return RedirectResponse(f"/staff/flags/{flag_id}", status_code=303)
 
 
-@router.get("/staff/counselor")
+@router.get("/counselor")
 def counselor_flag_queue(
     account: Annotated[StaffAccount, Depends(require_role("counselor"))],
     db: sqlite3.Connection = Depends(get_db),
@@ -492,7 +492,7 @@ def counselor_flag_queue(
     return page("Counselor flag queue", body)
 
 
-@router.get("/staff/counselor/flags/{flag_id}")
+@router.get("/counselor/flags/{flag_id}")
 def counselor_flag_page(
     flag_id: int,
     account: Annotated[StaffAccount, Depends(require_role("counselor"))],
