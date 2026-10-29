@@ -22,6 +22,7 @@ from library_assistant.flags import (
     OUTCOMES,
     FlagRow,
     close_flag,
+    escalate_flag,
     get_flag,
     is_overdue,
     open_flags,
@@ -29,7 +30,7 @@ from library_assistant.flags import (
 )
 from library_assistant.holds import active_hold_count
 from library_assistant.purge import next_purge_at
-from library_assistant.staff import StaffDep, StandInDep, page
+from library_assistant.staff import LibrarianDep, StaffDep, StandInDep, page
 
 router = APIRouter(prefix="/staff")
 
@@ -68,7 +69,16 @@ QueueDep = Annotated[StaffDep, Depends(_queue_access)]
 def _visible_to(account: StaffDep, flag: FlagRow) -> bool:
     if account.role == "librarian" or account.is_stand_in:
         return True
-    return flag.category == "escalated"
+    return flag.escalated_at is not None
+
+
+def _counselor_exists(db: sqlite3.Connection) -> bool:
+    return (
+        db.execute(
+            "SELECT 1 FROM staff_accounts WHERE role = 'counselor' LIMIT 1"
+        ).fetchone()
+        is not None
+    )
 
 
 def _get_settings_dict(db: sqlite3.Connection) -> dict[str, str]:
@@ -219,6 +229,21 @@ def flag_page(
         + '<p><label>Reason <input name="reason" required></label></p>'
         + f"<p><button>{button}</button></p></form>"
     )
+
+    # Only the Librarian escalates, and only when a Counselor exists (ADR-0004).
+    escalation_form = ""
+    if (
+        account.role == "librarian"
+        and flag.closed_at is None
+        and flag.escalated_at is None
+        and _counselor_exists(db)
+    ):
+        escalation_form = (
+            "<h2>Escalate</h2>"
+            f'<form method="post" action="/staff/flags/{flag.id}/escalate">'
+            '<p><label>Reason <input name="reason" required></label></p>'
+            "<p><button>Escalate</button></p></form>"
+        )
     body = (
         "<h1>Flag</h1>"
         "<table><tbody>"
@@ -235,6 +260,7 @@ def flag_page(
         f"<p><strong>Question</strong></p><p>{html.escape(question)}</p>"
         f"<p><strong>Answer</strong></p><p>{html.escape(answer)}</p>"
         f"{form}"
+        f"{escalation_form}"
         "<h2>History</h2>"
         "<table><thead><tr>"
         "<th>At</th><th>Event</th><th>Account</th><th>Outcome</th><th>Reason</th>"
@@ -296,7 +322,7 @@ def export_flag(
     # A Counselor exports only an Escalated Flag; a Teacher exports nothing
     # (ADR-0003 addendum).
     if account.role == "teacher" or (
-        account.role == "counselor" and flag.category != "escalated"
+        account.role == "counselor" and flag.escalated_at is None
     ):
         raise HTTPException(status_code=403, detail="not available to your role")
 
@@ -356,4 +382,26 @@ def reopen_flag_route(
         reopen_flag(db, flag_id, clock.isoformat(), account.username, reason)
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
+    return RedirectResponse(f"/staff/flags/{flag_id}", status_code=303)
+
+
+@router.post("/flags/{flag_id}/escalate", response_model=None)
+def escalate_flag_route(
+    flag_id: int,
+    account: LibrarianDep,
+    reason: Annotated[str, Form()] = "",
+    db: sqlite3.Connection = Depends(get_db),
+    clock: datetime = Depends(get_clock),
+) -> RedirectResponse:
+    """Escalate a Flag to the Counselor (ADR-0004: only when a Counselor exists)."""
+    if not _counselor_exists(db):
+        raise HTTPException(status_code=409, detail="no counselor account exists")
+    flag = get_flag(db, flag_id)
+    if flag is None:
+        raise HTTPException(status_code=404, detail="no such flag")
+    if flag.escalated_at is not None:
+        raise HTTPException(status_code=409, detail="flag is already escalated")
+    if not reason.strip():
+        raise HTTPException(status_code=400, detail="reason required")
+    escalate_flag(db, flag_id, clock.isoformat(), account.id, account.username, reason)
     return RedirectResponse(f"/staff/flags/{flag_id}", status_code=303)

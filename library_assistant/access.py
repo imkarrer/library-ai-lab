@@ -18,6 +18,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse
 from pydantic import BaseModel
 
 from library_assistant.config import Settings, get_settings
+from library_assistant.flag_history import EVENTS
 from library_assistant.holds import create_holds_table
 from library_assistant.schoolday import school_day_end_for
 
@@ -110,6 +111,43 @@ def _add_missing_columns(
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} INTEGER")
 
 
+FLAG_HISTORY_SQL = """
+        CREATE TABLE IF NOT EXISTS flag_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            flag_id INTEGER NOT NULL,
+            event TEXT NOT NULL CHECK (event IN ({events})),
+            at TEXT NOT NULL,
+            account TEXT,
+            reason TEXT,
+            outcome TEXT,
+            source TEXT,
+            entry_id TEXT,
+            watchlist_version TEXT,
+            repeat_count INTEGER
+        )
+        """
+
+
+def _create_flag_history(conn: sqlite3.Connection) -> None:
+    """Create flag_history, or rebuild an older one whose CHECK lacks a newer event.
+
+    SQLite cannot alter a CHECK, so the rows move to a fresh table, in order.
+    """
+    events = ", ".join(f"'{event}'" for event in EVENTS)
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'flag_history'"
+    ).fetchone()
+    if row is not None and all(f"'{event}'" in row[0] for event in EVENTS):
+        return
+    if row is not None:
+        conn.execute("ALTER TABLE flag_history RENAME TO flag_history_old")
+    conn.execute(FLAG_HISTORY_SQL.format(events=events))
+    if row is not None:
+        conn.execute("INSERT INTO flag_history SELECT * FROM flag_history_old")
+        conn.execute("DROP TABLE flag_history_old")
+    conn.commit()
+
+
 def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path, check_same_thread=False)
     # Enable secure_delete to overwrite deleted data with zeros
@@ -173,7 +211,9 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
             closed_at TEXT,
             repeat_count INTEGER NOT NULL DEFAULT 0,
             last_repeat_at TEXT,
-            exported INTEGER NOT NULL DEFAULT 0
+            exported INTEGER NOT NULL DEFAULT 0,
+            escalated_at TEXT,
+            escalated_by INTEGER
         )
         """
     )
@@ -188,25 +228,7 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
     )
     # The append-only Flag history (ADR-0003 addendum, "Flag lifecycle"). Written and
     # read only through library_assistant.flag_history.
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS flag_history (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            flag_id INTEGER NOT NULL,
-            event TEXT NOT NULL CHECK (
-                event IN ('raised', 'viewed', 'closed', 'reopened', 'repeated')
-            ),
-            at TEXT NOT NULL,
-            account TEXT,
-            reason TEXT,
-            outcome TEXT,
-            source TEXT,
-            entry_id TEXT,
-            watchlist_version TEXT,
-            repeat_count INTEGER
-        )
-        """
-    )
+    _create_flag_history(conn)
     # Staff accounts and their sessions (library_assistant.staff). As with a Student's
     # Session, only the hash of the staff session id is stored.
     conn.execute(
@@ -241,7 +263,9 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
     )
     _add_missing_columns(conn, "purge_runs", PURGE_RUN_COUNTS)
     # An older flags table predates the Export record; its Flags read as not exported.
-    _add_missing_columns(conn, "flags", ("exported",))
+    _add_missing_columns(conn, "flags", ("exported", "escalated_by"))
+    if "escalated_at" not in {r[1] for r in conn.execute("PRAGMA table_info(flags)")}:
+        conn.execute("ALTER TABLE flags ADD COLUMN escalated_at TEXT")
     # Holds (ADR-0003 addendum): a scope the Purge keeps; never a Student.
     create_holds_table(conn)
     # Install settings (library_assistant.install_settings). Only the Librarian manages
