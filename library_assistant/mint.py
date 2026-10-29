@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from library_assistant.access import hash_token
+from library_assistant.theme import theme_css
 
 PRIVACY_NOTE = (
     "This card doesn't tell the assistant your name. Adults can see what you ask."
@@ -121,10 +122,12 @@ def qr_sheet_html(
 <meta charset="utf-8">
 <title>{class_label} - Cards</title>
 <style>
-  body {{ font-family: sans-serif; }}
+{theme_css()}
   .sheet {{ display: flex; flex-wrap: wrap; gap: 0.5in; }}
-  .card {{ width: 2in; text-align: center; border: 1px solid #ccc; padding: 0.25in; }}
-  .card-number {{ font-weight: bold; margin-bottom: 0.1in; }}
+  .card {{ width: 2in; text-align: center; padding: 0.25in; background: var(--surface);
+          border: 1px solid var(--brass); border-top: 6px solid var(--green); }}
+  .card-number {{ font-family: var(--font-heading); font-weight: bold;
+                 color: var(--green-dark); margin-bottom: 0.1in; }}
   .privacy-note {{ font-size: 0.7em; margin-top: 0.1in; }}
 </style>
 </head>
@@ -162,7 +165,7 @@ def roster_sheet_html(
 <meta charset="utf-8">
 <title>{label} - Sealed Roster</title>
 <style>
-  body {{ font-family: sans-serif; }}
+{theme_css()}
   .header {{ text-align: center; margin-bottom: 1em; }}
   .class-label {{ font-size: 1.5em; font-weight: bold; }}
   .card-row {{ margin: 0.6em 0; }}

@@ -5,6 +5,11 @@ assumes no GitHub and no technical background. The source is
 [`librarian-handout.md`](librarian-handout.md), a [Marp](https://marp.app/) document styled by
 [`handout.css`](handout.css) and configured by `.marprc.yml`.
 
+Its colours and fonts come from the assistant's own palette,
+[`library_assistant/static/palette.css`](../../library_assistant/static/palette.css), which
+`.marprc.yml` registers as a Marp theme: change a colour there and the handout and the app's
+pages change together.
+
 Build the PDF from this directory (Node and a Chromium or Chrome are needed; on NixOS, point
 `CHROME_PATH` at a Chromium):
 
