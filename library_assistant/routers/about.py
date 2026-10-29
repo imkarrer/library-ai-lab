@@ -22,13 +22,8 @@ ABOUT_PAGE_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/library.css">
 <title>What happens to what I type</title>
-<style>
-  body { font-family: sans-serif; max-width: 40em; margin: 1em auto; padding: 0 1em;
-         line-height: 1.5; }
-  h2 { margin-top: 1.5em; }
-  .help { background: #eef6ff; border: 1px solid #7aa7d9; padding: 0.5em 1em; }
-</style>
 </head>
 <body>
   <h1>What happens to what I type</h1>

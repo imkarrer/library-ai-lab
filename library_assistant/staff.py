@@ -45,6 +45,8 @@ PAGE_HTML = """<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/library.css">
 <title>{title} - Library Assistant</title>
 </head>
 <body>
@@ -641,39 +643,9 @@ def supportive_replies_preview(
     <html>
     <head>
         <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="/library.css">
         <title>Supportive Replies Preview - Library Assistant</title>
-        <style>
-            body { font-family: sans-serif; max-width: 800px; margin: 2em auto; }
-            .reply-section { 
-                border: 1px solid #ccc; 
-                padding: 1em; 
-                margin-bottom: 1em; 
-                background-color: #f9f9f9;
-            }
-            .reply-title { 
-                font-weight: bold; 
-                color: #333; 
-                margin-bottom: 0.5em; 
-            }
-            .reply-content { 
-                white-space: pre-wrap; 
-                margin: 0; 
-            }
-            .print-button { 
-                background-color: #007bff; 
-                color: white; 
-                border: none; 
-                padding: 0.5em 1em; 
-                cursor: pointer; 
-                margin-bottom: 1em; 
-            }
-            .print-button:hover { 
-                background-color: #0056b3; 
-            }
-            @media print {
-                .no-print { display: none; }
-            }
-        </style>
     </head>
     <body>
         <h1>Supportive Replies Preview</h1>

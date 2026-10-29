@@ -44,6 +44,8 @@ CARD_PAGE_HTML = """<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/library.css">
 <title>Library Assistant</title>
 </head>
 <body>

@@ -1,0 +1,46 @@
+/* @theme library-palette */
+
+/*
+ * The Library Assistant's one palette: "reading room" - banker's-lamp green, warm paper,
+ * brass, and walnut. The assistant's pages (library.css, served at /library.css) and the
+ * Marp handout (docs/handout/handout.css, which imports this as a Marp theme) both read
+ * these tokens, so a colour changes in one place.
+ *
+ * Red is reserved for Alarms and Flags, and amber for "something is paused or down": no
+ * decoration uses either, so an Alarm never looks like part of the furniture.
+ *
+ * Fonts are local stacks only: an Install reaches nothing past the school intranet
+ * (ADR-0006), so no web font is fetched.
+ */
+
+:root {
+  /* paper and ink */
+  --paper: #faf6ec;
+  --surface: #fffdf8;
+  --ink: #2a2620;
+  --ink-muted: #5e574c;
+  --rule: #e3dacb;
+
+  /* library green: links, buttons, headings */
+  --green: #24533f;
+  --green-dark: #183a2c;
+  --green-tint: #e6efe8;
+
+  /* brass and walnut: rules and accents, never body text on paper */
+  --brass: #b08a3e;
+  --brass-tint: #f6eddb;
+  --walnut: #6b4a33;
+
+  /* states */
+  --alarm: #b3261e;
+  --alarm-tint: #fce9e7;
+  --caution: #7a5200;
+  --caution-tint: #fff3d6;
+  --focus: #1f5fa8;
+
+  /* type */
+  --font-body: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    sans-serif;
+  --font-heading: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia,
+    serif;
+}
