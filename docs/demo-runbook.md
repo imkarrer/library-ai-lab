@@ -360,8 +360,7 @@ from the model."* On the phone, the second part follows "Books in our library:".
 Catalog has nothing, the Student is told "The library's catalog has nothing on this yet. Ask
 the librarian."
 
-**GAP:** Citations on the Session detail page link to `/staff/catalog/record/<id>`, a route
-that does not exist (404). Do not click them on stage.
+
 
 ## Step 9. Trigger the Flag: "library demo flag", the Supportive reply, and the Alarm
 
@@ -604,8 +603,6 @@ As of this runbook; re-check before the trip.
 - **The Purge loop ignores the environment's school day** (`library_assistant/app.py`'s
   lifespan builds `Settings()` rather than `Settings.from_env()`): it runs at 15:30
   America/Chicago, while the Flag page's "Next Purge" shows the configured time (Step 14).
-- **Citation links on the Session detail page 404**: `/staff/catalog/record/<id>` has no
-  route (Step 8).
 - **The Flag queue and Flag page do not hold a Watch**: they send no heartbeat and have no
   Start watch button, though ADR-0010 names the Flag queue as a watching page. Keep a Live
   view tab open (Step 7).
