@@ -413,3 +413,118 @@ def keys_page(
         f"<p>{html.escape(key) if key else 'No registration key is set.'}</p>"
     )
     return page("Registration key", body)
+
+
+@router.get("/supportive-replies-preview")
+def supportive_replies_preview(
+    account: StaffDep, db: sqlite3.Connection = Depends(get_db)
+) -> HTMLResponse:
+    """Staff-only: preview of all supportive replies rendered with Install overrides."""
+    from library_assistant.install_settings import get_setting
+    from library_assistant.supportive_replies import (
+        PRECEDENCE_ORDER,
+        get_supportive_reply_text,
+    )
+
+    # Get counselor name from install settings or default
+    counselor_name = get_setting(db, "counselor_name", "a school counselor")
+
+    # Get overrides from install settings (if any)
+    overrides = {}
+
+    # Check for each category override
+    for category in ["self_harm", "abuse", "bullying", "threats_of_violence"]:
+        override_key = f"supportive_reply_{category}"
+        override_text = get_setting(db, override_key, None)
+        if override_text:
+            overrides[category] = override_text
+
+    # Generate all reply texts
+    replies = {}
+    for category in PRECEDENCE_ORDER:
+        reply_text = get_supportive_reply_text(category, counselor_name, overrides)
+        replies[category] = reply_text
+
+    # Create HTML for the preview page
+    preview_html = (
+        """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <title>Supportive Replies Preview - Library Assistant</title>
+        <style>
+            body { font-family: sans-serif; max-width: 800px; margin: 2em auto; }
+            .reply-section { 
+                border: 1px solid #ccc; 
+                padding: 1em; 
+                margin-bottom: 1em; 
+                background-color: #f9f9f9;
+            }
+            .reply-title { 
+                font-weight: bold; 
+                color: #333; 
+                margin-bottom: 0.5em; 
+            }
+            .reply-content { 
+                white-space: pre-wrap; 
+                margin: 0; 
+            }
+            .print-button { 
+                background-color: #007bff; 
+                color: white; 
+                border: none; 
+                padding: 0.5em 1em; 
+                cursor: pointer; 
+                margin-bottom: 1em; 
+            }
+            .print-button:hover { 
+                background-color: #0056b3; 
+            }
+            @media print {
+                .no-print { display: none; }
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Supportive Replies Preview</h1>
+        <p class="no-print">This preview shows how the supportive replies will appear to Students.</p>
+        <p class="no-print">It uses the Install's overrides if any are configured.</p>
+        
+        <button class="print-button" onclick="window.print()">Print this page</button>
+        
+        <div class="reply-section">
+            <div class="reply-title">Self-harm</div>
+            <div class="reply-content">"""
+        + html.escape(replies["self_harm"])
+        + """</div>
+        </div>
+        
+        <div class="reply-section">
+            <div class="reply-title">Abuse</div>
+            <div class="reply-content">"""
+        + html.escape(replies["abuse"])
+        + """</div>
+        </div>
+        
+        <div class="reply-section">
+            <div class="reply-title">Bullying</div>
+            <div class="reply-content">"""
+        + html.escape(replies["bullying"])
+        + """</div>
+        </div>
+        
+        <div class="reply-section">
+            <div class="reply-title">Threats of violence</div>
+            <div class="reply-content">"""
+        + html.escape(replies["threats_of_violence"])
+        + """</div>
+        </div>
+        
+        <p class="no-print">Note: This preview does not raise Flags, write transcripts, or make model calls.</p>
+    </body>
+    </html>
+    """
+    )
+
+    return HTMLResponse(preview_html, headers={"Cache-Control": "no-store"})
