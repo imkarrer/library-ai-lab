@@ -97,10 +97,7 @@ def get_supportive_reply_text(
         override_text = overrides[category]
         # Basic validation of the override
         validation_errors = validate_override_text(override_text, category)
-        if validation_errors:
-            # For invalid overrides, fall back to the default text (never raise)
-            pass
-        else:
+        if not validation_errors:
             # For valid overrides, apply the same processing as defaults (strip bold, fill counselor)
             import re
 
