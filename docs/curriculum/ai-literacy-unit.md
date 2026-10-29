@@ -21,9 +21,10 @@ hands-on part until they are.
 - **The escalation protocol is adopted** and you know who works the Flag queue and how fast
   (bead lib-9v7). Students will be told that some messages reach a counselor. That has to be
   true on the day you say it.
-- **A school counselor has reviewed the Watchlist** (bead lib-sdo). See
-  [ADR-0004](../adr/0004-flags-assist-adults.md): the Watchlist is the only source of an
-  immediate Supportive reply.
+- **A school counselor has reviewed the Watchlist and the Supportive replies** (bead
+  lib-sdo). See [ADR-0004](../adr/0004-flags-assist-adults.md): the Watchlist is the only
+  source of an immediate Supportive reply. The replies are per category and can carry your
+  counselor's name ([ADR-0011](../adr/0011-supportive-replies-per-rubric-category.md)).
 - **The Catalog is your own collection**, not the Library of Congress demo Catalog. Lessons 2
   and 3 send students to the shelf; a Citation to a Record you don't own teaches the wrong
   lesson. (See "What the unit needs from the product" at the end.)
@@ -452,7 +453,13 @@ Students will be able to:
 
 - A printed sample Card (from a staff demo Batch).
 - "Who can see it?" scenario cards (below), one set per group.
-- The Supportive reply text, printed or on a slide. Show it; don't trigger it.
+- The four Supportive replies (self-harm, abuse, bullying, threats of violence), printed or on a
+  slide. Take them from the staff preview page (`/staff/supportive-replies-preview`, signed in
+  with any staff account): it shows the exact texts this Install gives, with your counselor
+  line, and has a Print button. Previewing raises no Flag. Print or screenshot it fresh rather
+  than retyping, so the slide matches what students would see. Show them; don't trigger them.
+- The student page "What happens to what I type" (`/about` on the assistant; also linked from
+  the Card sign-in and chat pages), on the projector or printed.
 - Your school's counselor names and how to reach them.
 
 ### Plan (45 minutes)
@@ -462,10 +469,12 @@ Students will be able to:
    - The QR code holds a secret that lets the Card start a **Session**, which is one Card's
      conversation with the assistant.
    - The assistant only keeps a scrambled version of that secret, plus the Card number, the
-     class label ("Period 3"), and when the Card stops working.
+     class label ("Period 3"), which teacher handed out the Cards, and when the Card stops
+     working.
    - **The assistant never gets your name.** Your teacher keeps a list on their own computer of
      who had which Card number. That list never goes to the assistant.
-   - Cards stop working at the end of the period, or earlier if an adult turns one off.
+   - Cards stop working when the time your teacher set runs out, by the end of the school day
+     at the latest, or earlier if an adult turns one off.
 
 2. **Who can see what (10 min).** Draw three columns on the board: *The assistant*, *The
    librarian*, *Your teacher's list*. Fill in together:
@@ -473,28 +482,42 @@ Students will be able to:
    | The assistant | The librarian | Your teacher's list |
    |---|---|---|
    | Your questions and its answers | Questions as they're asked, labelled "Period 3, Card 14", never a name | Which student had Card 14 |
-   | The Card number and class label | The answers | Nothing you typed |
+   | The Card number, class label, and your teacher's name | The answers | Nothing you typed |
    | Not your name | Not your name, unless they ask your teacher | |
 
-   Then, how long: *"Everything you typed is deleted at the end of the school day. The one
-   exception is a message an adult needs to follow up on. That one is kept until they've
-   finished."* (This is the daily Purge and the open-Flag exception,
-   [ADR-0003](../adr/0003-purge-at-end-of-school-day.md).)
+   Say who "the librarian" means: the librarian, and any staff member the librarian asks to
+   cover for them. A school counselor sees a question only if the librarian asks them to help
+   with it.
+
+   Then, how long: *"Everything you typed is deleted at the end of the school day. There are
+   two exceptions. A message an adult needs to follow up on is kept until they've finished. And
+   if the law requires the school to keep something, like a records request, it keeps it
+   longer."* (This is the daily Purge and its exceptions for an open Flag and a Hold,
+   [ADR-0003](../adr/0003-purge-at-end-of-school-day.md).) If an adult copies a message into
+   the school's own records to follow up, those records follow the school's usual rules.
 
    And where: *"It all stays on a computer in this building. It doesn't go to a company."*
+
+   If your Install runs in live supervision mode (the default), add: *"If the assistant says
+   it's taking a break, that means no adult is watching the questions right now, so it waits
+   until one is. You didn't break anything."*
 
 3. **When a message worries the adults (12 min).** Say it straight:
    > Sometimes people type things to a computer they wouldn't say out loud, like that they want
    > to hurt themselves, that someone is hurting them, that they're being bullied, or that
    > they're thinking about hurting someone. The assistant checks every message for things like
-   > that. If it finds one, it doesn't answer the usual way. It shows a message that says to
-   > talk to a counselor or a trusted adult, and gives the 988 number. And it lets the
-   > librarian know, and the librarian may bring in the school counselor.
+   > that. If it finds one, it doesn't answer the usual way. It shows a message written for
+   > what you might be going through. Every one of them names an adult here you can talk to,
+   > like the counselor, a teacher, or me. Some give a number you can call or text, like 988.
+   > And it lets the librarian know, and the librarian may bring in the school counselor.
    >
    > That's not to get anyone in trouble. It's because the adults here would rather know.
 
-   Show the Supportive reply on a slide. Then be honest about the parts that might surprise
-   them:
+   Show the four Supportive replies from the preview printout. Point out what they share: each
+   names an adult in this building, says it is not the student's fault or that the adults care,
+   and says honestly that an adult may check in. Point out the numbers: 988 for anyone who feels
+   really down or might hurt themselves, the Childhelp hotline for someone being hurt, and 911
+   for danger right now. Then be honest about the parts that might surprise them:
    - **An adult can find out who had the Card.** If the librarian or counselor needs to check
      in with someone, they can ask the teacher who had that Card number. That conversation
      happens between adults, not inside the assistant.
@@ -519,8 +542,10 @@ Students will be able to:
 
    Debrief the ones groups disagreed on.
 
-5. **Close (5 min).** Ask each student to write the name of one adult in the building they
-   could talk to. Collect anonymously or not at all; this is for them.
+5. **Close (5 min).** Show where the "What happens to what I type" link is on the Card sign-in
+   and chat pages: it says all of this in one place, any time. Ask each student to write the
+   name of one adult in the building they could talk to. Collect anonymously or not at all;
+   this is for them.
 
 ### Formative check
 
@@ -528,20 +553,31 @@ Four quick items (thumbs, whiteboards, or a half-sheet):
 
 1. Does the assistant know your name? (No.)
 2. Who can connect Card 14 to a student? (The teacher with the list, when another adult asks.)
-3. When is what you typed deleted? (End of the school day, unless an adult is following up.)
+3. When is what you typed deleted? (End of the school day, unless an adult is following up or
+   the law requires the school to keep it.)
 4. If you or a friend are not okay, name two places to go. (A trusted adult or counselor; 988.)
 
 ### What to watch for
 
 - **Do not demonstrate the Supportive reply live.** Typing a Watchlist phrase on a staff
-  Card still raises a real Flag. Show the text on a slide. If a student tries it "to see what
-  happens", follow your protocol anyway, and talk to them privately and gently afterward.
+  Card still raises a real Flag and sounds the Alarm. Show the preview printout instead. If a
+  student tries it "to see what happens", follow your protocol anyway, and talk to them
+  privately and gently afterward.
+- **The Alarm chime is not a spotlight.** During a class session that uses the assistant, a
+  worrying message makes the librarian's computer chime until an adult responds. Students may
+  notice. Don't look around the room or react in a way that points at anyone. If asked, the
+  honest answer is short: "It means an adult needs to look at something. It doesn't show
+  anyone's words."
+- **Don't promise "right away".** Whether an adult sees a worrying message at once depends on
+  how your Install is supervised (live, periodic, or off; see the escalation protocol, section
+  3). Say "it lets the librarian know", not "the librarian sees it instantly".
 - **A student who goes quiet or asks a pointed follow-up** ("So the counselor would find out
   who?") may be asking for themselves. Answer honestly, then find a private moment. Let your
   counselor know.
 - **Don't overpromise privacy.** Avoid "nobody will ever know". The accurate version is: no
   name in the assistant, the librarian sees questions, adults can find out who had a Card when
-  they need to help, everything is deleted daily except what an adult is following up.
+  they need to help, everything is deleted daily except what an adult is following up or the
+  law requires the school to keep.
 - **Don't oversell the safety net.** The Watchlist checks for phrases, and it will miss some.
   Say so. The message is "talk to a person", not "the computer will catch it".
 - **Grief and hard-topic questions are fine.** A student asking for books about a death in the
@@ -675,14 +711,22 @@ For your own reference when students ask:
 - **Roster**: the Teacher's record of who held which Card number. It never leaves the
   Teacher's machine. **Identification** (learning who had a Card) is always offline, between
   adults.
-- **Live view**: you see questions as they arrive, labelled by Class label and Card number.
-  Teacher and Counselor accounts cannot open it.
+- **Live view**: you see questions as they arrive, labelled by Class label, Card number, and
+  the Teacher who registered the Batch ("Registered by"). Teacher and Counselor accounts
+  cannot open it unless you give them the Stand-in role.
+- **Watch**: in live supervision mode (the default), students can chat only while you or a
+  Stand-in is on Watch (Start watch on the Live view or Flag queue). Otherwise they see "taking
+  a break until the librarian is ready" ([ADR-0010](../adr/0010-student-sessions-run-only-on-watch.md)).
 - **Flags**: a Watchlist match raises a Flag in the Flag queue. High severity: the student sees
-  the Supportive reply and the model is not called. Low severity: the student gets a normal
-  answer and sees nothing different. If Oversight is configured, it may raise a Flag minutes
-  or hours later ([ADR-0004](../adr/0004-flags-assist-adults.md)).
+  the Supportive reply for that category (self-harm, abuse, bullying, or threats of violence),
+  the model is not called, and an Alarm (banner and chime, no student words) sounds on your
+  open staff pages until someone Acknowledges it. Low severity: the student gets a normal
+  answer and sees nothing different, and no Alarm sounds. If Oversight is configured, it may
+  raise a Flag seconds later, and the student sees nothing different
+  ([ADR-0004](../adr/0004-flags-assist-adults.md),
+  [ADR-0011](../adr/0011-supportive-replies-per-rubric-category.md)).
 - **Purge**: every transcript is deleted at the end of the school day, except those attached
-  to an open Flag ([ADR-0003](../adr/0003-purge-at-end-of-school-day.md)).
+  to an open Flag or under a Hold ([ADR-0003](../adr/0003-purge-at-end-of-school-day.md)).
 - **Intranet only**: the model and the Catalog run on the school network
   ([ADR-0006](../adr/0006-intranet-only.md)).
 
@@ -711,13 +755,14 @@ a bead or for a line in an existing one.
    of Congress records (lib-f24.3, lib-f24.18). Citations to titles the library doesn't own
    break the shelf-check lessons. The reference deployment needs an adapter or import for the
    school's real Catalog before the unit runs.
-3. **A way to see the Supportive reply without raising a Flag.** Lesson 4 shows students the
-   exact text. lib-f24.6 defines when it appears but not its wording, and there is no staff-side
-   preview, so the only way to see it is to trigger a real Flag. Needs: the final wording
-   (reviewed by a counselor, per lib-sdo / lib-9v7) and a staff page that displays it.
-4. **A student-facing "what happens to what I type" page.** Lesson 4's facts (no name, librarian
-   sees questions, daily Purge, worrying messages reach an adult) should be one tap away in the
-   Session, in plain language, so students aren't relying on memory of a lesson. Not in any bead.
+3. **A way to see the Supportive reply without raising a Flag.** *Answered by lib-irf
+   (ADR-0011):* there is now one reply per Rubric category, with an Install's counselor line,
+   and a staff preview page (`/staff/supportive-replies-preview`) shows all four with a print
+   view, raising no Flag. Lesson 4 now uses that printout. Still needed: a counselor's review of
+   the default wording before student use (lib-sdo, lib-9v7).
+4. **A student-facing "what happens to what I type" page.** *Answered by lib-bns:* `/about`
+   says Lesson 4's facts in plain language and is linked from the Card sign-in and chat pages.
+   If Lesson 4 changes, check that page says the same.
 5. **Plain-language text on the printed Card.** lib-f24.2's QR sheet prints the QR and Card
    number. A short line ("No name inside. The librarian can see your questions. Expires at the
    end of class.") would reinforce Lesson 1's Card talk.

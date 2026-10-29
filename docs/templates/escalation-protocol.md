@@ -18,10 +18,17 @@ Library Assistant's glossary says. They are explained where they first appear.
 
 A **Flag** is the assistant's note that one exchange may involve self-harm, abuse, bullying, or
 a threat of violence. It shows a category, a severity, the reason, the **Class label** (such as
-"Period 3"), and the **Card number** (such as "card 14"). It does not show a name. The assistant
-never knows who the Student is.
+"Period 3"), the **Card number** (such as "card 14"), and **Registered by**: the Teacher whose
+Cards these are. It does not show a Student's name. The assistant never knows who the Student
+is.
 
-**1. Read the whole exchange in the Flag.** Not just the matched words. Decide: could someone be
+A high-severity Flag sounds an **Alarm** on the Live view and Flag queue: a banner that stays, a
+changed tab title, and a chime that repeats until someone presses **Acknowledge**. The banner
+shows the category, Class label, Card number, and Teacher, never the Student's words.
+
+**1. Press Acknowledge, then read the whole exchange in the Flag.** Acknowledge tells the other
+adults "I'm on it" and stops the chime everywhere. It does **not** close or handle the Flag.
+Open the Flag and read the whole exchange, not just the matched words. Decide: could someone be
 hurt today?
 
 **2. If anyone may be in danger right now** (a plan, a means, a time, "tonight", "I have a gun",
@@ -37,10 +44,10 @@ someone hurting them at home today, a threat to the school):
 - **Do not leave a Student at risk of suicide alone**, and do not let them leave school.
   Someone stays with them until the Counselor, a parent, or emergency services take over.
 
-**3. Find out who it is (Identification).** Go to, or phone, the **Teacher** who holds the
-**Roster** for that Class label. Ask: "Who had card `N` in `Class label` today?" Say it in
-person or by phone, never in the assistant, never in email or chat.
-Teacher for each Class label: `[BLANK: where the list of Class labels and Teachers is kept]`.
+**3. Find out who it is (Identification).** Go to, or phone, the **Teacher** named under
+"Registered by": they hold the **Roster** for that Class label. Ask: "Who had card `N` in
+`Class label` today?" Say it in person or by phone, never in the assistant, never in email or
+chat. If the Teacher is not in the building, see section 5.
 
 **4. Abuse or neglect?** If you now have reasonable cause to suspect a child has been abused or
 neglected, **you** must report it **immediately, by phone or in person**, to county Child
@@ -53,7 +60,8 @@ serious and imminent threat, **you** must tell law enforcement **immediately, by
 person** (Wis. Stat. 175.32). Police non-emergency: `[BLANK: number]`. Imminent danger: 911.
 
 **6. Do not close the Flag yet.** An open Flag keeps the exchange past the end-of-day **Purge**.
-Close it only when section 9 says you may.
+Close it only when section 9 says you may, after you have used **Export** if the school needs
+the exchange.
 
 **7. Write down what you did** in `[BLANK: the school's student-services record or incident
 form]`, not in the assistant.
@@ -71,10 +79,12 @@ two ways:
 
 - The **Watchlist**: a list of phrases and patterns, checked against every Student message, in
   real time, on every Install. A match raises a Flag immediately. For a high-severity match, the
-  Student gets the **Supportive reply** (section 7) instead of an answer.
-- **Oversight** (optional, only on some Installs): a second model that re-reads exchanges after
-  they happen and raises Flags the Watchlist missed. Its Flags can arrive minutes or hours later
-  (section 8).
+  Student gets the **Supportive reply** for that category (section 7) instead of an answer, and
+  the adults' screens sound the Alarm (section 3).
+- **Oversight** (optional, only on some Installs): a second model that re-reads each exchange
+  as it happens and raises Flags the Watchlist missed. Its Flags usually arrive within seconds,
+  but can arrive later when Oversight was down and catches up (section 8). A high-severity
+  Oversight Flag sounds the Alarm too; the Student sees no Supportive reply.
 
 **Flagging helps the adults do their duty of care. It does not replace it.** The Watchlist
 will miss things: misspellings, slang it has not seen, a Student who hints instead of saying.
@@ -94,14 +104,20 @@ Where they disagree, the school's plan wins and this template must be corrected.
 
 ## 2. People and contacts
 
-The **Librarian** runs the assistant and works the Flag queue. The **Counselor** role is
+The **Librarian** runs the assistant and works the Flag queue. A **Stand-in** is any staff
+account the Librarian has given that role (a Teacher, an aide, an administrator, the counselor):
+it can open the Live view and Flag queue, hold a Watch, Acknowledge an Alarm, and close Flags in
+the Librarian's place, but only the Librarian's account can Escalate. The **Counselor** role is
 optional: if your school does not give anyone a Counselor account in the assistant, the
-Librarian does both jobs and hands Flags to the school counselor by hand. Either way, a real
-school counselor or pupil services professional is part of every serious case.
+Librarian does both jobs and hands Flags to the school counselor by hand. A Counselor account
+alone sees only Escalated Flags, so it cannot hold a Watch; give the counselor the Stand-in role
+too if they are to cover. Either way, a real school counselor or pupil services professional is
+part of every serious case.
 
 | Role | Who | How to reach them during the school day | Backup when absent |
 |---|---|---|---|
 | Librarian (works the Flag queue) | `[BLANK]` | `[BLANK]` | `[BLANK]` |
+| Stand-ins (hold a Watch when the Librarian cannot) | `[BLANK]` | `[BLANK]` | |
 | Counselor (receives Escalations) | `[BLANK]` or "Librarian, by hand" | `[BLANK]` | `[BLANK]` |
 | Administrator on duty | `[BLANK]` | `[BLANK]` | `[BLANK]` |
 | School psychologist / social worker | `[BLANK]` | `[BLANK]` | `[BLANK]` |
@@ -116,15 +132,27 @@ school counselor or pupil services professional is part of every serious case.
 | County CPS, after hours | `[BLANK]` |
 | County mobile crisis team | `[BLANK]` |
 | Police / sheriff, non-emergency | `[BLANK]` |
-| Speak Up, Speak Out (Wisconsin DOJ school safety tipline) | 1-800-697-8761 (1-800-MY-SUSO-1) `[VERIFY]` |
+| Speak Up, Speak Out (Wisconsin DOJ school safety tipline) | Call 1-800-697-8761 (1-800-MY-SUSO-1), or text "SUSO" to 738477 |
 
 ## 3. Who watches the Flag queue, and how often
 
-The **Flag queue** is the list of open Flags waiting for an adult. The assistant does not page
-anyone, ring, or send email. A Flag sits in the queue until a person looks. So:
+The **Flag queue** is the list of open Flags waiting for an adult. A high-severity Flag also
+sounds an **Alarm** on every open Live view and Flag queue page of the Librarian and Stand-ins:
+a banner that stays, the count in the tab title, a red tab icon, and a chime that repeats (every
+30 seconds by default) until someone presses **Acknowledge**. Acknowledge records who said "I'm
+on it" and when, and silences the Alarm on every page. It does not close the Flag; section 4
+still applies. A low-severity Flag only raises the open-Flag count, with no sound. If the same
+Card sends the same message again while its Flag is open, the Flag's Repeats count goes up
+instead of a new Flag and a new Alarm.
+
+The Alarm lives only in those open pages. The assistant sends no text message, email, or page,
+and nothing leaves the school network (ADR-0006, ADR-0010). **If nobody has the page open, nobody
+hears it.** An Alarm nobody Acknowledged sounds again when someone next presses Start watch
+(live mode) or opens the Live view or Flag queue (periodic or off mode). The chime can be turned
+off in the Install settings; if it is, the banner and tab title are all there is. So:
 
 This Install's supervision mode: `[BLANK: live / periodic / off]`. Review interval, in
-periodic mode: every `[BLANK: 120]` minutes (the `review_every_minutes` setting). The Librarian
+periodic mode: every `[BLANK: 120]` minutes (the "Reviews every minutes" setting). The Librarian
 sets the mode in the assistant, and every change is recorded with who made it and when
 (ADR-0010, "Amendment: supervision mode").
 
@@ -133,45 +161,55 @@ The assistant is for supervised use (one class at a time in the library, not who
 self-serve). What Rule 1 means depends on the supervision mode:
 
 - **Live** (the default): no Student uses the assistant unless a named adult is on Watch, and
-  the product enforces it: Students' Sessions pause when nobody is on Watch. Before each class
-  session, the Librarian confirms who is watching. If the Librarian has to step away, someone
-  else on Watch takes over, or Students stop until the Librarian returns.
+  the product enforces it. A **Watch** starts when the Librarian or a Stand-in presses **Start
+  watch** on the Live view or Flag queue (the button plays the chime once: that is the sound
+  check). It lasts while that page stays open and connected, and ends at End watch, sign-out,
+  or about 90 seconds after the page stops answering (a closed lid, a sleeping laptop, a lost
+  connection). When nobody is on Watch, Students' Sessions pause with a calm "taking a break
+  until the librarian is ready" message. Before each class session, the Librarian confirms who
+  is watching. If the Librarian has to step away, a Stand-in presses Start watch first, or
+  Students stop until the Librarian returns.
 - **Periodic:** Students may chat at any time in the school day. The school names who reviews
   the Flag queue, `[BLANK: name or role]`, and that person reviews it at least every
-  `review_every_minutes` and presses Mark reviewed. Until the next review, the Student's
-  Supportive reply is the only immediate response to a disclosure; the adults learn of it at
-  the review. Choose an interval short enough that this is acceptable to the school.
+  `[BLANK: 120]` minutes and presses Mark reviewed. An Alarm reaches only a Live view or Flag
+  queue that happens to be open. Otherwise, until the next review, the Student's Supportive
+  reply is the only immediate response to a disclosure; the adults learn of it at the review.
+  Choose an interval short enough that this is acceptable to the school. The Install can also
+  pause Students when a review is overdue by a set time (default: never): `[BLANK: never / N
+  minutes]`.
 - **Off:** the school's own supervision policy applies, `[BLANK: policy reference]`. Say it
   plainly to staff: in this mode the assistant enforces nothing beyond the Watchlist, the
   Supportive reply, and recording every Flag. A disclosure can sit unseen until someone opens
   the Flag queue.
 
 In every mode, the Watchlist and the Supportive reply cannot be switched off, every Flag is
-recorded, and an unacknowledged high-severity Alarm sounds on the next staff page anyone
-opens.
+recorded, and an unacknowledged high-severity Alarm sounds again as described above.
 
 **Rule 2: Check the queue on this schedule.** Suggested defaults; the school sets its own.
 
 | When | What | Who |
 |---|---|---|
-| Live: while Students are using the assistant | Stay on Watch with the Flag queue or Live view open; look at once when a Student looks upset or leaves suddenly | Librarian |
+| Live: while Students are using the assistant | Stay on Watch with the Flag queue or Live view open and the sound on; when the Alarm sounds, Acknowledge and act (section 4); look at the queue at once when a Student looks upset or leaves suddenly | Librarian |
 | Periodic: every `[BLANK: 120]` minutes in the school day | Review every Flag raised since the last review, act on it (section 4), then press Mark reviewed | `[BLANK: named reviewer]` |
 | Off: as the school's policy says | `[BLANK: what the policy requires]` | `[BLANK]` |
 | At the end of each class session (live and periodic) | Look through every Flag raised during that session before the class leaves, if you can; at the latest before the next class starts | Librarian |
 | `[BLANK: 30]` minutes before the end-of-day Purge (`[BLANK: Purge time]`) | Last check of the day, in every mode. Every high-severity Flag must have been acted on by now (section 4) | Librarian |
-| At the next Start watch or first review | Act on any Flag marked *raised unwatched* (section 8) | Librarian |
-| Librarian absent | Backup in section 2 does all of the above, or no Student sessions that day | `[BLANK]` |
+| At the next Start watch or first review | Act on any replayed Alarm and any Flag marked *raised unwatched* (section 8) | Librarian |
+| Librarian absent | A Stand-in named in section 2 does all of the above, or no Student sessions that day | `[BLANK]` |
 
 **Rule 3: When a Flag needs the Counselor, Escalate it the same way every time.** If your
-Install has a Counselor account, use Escalate in the Flag queue **and** tell the Counselor in
-person or by phone. The Counselor sees only Escalated Flags, and only when they sign in, so the
-button alone is not enough for anything urgent. If there is no Counselor account, walk or phone.
+Install has a Counselor account, the Librarian uses Escalate on the Flag's page (a reason is
+required) **and** tells the Counselor in person or by phone. An Escalated Flag sounds its own
+Alarm on the Counselor's Flag page, but only if that page is open; otherwise the Counselor hears
+it when they next open it. So the button alone is not enough for anything urgent. If there is no
+Counselor account, or a Stand-in is working the queue, walk or phone.
 
 ## 4. What to do, by how serious it is
 
 The assistant marks each Flag with a severity from the Watchlist entry or from Oversight. That
 severity is a starting point. **The adult reading the exchange decides how serious it is.** If
-you are unsure, treat it as the more serious level.
+you are unsure, treat it as the more serious level. A low-severity Flag sounds no Alarm, but may
+still be serious once you read it. Acknowledging an Alarm is not acting on it.
 
 ### A. Imminent danger: right now
 
@@ -227,8 +265,10 @@ number. The Roster lives on the Teacher's own computer.
 
 **Identification** is one adult asking another:
 
-1. Find the Teacher who registered that Class label. `[BLANK: how the Librarian knows which
-   Teacher owns each Class label, for example a sign-up sheet at the library desk]`.
+1. Find the Teacher who registered that Class label: the Flag, the Alarm, and the Live view
+   show them under "Registered by". Each Teacher registers Cards with their own Registration
+   key, so the assistant knows which Teacher's class a Card was for, never which Student held
+   it.
 2. Ask in person or by phone: "Who had card `N` in `Class label` today?"
 3. The Teacher looks it up in their Roster and tells you.
 4. **Never type the name into the assistant.** Not in the Flag, not in a close note, not in a
@@ -321,15 +361,39 @@ bullying that includes abuse by a caregiver falls under 48.981.
 ## 7. The Supportive reply, and what the adult says next
 
 When a Student's message matches a **high-severity** Watchlist entry, the assistant does not
-answer the question. It sends the **Supportive reply** instead. Its text on this Install is:
+answer the question. It sends the **Supportive reply** for that entry's category instead. There
+is one for each category (ADR-0011):
 
-> `[BLANK: paste the exact Supportive reply text shown on this Install. It tells the Student to
-> talk to a counselor or a trusted adult, and gives the 988 line.]`
+| Category | Besides "talk to an adult you trust, like `{counselor}`, a teacher, or the librarian", it gives |
+|---|---|
+| Self-harm | 988 (call or text, any time); 911 if they might hurt themselves right now |
+| Abuse | "It is not your fault"; the Childhelp hotline, 1-800-422-4453; 911 if in danger now. It says *an adult at school*, not *a parent*, because the person hurting the child may be a parent |
+| Bullying | "It is not your fault"; telling an adult helps a friend too; 988 if they feel really down |
+| Threats of violence | Written for both the Student who is afraid and the Student who is angry, since the Watchlist cannot tell which; telling is "not snitching"; 911 if anyone is in danger now |
 
-So, when you approach the Student, they have already been told to talk to a trusted adult. They
-may expect you, or may be embarrassed that the computer "told". A low-severity match is silent:
-the Student got a normal answer and does not know a Flag was raised. An Oversight Flag is also
-silent (section 8).
+Every reply ends by saying that an adult here may check in, because they care. When one message
+matches high-severity entries in several categories, the Student gets one reply, chosen in this
+order: self-harm, threats of violence, abuse, bullying. Every match still raises its own Flag.
+
+`{counselor}` is this Install's counselor line, "a school counselor" unless the Librarian sets
+it (for example, a name and a room). An Install may also replace a category's text, within guard
+rails the assistant checks: the self-harm text must contain 988, every text must name an adult
+in the building, and none may run over 120 words.
+
+**To see the exact texts on this Install,** sign in with any staff account and open the
+Supportive replies preview (`/staff/supportive-replies-preview`). It shows all four as a Student
+would see them, with this Install's counselor line and replacements, and has a Print button.
+Previewing raises no Flag, writes no transcript, and calls no model. Print it and keep it with
+this protocol; print it again whenever the texts change, rather than copying them by hand.
+
+On this Install: counselor line `[BLANK: the text that replaces {counselor}]`; categories whose
+text is replaced `[BLANK: none, or which]`. `[VERIFY]` the Counselor has read all four printed
+texts and agrees with them before any Student uses the assistant (bead lib-sdo).
+
+So, when you approach the Student, they have already been told to talk to a trusted adult, and
+that one may check in. They may expect you, or may be embarrassed that the computer "told". A
+low-severity match is silent: the Student got a normal answer and does not know a Flag was
+raised. An Oversight Flag is also silent (section 8).
 
 What the adult says next is the Counselor's call, following the school's procedure. Some
 starting points that agree with DPI and school-counselor guidance:
@@ -355,7 +419,8 @@ The Flag queue shows which source raised each Flag and when.
 
 | | Watchlist Flag | Oversight Flag |
 |---|---|---|
-| When it appears | The moment the Student sends the message | Minutes to hours after the exchange; on some Installs after class or after the school day |
+| When it appears | The moment the Student sends the message | Usually seconds after the exchange. Later, even after class, if Oversight was down and is catching up |
+| Alarm | High severity: at once | High severity: when the Flag appears |
 | What the Student saw | High severity: the Supportive reply. Low severity: a normal answer | A normal answer. The Student has no idea anything was noticed |
 | Where the Student is | Probably still in the library | May have left the library, the school, or gone home |
 | Your first move | Look up: the Student is likely in the room | Check the time of the exchange and whether school is still in session |
@@ -364,47 +429,67 @@ The Flag queue shows which source raised each Flag and when.
 same. The Student may be in another class: the Counselor or administrator fetches them; do not
 pull them out in front of the class with the reason.
 
-**Oversight Flags arrive while the class is still here.** Oversight, when configured, screens
-each message as the Student sends it, and the Student's next message waits for that screen
-(ADR-0004). Cards last one school day at most and Sessions run only while someone is on Watch
-(ADR-0010), so an Oversight Flag reaches the person on Watch within seconds, not overnight.
-`[VERIFY]` with the Librarian whether Oversight on this Install is configured at all.
+**Oversight Flags usually arrive while the class is still here.** Oversight, when configured,
+screens each message as the Student sends it, and the Student's next message waits for that
+screen (ADR-0004). Cards last one school day at most, and in live mode Sessions run only while
+someone is on Watch (ADR-0010), so an Oversight Flag reaches the person on Watch within seconds,
+not overnight. In periodic or off mode it reaches whoever has the Flag queue open, or the next
+review.
 
-**If a Flag is raised after the Watch lapsed** (a dropped connection, not a schedule), it is
-marked *raised unwatched* and its Alarm replays at the next Start watch. Treat it as section 4
-says, starting with whether the Student is still in the building.
+**When Oversight is down,** the Live view says screening is unavailable and since when. By
+default Students carry on with the Watchlist alone (the "Oversight down" setting can pause them
+instead), and the exchanges admitted meanwhile are screened when Oversight comes back, oldest
+first. A Flag from that catch-up shows both the exchange's time and the time it was raised; check
+both, and whether the Student is still in the building. Those exchanges survive the Purge until
+they are screened. `[VERIFY]` with the Librarian whether Oversight on this Install is configured
+at all.
+
+**If a Flag is raised after the Watch lapsed** (live mode, a dropped connection, not a
+schedule), it is marked *raised unwatched* and its Alarm replays at the next Start watch. Treat
+it as section 4 says, starting with whether the Student is still in the building.
 
 ## 9. Record keeping
 
 **The assistant holds only what the Flag holds:** the category, severity, reason, Class label,
-Card number, the exchange, and when and by what it was raised. Nothing else about the case goes
-into the assistant, ever: no names, no notes on the Student, no outcome of the Counselor's
-meeting.
+Card number, the registering Teacher, the exchange, when and by what it was raised, who
+Acknowledged its Alarm and when, and its **Flag history**: every view, Escalation, Export,
+close, and reopen, with the staff account, the time, and the reason given. Nothing else about
+the case goes into the assistant, ever: no names, no notes on the Student, no outcome of the
+Counselor's meeting. The reasons you type become part of that history, so they name no one.
 
 **What is written down, and where:**
 
 | What | Where | Who |
 |---|---|---|
 | The Flag and its exchange | The assistant, until the Flag is closed and the next Purge runs | Automatic |
+| The Flag and its history, without the exchange | The assistant, for `[BLANK: 90]` days after close (the `flags.history_days` setting), then deleted | Automatic |
+| An Export of the Flag (exchange, Flag, history) | `[BLANK: where the school files it]`; delete the downloaded file once filed | Librarian |
 | Who the Student was | Nowhere new, unless the school opens a record (next rows) | |
 | What the Librarian saw and did, with times | `[BLANK: the school's incident or student-services form]` | Librarian |
 | Suicide risk assessment, parent contact, safety plan | `[BLANK: the counselor's records system]` | Counselor |
 | A report to CPS or police | The reporter's own note of date, time, agency, and the name of the person taken the report, kept per `[BLANK: board policy]`. Reports are confidential under 48.981(7) | Reporter |
 | Bullying investigation | Per the bullying policy | Named investigator |
 
-**The Purge and its exception.** At the end of each school day (`[BLANK: time]`) the assistant
-deletes every transcript, **except** those attached to an open Flag. Those stay until an adult
-closes the Flag, and are deleted after that. So:
+**The Purge and its exceptions.** At the end of each school day (`[BLANK: time]`) the assistant
+deletes every transcript, **except** those attached to an open Flag or under a Hold. A Flag's
+exchange stays until an adult closes the Flag, and is deleted at the next Purge after that. So:
 
-- **Before closing a Flag**, copy into the school's own record whatever the school needs from the
-  exchange (for example, the Student's exact words, for a CPS report or the counselor's notes).
-  After the Flag is closed and the Purge runs, the exchange is gone from the assistant for good.
+- **Before closing a Flag**, press **Export** on the Flag's page if the school needs anything
+  from the exchange (for example, the Student's exact words, for a CPS report or the counselor's
+  notes). Export downloads a plain-text file of the exchange, the Flag, and its history; file it
+  in the school's own record, where the school's pupil-records rules apply. The assistant keeps
+  no copy. After the Flag is closed and the Purge runs, the exchange is gone from the assistant
+  for good.
+- **Closing a high-severity Flag that was never Exported** shows when the next Purge runs and
+  asks you to tick "The school does not need this exchange". Tick it only if that is true.
 - **Close a Flag when the adult action is finished:** Identification done or decided against,
-  Counselor informed, reports made, record written. Note the reason in the Flag in one line
-  without naming anyone: "Not a concern: book title", "Escalated to Counselor; handled per
-  procedure".
+  Counselor informed, reports made, record written. Pick the outcome (not a concern, handled,
+  escalated to counselor, or other) and give the reason in one line without naming anyone:
+  "Not a concern: book title", "Escalated to Counselor; handled per procedure". A closed Flag can
+  be reopened, with a reason, until the Purge deletes its exchange.
 - **Do not use open Flags as storage.** Aim to close every Flag within `[BLANK: 5]` school days.
-  Any Flag open longer is reviewed by the Counselor.
+  The Flag queue marks a Flag overdue after `[BLANK: 7]` days open (the `flags.overdue_days`
+  setting). Any Flag open longer than the school's aim is reviewed by the Counselor.
 - **If CPS, police, or counsel asks the school to keep the exchange,** tell the administrator and
   have the Librarian set a Hold on it before that day's Purge (ADR-0003, "Holds"), then Export
   it into the school's own records. Leaving the Flag open is not a way to keep it. `[VERIFY]` with
@@ -461,8 +546,13 @@ All of these must be true. The Librarian keeps this checklist signed and dated.
 - [ ] Each of them has current DPI mandated reporter training, including threats of school
       violence (Wis. Stat. 118.07(5)).
 - [ ] The counselor has reviewed the Watchlist (section 10) and a version is recorded.
+- [ ] The counselor line is set, and the Counselor has read the printed Supportive replies
+      preview (section 7). The printout is kept with this protocol.
+- [ ] Stand-ins are named (section 2) and their accounts have the Stand-in role.
+- [ ] The supervision mode is set and recorded in section 3.
 - [ ] The Librarian has tested a Watchlist match on the Install with no Students present, and
-      seen the Flag and the Supportive reply.
+      seen the Flag, the Supportive reply, and the Alarm, heard the chime on the machine that
+      will be used for Watch, and pressed Acknowledge. Then closed that test Flag.
 - [ ] "The first ten minutes" page is printed and beside the Flag queue screen.
 - [ ] Each Teacher knows to keep their Roster reachable during and after the class session, and
       what to do when asked for Identification.
@@ -541,22 +631,27 @@ Other recognised school practice:
 - American School Counselor Association, "The School Counselor and Suicide Risk Assessment":
   <https://schoolcounselor.org/Standards-Positions/Position-Statements/ASCA-Position-Statements/The-School-Counselor-and-Suicide-Risk-Assessment>
 - Wisconsin DCF, county CPS contacts for reporting: <https://dcf.wisconsin.gov/reportabuse>
-- Wisconsin DOJ Office of School Safety, Speak Up, Speak Out: <https://speakup.widoj.gov/>
-  `[VERIFY]` the phone number in section 2 against the DOJ site; it was confirmed only from
-  district pages and a DOJ press-release summary.
+- Wisconsin DOJ Office of School Safety, Speak Up, Speak Out: <https://speakup.wisdoj.gov/>
+  (the old address, speakup.widoj.gov, redirects there). The call and text numbers in section 2
+  are from that page, checked 25 October 2026 (ADR-0011); it does not state hours.
+- Childhelp National Child Abuse Hotline, 1-800-422-4453, named in the abuse Supportive reply:
+  <https://childhelphotline.org/teens/>. Childhelp gives support and referrals; it does not file
+  reports. The report is the school's duty (section 6).
 
 ## Open questions this template depends on
 
 These are product or policy questions that the school (and the Library Assistant project)
 should settle. They are listed so nobody assumes the assistant handles them.
 
-- The assistant does not alert anyone. A Flag waits until someone looks. Section 3 covers this
-  with people and a schedule.
+- The Alarm reaches only open staff pages in the building. It never texts, emails, or pages
+  anyone. In periodic or off mode, or when nobody has the Live view or Flag queue open, a Flag
+  waits until someone looks. Section 3 covers this with people and a schedule.
 - When the Teacher is absent, Identification uses the sealed printed Roster in the office
   (section 5).
-- The Supportive reply is one fixed text, built around suicide and self-harm (988). It may not fit
-  an abuse disclosure or a threat of violence equally well. Check its wording (section 7).
-- Closing a Flag lets the next Purge delete the exchange. The school must copy what it needs
+- The Supportive reply defaults are drafts written for this project, not by your counselor.
+  Your counselor reviews them, and the school decides on its counselor line and any
+  replacements, before first use (section 7).
+- Closing a Flag lets the next Purge delete the exchange. The school must Export what it needs
   first (section 9).
 </content>
 </invoke>
