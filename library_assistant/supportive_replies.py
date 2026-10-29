@@ -98,12 +98,14 @@ def get_supportive_reply_text(
         # Basic validation of the override
         validation_errors = validate_override_text(override_text, category)
         if validation_errors:
-            # Raise an error to enforce startup guard rails
-            raise ValueError(
-                f"Invalid override for {category}: " + "; ".join(validation_errors)
-            )
-        # For overrides, return as-is (they may have their own formatting rules)
-        return override_text
+            # For invalid overrides, fall back to the default text (never raise)
+            pass
+        else:
+            # For valid overrides, apply the same processing as defaults (strip bold, fill counselor)
+            import re
+
+            stripped = re.sub(r"\*\*(.*?)\*\*", r"\1", override_text)
+            return stripped.format(counselor=counselor_name)
 
     # Get the default text for this category
     default_text = DEFAULT_REPLY_TEMPLATES.get(category, "")
@@ -139,6 +141,17 @@ def install_overrides(db) -> tuple[str, dict[str, str]]:
         if text:
             overrides[category] = text
     return counselor, overrides
+
+
+def invalid_overrides(db) -> dict[str, list[str]]:
+    """Return invalid overrides (category -> list of errors) from install overrides."""
+    _, overrides = install_overrides(db)
+    invalid = {}
+    for category, override_text in overrides.items():
+        errors = validate_override_text(override_text, category)
+        if errors:
+            invalid[category] = errors
+    return invalid
 
 
 def reply_for(db, watchlist_categories) -> str:
