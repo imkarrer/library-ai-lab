@@ -703,7 +703,7 @@ def revoke_card_of_session_endpoint(
     return RedirectResponse("/staff/live", status_code=303)
 
 
-@router.get("/staff/catalog/record/{record_id}")
+@router.get("/catalog/record/{record_id}")
 def catalog_record(
     record_id: str,
     account: StandInDep,
