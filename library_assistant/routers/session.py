@@ -233,8 +233,9 @@ async def ask(
     raises a Flag, or repeats the open one for the same message. A high-severity match
     gets SUPPORTIVE_REPLY instead of an answer, with no Catalog search and no model call.
 
-    The Live view hears of the question and the answer through the LiveBus; the events
-    carry the Session's row number, never its hash.
+    The Live view hears of the question, each piece of the answer as the Student is
+    shown it (`delta`), and the finished answer through the LiveBus; the events carry
+    the Session's row number, never its hash.
     """
     card_ref = session.card_ref
     if card_ref in _in_flight:
@@ -295,6 +296,15 @@ def _answer(
             if discard_in_flight:
                 _in_flight.discard(session.card_ref)
 
+    def publish_delta(text: str) -> None:
+        """Tell the Live view of answer text as the Student is shown it: SEARCH lines
+        never, the Supportive reply only whole (its answer event). Memory and the open
+        stream only: never logged, and stored only as the finished transcript."""
+        bus.publish(
+            "delta",
+            {"session_no": session_no, "transcript_id": transcript_id, "text": text},
+        )
+
     # Check Watchlist matches first
     matches = watchlist.match(request.question)
     message_hash = hashlib.sha256(normalize(request.question).encode()).hexdigest()
@@ -352,6 +362,7 @@ def _answer(
                         # Use the filter to handle search lines
                         output = filter_instance.feed(delta)
                         if output:
+                            publish_delta(output)
                             yield output
 
             # After streaming, extract search terms from the full response
@@ -384,6 +395,7 @@ def _answer(
 
             # Also yield any remaining text that wasn't handled by the filter
             if remaining_text:
+                publish_delta(remaining_text)
                 yield remaining_text
         finally:
             # The Card stays in-flight when Oversight is enabled: _run_oversight releases
