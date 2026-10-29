@@ -134,10 +134,11 @@
         <button id="back-to-config-btn">Back to Configuration</button>
         <details>
             <summary>Technical details: Token hashes (for verifying against the server database by hand)</summary>
-            <p>Each Card's Token is hashed with SHA-256, the same way the server hashes it on
-            Registration. Nothing below is printed, downloaded, or uploaded; it is here only
-            so a Teacher can cross-check a Card against the server's <code>cards</code> table
-            if an upload ever needs confirming by hand.</p>
+            <p>Each Card's Token is hashed with SHA-256 on this machine, the same way the server
+            hashes a Card at sign-in. These hashes are what Registration sends; the Tokens
+            themselves never leave this machine. The table is here only so a Teacher can
+            cross-check a Card against the server's <code>cards</code> table if an upload
+            ever needs confirming by hand.</p>
             <table id="audit-table" class="audit">
                 <thead><tr><th>Card</th><th>SHA-256(token)</th></tr></thead>
                 <tbody id="audit-table-body"></tbody>
@@ -2558,7 +2559,7 @@ var qrcode = function() {
                 classLabel: classLabel,
                 registrationPayload: {
                     cards: cards.map(card => ({
-                        token: card.token,
+                        token_hash: card.tokenHash,
                         card_number: card.cardNumber
                     })),
                     expires_at: expiresAt.toISOString(),
@@ -2585,7 +2586,7 @@ var qrcode = function() {
             `;
         }
 
-        // Technical-details table of each Card's token hash, never printed or uploaded.
+        // Technical-details table of each Card's token hash (the table is never printed).
         function generateAuditTableRows(cards) {
             return cards.map(card =>
                 `<tr><td>${card.cardNumber}</td><td>${card.tokenHash}</td></tr>`
@@ -2656,8 +2657,8 @@ var qrcode = function() {
 </html>`;
         }
 
-        // Submit registration to server. Only the Registration payload (Tokens, Card numbers,
-        // expiry, Class label) and the registration key ever leave this machine; the Roster
+        // Submit registration to server. Only the Registration payload (Token hashes, Card
+        // numbers, expiry, Class label) and the registration key ever leave this machine; the Roster
         // (student names) never does.
         async function submitRegistration(url, key, payload) {
             const statusDiv = document.getElementById('registration-status');

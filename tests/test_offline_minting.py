@@ -124,20 +124,28 @@ process.stdout.write(svg);
 
 
 def test_offline_minting_upload_carries_no_roster_data(app_logic_script: str) -> None:
-    """The Registration payload must carry Tokens and Card numbers, never Roster (student) data."""
+    """The Registration payload carries Token hashes and Card numbers, never a Token or
+    Roster (student) data (ADR-0002)."""
     js = f"""
 {NODE_STUB_DOCUMENT}
 {app_logic_script}
 (async () => {{
   const result = await generateCards(3, 'Period 3', '23:59');
-  process.stdout.write(JSON.stringify(result.registrationPayload));
+  process.stdout.write(JSON.stringify({{
+    payload: result.registrationPayload,
+    tokens: result.cards.map(c => c.token),
+  }}));
 }})();
 """
-    payload = json.loads(_run_node(js))
+    out = json.loads(_run_node(js))
+    payload = out["payload"]
     assert set(payload.keys()) == {"cards", "expires_at", "class_label"}
-    for card in payload["cards"]:
-        assert set(card.keys()) == {"token", "card_number"}
-    assert "students" not in json.dumps(payload)
+    for card, token in zip(payload["cards"], out["tokens"], strict=True):
+        assert set(card.keys()) == {"token_hash", "card_number"}
+        assert card["token_hash"] == hash_token(token)
+    dumped = json.dumps(payload)
+    assert "students" not in dumped
+    assert not any(token in dumped for token in out["tokens"])
 
 
 def test_offline_minting_sealed_roster_sheet_has_no_token_or_hash(

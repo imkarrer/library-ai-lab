@@ -19,6 +19,7 @@ import anyio
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+from registration_helpers import batch_cards
 
 from library_assistant.access import (
     connect,
@@ -203,10 +204,7 @@ def db(lanes, clock, probe_wait):
             "/batches",
             json={
                 "registration_key": registration_key,
-                "cards": [
-                    {"token": "token-14", "card_number": "14"},
-                    {"token": "token-15", "card_number": "15"},
-                ],
+                "cards": batch_cards(("token-14", "14"), ("token-15", "15")),
                 "expires_at": EXPIRES.isoformat(),
                 "class_label": "Period 3",
             },

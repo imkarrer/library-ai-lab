@@ -2,7 +2,8 @@
 Roster template, and a Registration payload.
 
 Binding: ADR-0002. The Teacher's machine keeps the Cards' Tokens and the Roster; only the
-Registration payload reaches the assistant, and it carries no Student data.
+Registration payload reaches the assistant, and it carries only Token hashes (never a
+Token) and no Student data.
 """
 
 from __future__ import annotations
@@ -13,6 +14,8 @@ import io
 import secrets
 from dataclasses import dataclass
 from datetime import datetime
+
+from library_assistant.access import hash_token
 
 PRIVACY_NOTE = (
     "This card doesn't tell the assistant your name. Adults can see what you ask."
@@ -59,7 +62,8 @@ def mint_cards(count: int, class_label: str, expires_at: datetime) -> MintResult
 
     registration_payload = {
         "cards": [
-            {"token": card.token, "card_number": card.card_number} for card in cards
+            {"token_hash": hash_token(card.token), "card_number": card.card_number}
+            for card in cards
         ],
         "expires_at": expires_at.isoformat(),
         "class_label": class_label,
