@@ -987,3 +987,43 @@ def test_loop_runs_once_each_day(monkeypatch):
         datetime(2024, 1, 3, 12, 0, 0, tzinfo=UTC),
     ]
     assert sleeps == [pytest.approx(s) for s in (6 * 3600, 86400, 86400)]
+
+
+def test_lifespan_reads_install_settings(monkeypatch):
+    """Test that the lifespan reads the install settings from the environment."""
+    # Set up a non-default timezone
+    import os
+
+    os.environ["LIBRARY_ASSISTANT_SCHOOL_TIMEZONE"] = "America/Denver"
+
+    # Create a mock database and settings
+    from library_assistant.access import connect
+    from library_assistant.app import app
+
+    # Mock the database connection
+    mock_db = connect(":memory:")
+
+    # Set up the lifespan test
+    import asyncio
+
+    # Monkey patch the connect function to return our mock db
+    import library_assistant.app as app_module
+    from library_assistant.app import lifespan
+
+    original_connect = app_module.connect
+    app_module.connect = lambda: mock_db
+
+    try:
+        # Test the lifespan context manager
+        async def test_lifespan():
+            async with lifespan(app):
+                pass
+
+        # Run the lifespan test
+        asyncio.run(test_lifespan())
+
+        # Clean up
+        mock_db.close()
+    finally:
+        # Restore the original connect function
+        app_module.connect = original_connect

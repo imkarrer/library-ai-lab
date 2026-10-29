@@ -8,7 +8,7 @@ from library_assistant import access_log
 from library_assistant.access import connect, get_clock
 from library_assistant.access import router as access_router
 from library_assistant.access_log import AccessLogMiddleware
-from library_assistant.config import Settings
+from library_assistant.dependencies import get_settings
 from library_assistant.install_settings import router as install_settings_router
 
 # Import here to avoid circular imports
@@ -37,7 +37,7 @@ async def lifespan(app: FastAPI):
 
     # Get the current time and settings using dependency overrides
     clock = app.dependency_overrides.get(get_clock, get_clock)
-    settings = app.dependency_overrides.get(Settings, lambda: Settings())()
+    settings = app.dependency_overrides.get(get_settings, get_settings)()
 
     # Run purge if needed at startup
     run_if_due(db, clock(), settings)
