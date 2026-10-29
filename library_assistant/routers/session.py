@@ -316,162 +316,6 @@ def _answer(
             watchlist_version=watchlist.version,
         )
 
-    # Handle high severity matches specially - they get supportive reply
-    high_severity_matches = [entry for entry in matches if entry.severity == "high"]
-    if high_severity_matches:
-        # Every time, repeats included; nothing reaches the Catalog or the model.
-        async def supportive():
-            # Determine which category to use based on precedence order
-            matching_categories = [
-                entry.category for entry in matches if entry.severity == "high"
-            ]
-
-            # Apply precedence order from ADR-0011
-            selected_category = None
-            for category in PRECEDENCE_ORDER:
-                if category in matching_categories:
-                    selected_category = category
-                    break
-
-            # If no matching category found (should not happen with high severity matches),
-            # default to self-harm as per precedence
-            if selected_category is None:
-                selected_category = "self_harm"
-
-            # Get counselor name from settings or default
-            counselor_name = "a school counselor"
-
-            # Get Install overrides if available (this will be more complex in real implementation)
-            overrides = {}
-
-            # Get the supportive reply text using our new system
-            reply_text = get_supportive_reply_text(
-                selected_category, counselor_name, overrides
-            )
-
-            try:
-                yield reply_text
-            finally:
-                finish(
-                    reply_text,
-                    [],
-                    discard_in_flight=not settings.oversight_enabled,
-                )
-
-        return _ReleasingStream(
-            supportive(),
-            media_type="text/plain",
-            headers=NO_STORE,
-            card_ref=session.card_ref,
-        )
-
-    # If oversight is enabled, we need to do async screening
-    if settings.oversight_enabled:
-        # First, we need to update the transcript to mark it as being screened by oversight
-        db.execute(
-            "UPDATE transcripts SET screening = ? WHERE id = ?",
-            ("oversight", transcript_id),
-        )
-        db.commit()
-
-        # Start oversight screening task before processing the answer
-        async def _run_oversight():
-            """Run oversight screening and update the transcript with verdict."""
-            try:
-                # Create a separate client for oversight to avoid sharing the main client
-                async with httpx.AsyncClient() as oversight_client:
-                    verdict = await screen(oversight_client, settings, request.question)
-
-                    # Update the transcript with the verdict and screening info
-                    db.execute(
-                        "UPDATE transcripts SET verdict = ?, screened_at = ?, screening = ? WHERE id = ?",
-                        (
-                            json.dumps(
-                                {
-                                    "category": verdict.category,
-                                    "severity": verdict.severity,
-                                    "reason": verdict.reason,
-                                }
-                            )
-                            if verdict
-                            else None,
-                            clock.isoformat(),
-                            "oversight",
-                            transcript_id,
-                        ),
-                    )
-                    db.commit()
-
-                    # If there's a category from oversight, raise a flag
-                    if verdict.category:
-                        raise_or_repeat(
-                            db,
-                            transcript_id,
-                            session.class_label,
-                            session.card_number,
-                            session.expires_at.isoformat(),
-                            message_hash,
-                            verdict.category,
-                            verdict.severity,
-                            "oversight",
-                            clock.isoformat(),
-                            reason=verdict.reason,
-                        )
-            except OversightUnavailable:
-                # If Oversight is unavailable, we still proceed with the answer
-                pass
-            finally:
-                # Remove the task from the set when done
-                _oversight_tasks.discard(task)
-                # Remove the card from in-flight only when oversight is done
-                _in_flight.discard(session.card_ref)
-
-        # Start the oversight task and store reference for use in finally
-        task = asyncio.create_task(_run_oversight())
-        _oversight_tasks.add(task)
-
-        # For oversight enabled, we need to wait for the oversight task to complete before returning
-        # We create a special stream that will ensure both the answer and oversight finish
-        async def generate_with_oversight():
-            # Start the response generation in the background
-            response_task = asyncio.create_task(generate())
-
-            # Wait for response to complete
-            async for item in response_task:
-                yield item
-
-            # Wait for oversight task to complete (this ensures the in-flight marker is held)
-            await task
-
-        # Return the special stream that waits for both the response and oversight
-        return _ReleasingStream(
-            generate_with_oversight(),
-            media_type="text/plain",
-            headers=NO_STORE,
-            card_ref=session.card_ref,
-        )
-
-        # For oversight enabled, we need to wait for the oversight task to complete before returning
-        # We create a special stream that will ensure both the answer and oversight finish
-        async def generate_with_oversight():
-            # Start the response generation in the background
-            response_task = asyncio.create_task(generate())
-
-            # Wait for response to complete
-            async for item in response_task:
-                yield item
-
-            # Wait for oversight task to complete (this ensures the in-flight marker is held)
-            await task
-
-        # Return the special stream that waits for both the response and oversight
-        return _ReleasingStream(
-            generate_with_oversight(),
-            media_type="text/plain",
-            headers=NO_STORE,
-            card_ref=session.card_ref,
-        )
-
     # First, we build the messages for the research prompt
     messages = build_messages(request.question)
 
@@ -542,10 +386,122 @@ def _answer(
             if remaining_text:
                 yield remaining_text
         finally:
-            # When oversight is enabled, we already updated the transcript in _run_oversight
-            # If oversight is disabled, we still need to complete the process normally
-            if not settings.oversight_enabled:
-                finish("".join(answer_parts), shown)
+            # The Card stays in-flight when Oversight is enabled: _run_oversight releases
+            # it once the verdict is recorded.
+            finish(
+                "".join(answer_parts),
+                shown,
+                discard_in_flight=not settings.oversight_enabled,
+            )
+
+    # The Oversight task starts at the same moment as the Answer request (or the
+    # Supportive reply): a Supportive reply still gets screened.
+    oversight_task: asyncio.Task | None = None
+    if settings.oversight_enabled:
+        db.execute(
+            "UPDATE transcripts SET screening = ? WHERE id = ?",
+            ("oversight", transcript_id),
+        )
+        db.commit()
+
+        async def _run_oversight():
+            """Screen the message and record the verdict; never cancelled (see
+            `_oversight_tasks`), so the Card stays in-flight until this records."""
+            try:
+                # Its own client: the Oversight endpoint is not the Answer lane's.
+                async with httpx.AsyncClient() as oversight_client:
+                    verdict = await screen(oversight_client, settings, request.question)
+
+                    db.execute(
+                        "UPDATE transcripts SET verdict = ?, screened_at = ?, screening = ? WHERE id = ?",
+                        (
+                            json.dumps(
+                                {
+                                    "category": verdict.category,
+                                    "severity": verdict.severity,
+                                    "reason": verdict.reason,
+                                }
+                            ),
+                            clock.isoformat(),
+                            "oversight",
+                            transcript_id,
+                        ),
+                    )
+                    db.commit()
+
+                    if verdict.category:
+                        raise_or_repeat(
+                            db,
+                            transcript_id,
+                            session.class_label,
+                            session.card_number,
+                            session.expires_at.isoformat(),
+                            message_hash,
+                            verdict.category,
+                            verdict.severity,
+                            "oversight",
+                            clock.isoformat(),
+                            reason=verdict.reason,
+                        )
+            except OversightUnavailable:
+                # The Watchlist already ran; the Student still gets an answer.
+                pass
+            finally:
+                _oversight_tasks.discard(oversight_task)
+                _in_flight.discard(session.card_ref)
+
+        oversight_task = asyncio.create_task(_run_oversight())
+        _oversight_tasks.add(oversight_task)
+
+    # Handle high severity matches specially - they get supportive reply
+    high_severity_matches = [entry for entry in matches if entry.severity == "high"]
+    if high_severity_matches:
+        # Every time, repeats included; nothing reaches the Catalog or the model.
+        async def supportive():
+            # Apply precedence order from ADR-0011
+            matching_categories = [
+                entry.category for entry in matches if entry.severity == "high"
+            ]
+            selected_category = next(
+                (c for c in PRECEDENCE_ORDER if c in matching_categories),
+                "self_harm",
+            )
+            reply_text = get_supportive_reply_text(
+                selected_category, "a school counselor", {}
+            )
+
+            try:
+                yield reply_text
+            finally:
+                finish(
+                    reply_text,
+                    [],
+                    discard_in_flight=not settings.oversight_enabled,
+                )
+                if oversight_task is not None:
+                    await oversight_task
+
+        return _ReleasingStream(
+            supportive(),
+            media_type="text/plain",
+            headers=NO_STORE,
+            card_ref=session.card_ref,
+        )
+
+    if oversight_task is not None:
+        # The Answer lane streams through `generate()`; once its body is fully sent,
+        # we still hold the Card until the Oversight task records its verdict.
+        async def generate_with_oversight():
+            async for item in generate():
+                yield item
+            await oversight_task
+
+        return _ReleasingStream(
+            generate_with_oversight(),
+            media_type="text/plain",
+            headers=NO_STORE,
+            card_ref=session.card_ref,
+        )
 
     return _ReleasingStream(
         generate(),
