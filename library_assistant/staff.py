@@ -376,10 +376,42 @@ def staff_home(
     db: sqlite3.Connection = Depends(get_db),
     clock: datetime = Depends(get_clock),
 ) -> HTMLResponse:
+    # Build the links based on role
+    links = []
+
+    # All roles can access supportive replies preview
+    links.append(
+        '<li><a href="/staff/supportive-replies-preview">Supportive reply preview</a></li>'
+    )
+
+    # Role-specific links
+    if account.role in ("librarian", "teacher", "counselor"):
+        # Librarian and stand-in can access live view
+        if account.role == "librarian" or account.is_stand_in:
+            links.append('<li><a href="/staff/live">Live view</a></li>')
+
+        # Librarian and stand-in can access flag queue
+        if account.role == "librarian" or account.is_stand_in:
+            links.append('<li><a href="/staff/flags">Flag queue</a></li>')
+
+        # Librarian can access additional pages
+        if account.role == "librarian":
+            links.append('<li><a href="/staff/accounts">Accounts</a></li>')
+            links.append('<li><a href="/staff/holds">Holds</a></li>')
+            links.append('<li><a href="/staff/settings">Install settings</a></li>')
+            links.append('<li><a href="/staff/keys">Keys</a></li>')
+
+    # Counselor can access flag queue
+    if account.role == "counselor":
+        links.append('<li><a href="/staff/flags">Flag queue</a></li>')
+
+    links_html = "<ul>" + "".join(links) + "</ul>" if links else ""
+
     return page(
         "Staff",
         f"<h1>Library Assistant staff</h1>"
         f"<p>Signed in as {html.escape(account.username)} ({account.role}).</p>"
+        f"{links_html}"
         '<form method="post" action="/staff/logout"><button>Sign out</button></form>',
         account=account,
         db=db,
