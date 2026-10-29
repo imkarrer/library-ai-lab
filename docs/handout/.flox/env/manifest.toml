@@ -1,0 +1,40 @@
+schema-version = "1.14.0"
+
+# Toolchain for building the librarian handout (README.md). Its own environment, apart from
+# the repo root's: a librarian installs that one to run the assistant, and it should not pull
+# in a browser to build our PDF.
+
+[install]
+marp-cli.pkg-path = "marp-cli"
+
+# Marp shells out to a browser for PDF export; HTML needs none. Catalog chromium is
+# Linux-only, so Darwin gets catalog google-chrome (unfree) and PDF export does not depend on
+# a host Chrome.app.
+chromium.pkg-path = "chromium"
+chromium.systems = ["aarch64-linux", "x86_64-linux"]
+google-chrome.pkg-path = "google-chrome"
+google-chrome.systems = ["aarch64-darwin"]
+
+# The Makefile is the build. NixOS and other minimal systems don't ship `make`.
+gnumake.pkg-path = "gnumake"
+
+# check-overflow.sh reads the probe's report back out of the browser's DOM.
+python3.pkg-path = "python3"
+
+# google-chrome is Unfree; without this the Darwin pin is refused.
+[options]
+allow.unfree = true
+systems = ["aarch64-darwin", "aarch64-linux", "x86_64-linux"]
+
+# Marp finds a browser via CHROME_PATH, not PATH.
+[vars]
+CHROME_NO_SANDBOX = "1"
+CHROME_DISABLE_GPU = "1"
+
+[hook]
+on-activate = '''
+  if _chrome="$("$FLOX_ENV_PROJECT/resolve-chrome.sh")"; then
+    export CHROME_PATH="$_chrome"
+  fi
+  unset _chrome
+'''

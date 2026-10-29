@@ -18,3 +18,7 @@ marc-dist-download/
 result
 result-*
 .agent-stacks/
+
+# The handout build (docs/handout/Makefile); rebuild with `make`.
+docs/handout/build/
+docs/handout/.serve/
