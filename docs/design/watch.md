@@ -31,7 +31,10 @@ flowchart TD
 The Librarian, or a staff account the Librarian has made a Stand-in. A Counselor alone can't:
 they see only Escalated Flags, so they'd miss a new high-severity one. One Watch covers the
 whole Install, since there's one supervised class at a time (ADR-0009). Several adults can be
-on Watch at once, and Students carry on while any one of them is.
+on Watch at once, and Students carry on while any one of them is. Each of them is a watcher,
+one `watchers` row per staff account (`library_assistant/watch.py`). The Watch is on while
+any watcher has a heartbeat within the grace and an unexpired staff session; End watch and
+signing out remove only that account's row.
 
 ## Start watch and the heartbeat
 
@@ -51,12 +54,12 @@ sequenceDiagram
     LV->>A: GET /staff/live/events (SSE, held open)
     L->>LV: Start watch
     LV->>LV: play the chime once (sound check)
-    LV->>A: start watch
+    LV->>A: POST /staff/watch/start
     A->>DB: Watch on: account, started_at
     A-->>LV: replay any unacknowledged high-severity Alarm first
     loop every 20 s
         A-->>LV: ping
-        LV->>A: heartbeat
+        LV->>A: POST /staff/watch/heartbeat
         A->>DB: last_heartbeat_at = now
     end
     Note over LV: A background tab still answers, and the chime<br/>is heard from any tab, so it still counts
