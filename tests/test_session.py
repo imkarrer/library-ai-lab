@@ -285,6 +285,59 @@ def test_answer_is_filled_in_after_stream(client, model_calls):
     assert rows == [("Period 3", "14", "Try Ferdinand, a gentle bull.", RECORD.id)]
 
 
+def test_stored_answer_has_no_search_line(client, monkeypatch):
+    """The SEARCH line drives the catalog search but the Student never sees it, so it
+    must not land in the transcript's answer either."""
+    test_client, db = client
+    _sign_in(test_client)
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        body = (
+            b'data: {"choices":[{"delta":{"content":"Ferdinand is a gentle bull.\\n"}}]}\n\n'
+            b'data: {"choices":[{"delta":{"content":"SEARCH: bulls\\n"}}]}\n\n'
+            b"data: [DONE]\n\n"
+        )
+        return httpx.Response(
+            200, content=body, headers={"content-type": "text/event-stream"}
+        )
+
+    monkeypatch.setattr(
+        httpx.AsyncHTTPTransport, "handle_async_request", handle_async_request
+    )
+
+    test_client.post("/ask", json={"question": "a book about bulls?"})
+
+    answer = db.execute("SELECT answer FROM transcripts").fetchone()[0]
+    assert "Ferdinand is a gentle bull." in answer
+    assert "SEARCH" not in answer
+
+
+def test_shown_remaining_text_comes_before_books(client, monkeypatch):
+    """The overview text released at finish() is shown whole before the citations."""
+    test_client, _ = client
+    _sign_in(test_client)
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        body = (
+            b'data: {"choices":[{"delta":{"content":"Try Ferdinand.\\n"}}]}\n\n'
+            b'data: {"choices":[{"delta":{"content":"He likes flowers"}}]}\n\n'
+            b"data: [DONE]\n\n"
+        )
+        return httpx.Response(
+            200, content=body, headers={"content-type": "text/event-stream"}
+        )
+
+    monkeypatch.setattr(
+        httpx.AsyncHTTPTransport, "handle_async_request", handle_async_request
+    )
+
+    response = test_client.post("/ask", json={"question": "a book about bulls?"})
+
+    assert response.text.index("He likes flowers") < response.text.index(
+        "Books in our library:"
+    )
+
+
 def test_exchange_keeps_its_labels_after_the_card_is_revoked(client, model_calls):
     test_client, db = client
     _sign_in(test_client)
