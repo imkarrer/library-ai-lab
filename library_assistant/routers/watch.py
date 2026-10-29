@@ -12,7 +12,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
-from library_assistant.access import get_clock, get_db
+from library_assistant.access import NO_STORE, get_clock, get_db
 from library_assistant.alarms import unacknowledged_alarms
 from library_assistant.config import Settings
 from library_assistant.dependencies import get_settings
@@ -20,10 +20,6 @@ from library_assistant.staff import StaffDep, StandInDep
 from library_assistant.watch import end_watch, heartbeat, start_watch, watchers_count
 
 router = APIRouter(prefix="/staff/watch")
-
-NO_STORE = {"Cache-Control": "no-store"}
-
-NO_STORE = {"Cache-Control": "no-store"}
 
 
 def _watching(watching: bool, status_code: int = 200) -> JSONResponse:
