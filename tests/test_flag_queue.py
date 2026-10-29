@@ -629,6 +629,52 @@ def test_escalate_absent_without_counselor(client, db):
     assert get_flag(db, flag_id).escalated_at is None
 
 
+def test_counselor_flag_shows_registered_by(client, db):
+    """A Counselor sees Flag with Registered by field (lib-90j.2 addendum)."""
+    create_account(db, "counselor-account", "correct horse", "counselor")
+    _sign_in_as(client, db, "librarian")
+
+    # Create transcript and flag
+    transcript_id = _transcript(db)
+    flag_id = _flag(db, transcript_id, escalated=True)
+
+    # Sign in as counselor
+    response = client.post(
+        "/staff/login",
+        data={"username": "counselor-account", "password": "correct horse"},
+        follow_redirects=False,
+    )
+    client.cookies.set(STAFF_SESSION_COOKIE, response.cookies[STAFF_SESSION_COOKIE])
+
+    # Get counselor flag page
+    response = client.get(f"/staff/counselor/flags/{flag_id}")
+    assert response.status_code == 200
+    # Should contain the registered by information
+    assert "Registered by" in response.text
+
+
+def test_unescalated_flag_404_for_counselor(client, db):
+    """A Counselor gets 404 for a Flag that is not escalated."""
+    create_account(db, "counselor-account", "correct horse", "counselor")
+    _sign_in_as(client, db, "librarian")
+
+    # Create transcript and un-escalated flag
+    transcript_id = _transcript(db)
+    flag_id = _flag(db, transcript_id, escalated=False)
+
+    # Sign in as counselor
+    response = client.post(
+        "/staff/login",
+        data={"username": "counselor-account", "password": "correct horse"},
+        follow_redirects=False,
+    )
+    client.cookies.set(STAFF_SESSION_COOKIE, response.cookies[STAFF_SESSION_COOKIE])
+
+    # Counselor should get 404 for un-escalated flag
+    response = client.get(f"/staff/counselor/flags/{flag_id}")
+    assert response.status_code == 404
+
+
 def test_escalate_requires_reason(client, db):
     create_account(db, "counselor-account", "correct horse", "counselor")
     _sign_in_as(client, db, "librarian")
