@@ -375,6 +375,7 @@ def export_flag(
     flag_id: int,
     account: StaffDep,
     db: sqlite3.Connection = Depends(get_db),
+    clock: datetime = Depends(get_clock),
 ) -> Response:
     """Export one Flag as a text/plain attachment: its own fields and its
     transcript's timed exchange, never a Token or hash or another Session's text."""
@@ -425,6 +426,9 @@ def export_flag(
     export_content = "\n".join(lines) + "\n"
 
     db.execute("UPDATE flags SET exported = 1 WHERE id = ?", (flag_id,))
+    append_event(
+        db, flag_id, "exported", at=clock.isoformat(), account=account.username
+    )
     db.commit()
 
     response = Response(content=export_content, media_type="text/plain")
