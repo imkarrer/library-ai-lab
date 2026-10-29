@@ -39,7 +39,7 @@
     },
     "services": {
       "assistant": {
-        "command": "  # --no-access-log: uvicorn's access log writes the raw path and query, which could\n  # carry a Token or Card number; the app keeps its own (ADR-0003 addendum).\n  cd \"$FLOX_ENV_PROJECT\" && \"$FLOX_ENV_CACHE/venv/bin/uvicorn\" library_assistant.app:app --host 127.0.0.1 --port 8000 --no-access-log\n"
+        "command": "  # --no-access-log: uvicorn's access log writes the raw path and query, which could\n  # carry a Token or Card number; the app keeps its own (ADR-0003 addendum).\n  cd \"$FLOX_ENV_PROJECT\" && \"$FLOX_ENV_CACHE/venv/bin/uvicorn\" library_assistant.app:app --host \"${LIBRARY_ASSISTANT_HOST:-127.0.0.1}\" --port \"${LIBRARY_ASSISTANT_PORT:-8000}\" --no-access-log\n"
       },
       "model": {
         "command": "  model=\"$FLOX_ENV_CACHE/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf\"\n  if [ ! -f \"$model\" ]; then\n    echo \"Demo model not found; run scripts/fetch_demo_model.sh once, online, first.\" >&2\n    exit 1\n  fi\n  # No -v, --log-prompts-dir, or --slot-save-path, and --no-slots (ADR-0003 addendum): the\n  # model server keeps no log or cache of a question. 127.0.0.1 only (ADR-0006).\n  exec llama-server \\\n    --model \"$model\" \\\n    --host 127.0.0.1 \\\n    --port 8080 \\\n    --ctx-size 8192 \\\n    --no-slots\n",

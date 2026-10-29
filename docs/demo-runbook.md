@@ -110,7 +110,7 @@ volunteers' questions.
    ```bash
    flox activate
    source ~/library-assistant-demo/demo.env
-   uvicorn library_assistant.app:app --host 127.0.0.1 --port 8000 --no-access-log
+   LIBRARY_ASSISTANT_HOST=127.0.0.1 flox services start assistant
    ```
 
    Always pass `--no-access-log`: uvicorn's own access log would write request paths
@@ -215,10 +215,10 @@ in Step 5, once the services are up.
 Two terminal tabs, both at the repo root. Tab 1 runs the model and the assistant; tab 2 is for
 checks and minting.
 
-**GAP (lib-f24.9):** the shipped `assistant` flox service binds `127.0.0.1` only, so phones
-cannot reach it, and there is no setting to change that. Start only the `model` service with
-flox, and run the assistant by hand bound to the LAN address, as below. Do not run
-`flox activate --start-services`, which would start a second assistant on `127.0.0.1`.
+**GAP (lib-f24.9):** the shipped `assistant` flox service now binds to the intranet address
+instead of `127.0.0.1` only. Start only the `model` service with flox, then start the
+assistant with the intranet address set. Do not run `flox activate --start-services`, which would
+start a second assistant on `127.0.0.1`.
 
 Tab 1:
 
@@ -249,7 +249,7 @@ Then start the assistant, bound to the LAN address, with the demo Watchlist on:
 ```bash
 source ~/library-assistant-demo/demo.env
 source ~/library-assistant-demo/today.env
-uvicorn library_assistant.app:app --host "$LAN_IP" --port 8000 --no-access-log
+LIBRARY_ASSISTANT_HOST="$LAN_IP" flox services start assistant
 ```
 
 Leave tab 1 running. Services started inside an activation stop when its last shell exits, so
