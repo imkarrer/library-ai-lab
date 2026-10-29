@@ -276,7 +276,9 @@ def _answer(
         },
     )
 
-    def finish(answer: str, shown: list[Citation]) -> None:
+    def finish(
+        answer: str, shown: list[Citation], discard_in_flight: bool = True
+    ) -> None:
         """Record what the Student saw, tell the Live view, and release the Card."""
         try:
             finish_exchange(db, transcript_id, answer, shown)
@@ -290,7 +292,8 @@ def _answer(
                 },
             )
         finally:
-            _in_flight.discard(session.card_ref)
+            if discard_in_flight:
+                _in_flight.discard(session.card_ref)
 
     # Check Watchlist matches first
     matches = watchlist.match(request.question)
@@ -349,7 +352,11 @@ def _answer(
             try:
                 yield reply_text
             finally:
-                finish(reply_text, [])
+                finish(
+                    reply_text,
+                    [],
+                    discard_in_flight=not settings.oversight_enabled,
+                )
 
         return _ReleasingStream(
             supportive(),
@@ -416,10 +423,54 @@ def _answer(
             finally:
                 # Remove the task from the set when done
                 _oversight_tasks.discard(task)
+                # Remove the card from in-flight only when oversight is done
+                _in_flight.discard(session.card_ref)
 
         # Start the oversight task and store reference for use in finally
         task = asyncio.create_task(_run_oversight())
         _oversight_tasks.add(task)
+
+        # For oversight enabled, we need to wait for the oversight task to complete before returning
+        # We create a special stream that will ensure both the answer and oversight finish
+        async def generate_with_oversight():
+            # Start the response generation in the background
+            response_task = asyncio.create_task(generate())
+
+            # Wait for response to complete
+            async for item in response_task:
+                yield item
+
+            # Wait for oversight task to complete (this ensures the in-flight marker is held)
+            await task
+
+        # Return the special stream that waits for both the response and oversight
+        return _ReleasingStream(
+            generate_with_oversight(),
+            media_type="text/plain",
+            headers=NO_STORE,
+            card_ref=session.card_ref,
+        )
+
+        # For oversight enabled, we need to wait for the oversight task to complete before returning
+        # We create a special stream that will ensure both the answer and oversight finish
+        async def generate_with_oversight():
+            # Start the response generation in the background
+            response_task = asyncio.create_task(generate())
+
+            # Wait for response to complete
+            async for item in response_task:
+                yield item
+
+            # Wait for oversight task to complete (this ensures the in-flight marker is held)
+            await task
+
+        # Return the special stream that waits for both the response and oversight
+        return _ReleasingStream(
+            generate_with_oversight(),
+            media_type="text/plain",
+            headers=NO_STORE,
+            card_ref=session.card_ref,
+        )
 
     # First, we build the messages for the research prompt
     messages = build_messages(request.question)
@@ -493,7 +544,8 @@ def _answer(
         finally:
             # When oversight is enabled, we already updated the transcript in _run_oversight
             # If oversight is disabled, we still need to complete the process normally
-            finish("".join(answer_parts), shown)
+            if not settings.oversight_enabled:
+                finish("".join(answer_parts), shown)
 
     return _ReleasingStream(
         generate(),
