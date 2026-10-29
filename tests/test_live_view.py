@@ -516,6 +516,38 @@ def test_tile_links_to_detail(client, db):
     assert "/staff/live/sessions/" in response.text
 
 
+def test_catalog_record_page_shows_the_record(client, db):
+    """Test that the Catalog record page renders the Record's details."""
+    _sign_in_as(client, db, "librarian")
+    app.dependency_overrides[get_catalog] = lambda: FakeCatalog()
+
+    response = client.get(f"/staff/catalog/record/{RECORD.id}")
+
+    assert response.status_code == 200
+    assert "PZ10.3.L47 St" in response.text
+    assert "The story of Ferdinand /" in response.text
+
+
+def test_catalog_record_unknown_is_404(client, db):
+    """Test that an unknown Record id 404s."""
+    _sign_in_as(client, db, "librarian")
+    app.dependency_overrides[get_catalog] = lambda: FakeCatalog()
+
+    response = client.get("/staff/catalog/record/no-such-id")
+
+    assert response.status_code == 404
+
+
+def test_catalog_record_teacher_403(client, db):
+    """Test that teacher role gets 403 for the Catalog record page."""
+    _sign_in_as(client, db, "teacher")
+    app.dependency_overrides[get_catalog] = lambda: FakeCatalog()
+
+    response = client.get(f"/staff/catalog/record/{RECORD.id}")
+
+    assert response.status_code == 403
+
+
 def _session_no_for_card(db, card_number, class_label) -> int:
     row = db.execute(
         "SELECT sessions.rowid FROM sessions "

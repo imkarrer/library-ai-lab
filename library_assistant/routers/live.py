@@ -34,6 +34,7 @@ from library_assistant.access import (
     revoke_card_of_session,
 )
 from library_assistant.alarm_banner import alarm_banner
+from library_assistant.catalog import Catalog
 from library_assistant.config import Settings
 from library_assistant.dependencies import get_catalog, get_settings
 from library_assistant.models import Citation
@@ -700,6 +701,33 @@ def revoke_card_of_session_endpoint(
     if not revoke_card_of_session(db, session_no):
         raise HTTPException(status_code=404, detail="Card already gone")
     return RedirectResponse("/staff/live", status_code=303)
+
+
+@router.get("/catalog/record/{record_id}")
+def catalog_record(
+    record_id: str,
+    account: StandInDep,
+    catalog: Catalog = Depends(get_catalog),
+) -> HTMLResponse:
+    """Show a Record's details from the Catalog."""
+    record = catalog.get(record_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="no such record")
+
+    # Render the record details in a page
+    content = (
+        f"<h1>Record Details</h1>"
+        f"<p><strong>Title:</strong> {html.escape(record.title)}</p>"
+        f"<p><strong>Author:</strong> {html.escape(record.author)}</p>"
+        f"<p><strong>Subjects:</strong> {html.escape(record.subjects)}</p>"
+        f"<p><strong>Summary:</strong> {html.escape(record.summary)}</p>"
+        f"<p><strong>Call Number:</strong> {html.escape(record.call_number)}</p>"
+        f'<p><a href="/staff/live">← Back to Live view</a></p>'
+    )
+
+    response = page("Record Details", content)
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @router.post("/live/sessions/{session_no}/revoke-batch")
