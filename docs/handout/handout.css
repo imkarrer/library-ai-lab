@@ -6,40 +6,44 @@
  */
 
 @import 'default';
+/* the shared palette: library_assistant/static/palette.css, registered in .marprc.yml */
+@import 'library-palette';
 
 section {
   width: 8.5in;
   height: 11in;
   padding: 0.7in 0.75in 0.6in;
-  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-family: var(--font-body);
   font-size: 15px;
   line-height: 1.45;
-  color: #1f2328;
-  background: #ffffff;
+  color: var(--ink);
+  background: #ffffff; /* printed: white paper, not the screen's cream */
   /* the default theme centres content vertically; a handout reads from the top */
   justify-content: flex-start !important;
   align-content: flex-start !important;
 }
 
 h1 {
+  font-family: var(--font-heading);
   font-size: 30px;
   line-height: 1.15;
   margin: 0 0 0.15em;
-  color: #0b3d5c;
+  color: var(--green-dark);
 }
 
 h2 {
+  font-family: var(--font-heading);
   font-size: 19px;
   margin: 1.1em 0 0.35em;
   padding-bottom: 0.15em;
-  border-bottom: 2px solid #d8e4ec;
-  color: #0b3d5c;
+  border-bottom: 2px solid var(--brass);
+  color: var(--green-dark);
 }
 
 h3 {
   font-size: 15px;
   margin: 0.9em 0 0.2em;
-  color: #0b3d5c;
+  color: var(--green-dark);
 }
 
 p, li {
@@ -51,18 +55,18 @@ ul, ol {
 }
 
 strong {
-  color: #0b3d5c;
+  color: var(--green-dark);
 }
 
 .lede {
   font-size: 18px;
-  color: #3d4a55;
+  color: var(--ink-muted);
   margin-bottom: 0.8em;
 }
 
 .box {
-  background: #f1f6f9;
-  border-left: 4px solid #0b3d5c;
+  background: var(--green-tint);
+  border-left: 4px solid var(--green);
   padding: 0.6em 0.9em;
   margin: 0.8em 0;
 }
@@ -70,8 +74,8 @@ strong {
 .quote {
   font-family: Georgia, 'Times New Roman', serif;
   font-size: 16px;
-  background: #fff8e1;
-  border: 1px solid #e6c65a;
+  background: var(--brass-tint);
+  border: 1px solid var(--brass);
   padding: 0.5em 0.8em;
   margin: 0.6em 0;
 }
@@ -84,24 +88,24 @@ table {
 }
 
 th, td {
-  border: 1px solid #d8e4ec;
+  border: 1px solid var(--rule);
   padding: 0.35em 0.55em;
   vertical-align: top;
   text-align: left;
 }
 
 th {
-  background: #f1f6f9;
+  background: var(--green-tint);
 }
 
 section::after {
   font-size: 11px;
-  color: #6b7782;
+  color: var(--ink-muted);
 }
 
 footer {
   font-size: 11px;
-  color: #6b7782;
+  color: var(--ink-muted);
 }
 
 .box p, .quote p {

@@ -422,7 +422,7 @@ def update_settings(
 
         # Create error message
         message = (
-            '<div style="color: red;"><p>Errors found:</p><ul>'
+            '<div class="banner" role="alert"><p>Errors found:</p><ul>'
             + "".join([f"<li>{msg}</li>" for msg in error_messages])
             + "</ul></div>"
         )
