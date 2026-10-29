@@ -1,0 +1,425 @@
+{
+  "lockfile-version": 1,
+  "manifest": {
+    "schema-version": "1.14.0",
+    "install": {
+      "chromium": {
+        "pkg-path": "chromium",
+        "systems": [
+          "aarch64-linux",
+          "x86_64-linux"
+        ]
+      },
+      "gnumake": {
+        "pkg-path": "gnumake"
+      },
+      "google-chrome": {
+        "pkg-path": "google-chrome",
+        "systems": [
+          "aarch64-darwin"
+        ]
+      },
+      "marp-cli": {
+        "pkg-path": "marp-cli"
+      },
+      "python3": {
+        "pkg-path": "python3"
+      }
+    },
+    "vars": {
+      "CHROME_DISABLE_GPU": "1",
+      "CHROME_NO_SANDBOX": "1"
+    },
+    "hook": {
+      "on-activate": "  if _chrome=\"$(\"$FLOX_ENV_PROJECT/resolve-chrome.sh\")\"; then\n    export CHROME_PATH=\"$_chrome\"\n  fi\n  unset _chrome\n"
+    },
+    "options": {
+      "systems": [
+        "aarch64-darwin",
+        "aarch64-linux",
+        "x86_64-linux"
+      ],
+      "allow": {
+        "unfree": true
+      }
+    }
+  },
+  "packages": [
+    {
+      "attr_path": "chromium",
+      "broken": false,
+      "derivation": "/nix/store/n1xb7qyr29hws62pfyx9sz0fllbg4cwx-chromium-156.0.8078.47.drv",
+      "description": "Open source web browser from Google",
+      "install_id": "chromium",
+      "license": "BSD-3-Clause",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=31ecbaca1bdefa45dffc409f0250bd8039ea0010",
+      "name": "chromium-156.0.8078.47",
+      "pname": "chromium",
+      "rev": "31ecbaca1bdefa45dffc409f0250bd8039ea0010",
+      "rev_count": 1103272,
+      "rev_date": "2026-10-27T14:17:15Z",
+      "scrape_date": "2026-10-29T06:16:32.223436Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "156.0.8078.47",
+      "outputs_to_install": [
+        "out",
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/bjjswgpm41wpy2mzdf8d688p39fpbp4d-chromium-156.0.8078.47",
+        "sandbox": "/nix/store/llraj8s7qn1xv6520wfsvxzfqsic7l4h-chromium-156.0.8078.47-sandbox"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "chromium",
+      "broken": false,
+      "derivation": "/nix/store/z2fmzk6d76fas42q6b2ghfiwixarhhbx-chromium-156.0.8078.47.drv",
+      "description": "Open source web browser from Google",
+      "install_id": "chromium",
+      "license": "BSD-3-Clause",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=31ecbaca1bdefa45dffc409f0250bd8039ea0010",
+      "name": "chromium-156.0.8078.47",
+      "pname": "chromium",
+      "rev": "31ecbaca1bdefa45dffc409f0250bd8039ea0010",
+      "rev_count": 1103272,
+      "rev_date": "2026-10-27T14:17:15Z",
+      "scrape_date": "2026-10-29T06:48:05.375661Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "156.0.8078.47",
+      "outputs_to_install": [
+        "out",
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/r0f9i35n3r7rng8162xih4c1dag0s1vw-chromium-156.0.8078.47",
+        "sandbox": "/nix/store/46kiggir43gx205czp0qw3dv30s50x49-chromium-156.0.8078.47-sandbox"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "gnumake",
+      "broken": false,
+      "derivation": "/nix/store/k8pyap7djnhn373l8ggpw2mybmjb1lxf-gnumake-4.4.1.drv",
+      "description": "Tool to control the generation of non-source files from sources",
+      "install_id": "gnumake",
+      "license": "GPL-3.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=31ecbaca1bdefa45dffc409f0250bd8039ea0010",
+      "name": "gnumake-4.4.1",
+      "pname": "gnumake",
+      "rev": "31ecbaca1bdefa45dffc409f0250bd8039ea0010",
+      "rev_count": 1103272,
+      "rev_date": "2026-10-27T14:17:15Z",
+      "scrape_date": "2026-10-29T05:48:03.624681Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "4.4.1",
+      "outputs_to_install": [
+        "man",
+        "out"
+      ],
+      "outputs": {
+        "doc": "/nix/store/xl1nz3znzjb27wrig0vrf5fj3z7jqh5s-gnumake-4.4.1-doc",
+        "info": "/nix/store/99bqn610vynhvhwg8srd9g2l990cfa7a-gnumake-4.4.1-info",
+        "man": "/nix/store/g0hyk9rpf10di0l5x6gxjahh5rip30kn-gnumake-4.4.1-man",
+        "out": "/nix/store/306s97mvw5slpgg7hnb26xy37dhy4xk0-gnumake-4.4.1"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "gnumake",
+      "broken": false,
+      "derivation": "/nix/store/whg3qr4glzpg7b2l25msd6v1p3j1nvnf-gnumake-4.4.1.drv",
+      "description": "Tool to control the generation of non-source files from sources",
+      "install_id": "gnumake",
+      "license": "GPL-3.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=31ecbaca1bdefa45dffc409f0250bd8039ea0010",
+      "name": "gnumake-4.4.1",
+      "pname": "gnumake",
+      "rev": "31ecbaca1bdefa45dffc409f0250bd8039ea0010",
+      "rev_count": 1103272,
+      "rev_date": "2026-10-27T14:17:15Z",
+      "scrape_date": "2026-10-29T06:16:32.385721Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "4.4.1",
+      "outputs_to_install": [
+        "man",
+        "out"
+      ],
+      "outputs": {
+        "debug": "/nix/store/f7yag335k3y4ymn9hb5q1yzqc1njf1hi-gnumake-4.4.1-debug",
+        "doc": "/nix/store/782lakmsm9nxf4hpnn8whmq541cphv6r-gnumake-4.4.1-doc",
+        "info": "/nix/store/51cb4z2jrvqdnab9cc8hjf478c8f55hw-gnumake-4.4.1-info",
+        "man": "/nix/store/nacivbyfzp1w0xydskbxrkapp2gn552s-gnumake-4.4.1-man",
+        "out": "/nix/store/nk0i2hc4x8qpshj326jzn36hkbgi7j7z-gnumake-4.4.1"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "gnumake",
+      "broken": false,
+      "derivation": "/nix/store/ccbm4sfzcp3fvmhjh2anccnirrc91lyi-gnumake-4.4.1.drv",
+      "description": "Tool to control the generation of non-source files from sources",
+      "install_id": "gnumake",
+      "license": "GPL-3.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=31ecbaca1bdefa45dffc409f0250bd8039ea0010",
+      "name": "gnumake-4.4.1",
+      "pname": "gnumake",
+      "rev": "31ecbaca1bdefa45dffc409f0250bd8039ea0010",
+      "rev_count": 1103272,
+      "rev_date": "2026-10-27T14:17:15Z",
+      "scrape_date": "2026-10-29T06:48:05.497897Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "4.4.1",
+      "outputs_to_install": [
+        "man",
+        "out"
+      ],
+      "outputs": {
+        "debug": "/nix/store/k7lz9zpj52al794kkw0d80hwj2v7pn9h-gnumake-4.4.1-debug",
+        "doc": "/nix/store/7c3i6ivjqgc7hz21bchima12lxk8c1s4-gnumake-4.4.1-doc",
+        "info": "/nix/store/9lbfzcvwx1c859fy6k0l9cbkp6fcxd9l-gnumake-4.4.1-info",
+        "man": "/nix/store/ncw4l9vr02fh2prknq5dhmdycb00rdmr-gnumake-4.4.1-man",
+        "out": "/nix/store/vs2sa1msvkjxbb70h47819zq8a9srj21-gnumake-4.4.1"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "google-chrome",
+      "broken": false,
+      "derivation": "/nix/store/vmnw6iv0li2x6jdwcvxwdag6iagmrba2-google-chrome-156.0.8078.48.drv",
+      "description": "Freeware web browser developed by Google",
+      "install_id": "google-chrome",
+      "license": "Unfree",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=31ecbaca1bdefa45dffc409f0250bd8039ea0010",
+      "name": "google-chrome-156.0.8078.48",
+      "pname": "google-chrome",
+      "rev": "31ecbaca1bdefa45dffc409f0250bd8039ea0010",
+      "rev_count": 1103272,
+      "rev_date": "2026-10-27T14:17:15Z",
+      "scrape_date": "2026-10-29T05:48:03.625649Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": true,
+      "version": "156.0.8078.48",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/wmkf3xqixy24j659pykmfsixkkz1qvcw-google-chrome-156.0.8078.48"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "marp-cli",
+      "broken": false,
+      "derivation": "/nix/store/8sczd4p816qaah5n1a7bgz36wzjybd1b-marp-cli-4.5.1.drv",
+      "description": "About A CLI interface for Marp and Marpit based converters",
+      "install_id": "marp-cli",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=31ecbaca1bdefa45dffc409f0250bd8039ea0010",
+      "name": "marp-cli-4.5.1",
+      "pname": "marp-cli",
+      "rev": "31ecbaca1bdefa45dffc409f0250bd8039ea0010",
+      "rev_count": 1103272,
+      "rev_date": "2026-10-27T14:17:15Z",
+      "scrape_date": "2026-10-29T05:48:03.762713Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "4.5.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/6hhqwplgcx4sshb4f8d4rh81k9q3qipq-marp-cli-4.5.1"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "marp-cli",
+      "broken": false,
+      "derivation": "/nix/store/4s4fhydb5lsq1391j634d8hjg3yabi4q-marp-cli-4.5.1.drv",
+      "description": "About A CLI interface for Marp and Marpit based converters",
+      "install_id": "marp-cli",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=31ecbaca1bdefa45dffc409f0250bd8039ea0010",
+      "name": "marp-cli-4.5.1",
+      "pname": "marp-cli",
+      "rev": "31ecbaca1bdefa45dffc409f0250bd8039ea0010",
+      "rev_count": 1103272,
+      "rev_date": "2026-10-27T14:17:15Z",
+      "scrape_date": "2026-10-29T06:16:32.501686Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "4.5.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/0qvpa3pz53zv7bsn2g4jb6n42qii9sy9-marp-cli-4.5.1"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "marp-cli",
+      "broken": false,
+      "derivation": "/nix/store/kca77n2v8aa7d9vmb9mmp83b5gvkwrjz-marp-cli-4.5.1.drv",
+      "description": "About A CLI interface for Marp and Marpit based converters",
+      "install_id": "marp-cli",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=31ecbaca1bdefa45dffc409f0250bd8039ea0010",
+      "name": "marp-cli-4.5.1",
+      "pname": "marp-cli",
+      "rev": "31ecbaca1bdefa45dffc409f0250bd8039ea0010",
+      "rev_count": 1103272,
+      "rev_date": "2026-10-27T14:17:15Z",
+      "scrape_date": "2026-10-29T06:48:05.616311Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "4.5.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/c4ar9d6wk2nfas4879pwj0prh7mml2dn-marp-cli-4.5.1"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python3",
+      "broken": false,
+      "derivation": "/nix/store/sahyb0s7yi9wb0mmb7gk4i0lg3i897qq-python3-3.14.8.drv",
+      "description": "High-level dynamically-typed programming language",
+      "install_id": "python3",
+      "license": "Python-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=31ecbaca1bdefa45dffc409f0250bd8039ea0010",
+      "name": "python3-3.14.8",
+      "pname": "python3",
+      "rev": "31ecbaca1bdefa45dffc409f0250bd8039ea0010",
+      "rev_count": 1103272,
+      "rev_date": "2026-10-27T14:17:15Z",
+      "scrape_date": "2026-10-29T05:48:03.851080Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "3.14.8",
+      "outputs_to_install": [
+        "out",
+        "out",
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/0jb1qn7qnpbz8774mq5k2c1p84gp0x76-python3-3.14.8"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python3",
+      "broken": false,
+      "derivation": "/nix/store/53q2g0a8zwlfj1hksivjxqf32q3rn1yq-python3-3.14.8.drv",
+      "description": "High-level dynamically-typed programming language",
+      "install_id": "python3",
+      "license": "Python-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=31ecbaca1bdefa45dffc409f0250bd8039ea0010",
+      "name": "python3-3.14.8",
+      "pname": "python3",
+      "rev": "31ecbaca1bdefa45dffc409f0250bd8039ea0010",
+      "rev_count": 1103272,
+      "rev_date": "2026-10-27T14:17:15Z",
+      "scrape_date": "2026-10-29T06:16:32.555162Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "3.14.8",
+      "outputs_to_install": [
+        "out",
+        "out",
+        "out",
+        "out"
+      ],
+      "outputs": {
+        "debug": "/nix/store/l8kl41zr8hgr8rwhahnaxrrpykyhddrk-python3-3.14.8-debug",
+        "out": "/nix/store/lq2fsnmg0q3y0vlxn91w8s8wvj1m6fld-python3-3.14.8"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python3",
+      "broken": false,
+      "derivation": "/nix/store/w1svn0lba9gv480i37z2q97yi4155mlr-python3-3.14.8.drv",
+      "description": "High-level dynamically-typed programming language",
+      "install_id": "python3",
+      "license": "Python-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=31ecbaca1bdefa45dffc409f0250bd8039ea0010",
+      "name": "python3-3.14.8",
+      "pname": "python3",
+      "rev": "31ecbaca1bdefa45dffc409f0250bd8039ea0010",
+      "rev_count": 1103272,
+      "rev_date": "2026-10-27T14:17:15Z",
+      "scrape_date": "2026-10-29T06:48:05.666236Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "3.14.8",
+      "outputs_to_install": [
+        "out",
+        "out",
+        "out",
+        "out"
+      ],
+      "outputs": {
+        "debug": "/nix/store/wspkap7vq09k1cv7ymqbv3fdmk0sybfy-python3-3.14.8-debug",
+        "out": "/nix/store/xahxrjs30p3mw0a42bqg9ikgkikskw8m-python3-3.14.8"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    }
+  ]
+}

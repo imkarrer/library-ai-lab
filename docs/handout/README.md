@@ -10,12 +10,19 @@ Its colours and fonts come from the assistant's own palette,
 `.marprc.yml` registers as a Marp theme: change a colour there and the handout and the app's
 pages change together.
 
-Build the PDF from this directory (Node and a Chromium or Chrome are needed; on NixOS, point
-`CHROME_PATH` at a Chromium):
+The toolchain (Marp, a browser, make) is this directory's own Flox environment, apart from the
+repo root's, which a librarian installs and which should not carry a browser. From this
+directory:
 
 ```bash
-npx @marp-team/marp-cli@4.0.3 --config-file .marprc.yml --pdf librarian-handout.md -o librarian-handout.pdf
+flox activate -- make          # build/librarian-handout.pdf and .html
+flox activate -- make serve    # live preview at http://localhost:8080, reloads on save
+flox activate -- make check    # fails if any page's content runs off the bottom of the page
+flox activate -- make clean
 ```
+
+Run `make check` on the machine that prints: the fonts are local, so a page that fits on one
+machine can spill on another.
 
 The PDF is not committed: build it fresh before printing.
 
