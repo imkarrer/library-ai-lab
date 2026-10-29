@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from library_assistant.alarms import (
     chime_settings,
@@ -21,7 +22,9 @@ from library_assistant.alarms import (
     unacknowledged_alarms,
     unacknowledged_escalations,
 )
-from library_assistant.staff import StaffAccount
+
+if TYPE_CHECKING:
+    from library_assistant.staff import StaffAccount
 
 CHIME_URL = "/staff/alarm/chime.wav"
 

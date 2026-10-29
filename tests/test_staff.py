@@ -495,5 +495,5 @@ def test_accounts_page_escapes_username(client, db):
 
     text = client.get("/staff/accounts").text
 
-    assert "<script>" not in text
+    assert "<script>alert(1)</script>" not in text
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in text

@@ -22,7 +22,6 @@ from library_assistant.access import (
     registering_teacher,
     review_due_at,
 )
-from library_assistant.alarm_banner import alarm_banner
 from library_assistant.alarms import acknowledgement, announce_escalation
 from library_assistant.config import Settings, get_settings
 from library_assistant.flag_history import append_event, get_history
@@ -212,7 +211,6 @@ def flag_queue(
 
     body = (
         "<h1>Flag queue</h1>"
-        + alarm_banner(db, account, clock)
         + watch_control
         + (f"<p>{header_info}</p>" if header_info else "")
         + holds_info
@@ -224,7 +222,7 @@ def flag_queue(
         f"{rows}"
         "</tbody></table>" + heartbeat_script
     )
-    return page("Flag queue", body)
+    return page("Flag queue", body, account=account, db=db, now=clock)
 
 
 @router.get("/flags/{flag_id}")
@@ -305,7 +303,6 @@ def flag_page(
         )
     body = (
         "<h1>Flag</h1>"
-        f"{alarm_banner(db, account, clock)}"
         "<table><tbody>"
         f"<tr><th>Raised at</th><td>{html.escape(flag.raised_at)}</td></tr>"
         f"<tr><th>Category</th><td>{html.escape(flag.category)}</td></tr>"
@@ -331,7 +328,7 @@ def flag_page(
         f"{history_rows}"
         "</tbody></table>"
     )
-    response = page("Flag", body)
+    response = page("Flag", body, account=account, db=db, now=clock)
     response.headers["Cache-Control"] = "no-store"
     return response
 
@@ -526,7 +523,6 @@ def counselor_flag_queue(
 
     body = (
         "<h1>Counselor flag queue</h1>"
-        f"{alarm_banner(db, account, clock)}"
         "<table><thead><tr>"
         "<th>Raised at</th><th>Category</th><th>Severity</th><th>Source</th>"
         "<th>Entry</th><th>Class</th><th>Card</th><th>Registered by</th>"
@@ -535,7 +531,7 @@ def counselor_flag_queue(
         f"{rows}"
         "</tbody></table>"
     )
-    return page("Counselor flag queue", body)
+    return page("Counselor flag queue", body, account=account, db=db, now=clock)
 
 
 @router.get("/counselor/flags/{flag_id}")
@@ -619,7 +615,6 @@ def counselor_flag_page(
         )
     body = (
         "<h1>Flag</h1>"
-        f"{alarm_banner(db, account, clock)}"
         "<table><tbody>"
         f"<tr><th>Raised at</th><td>{html.escape(flag.raised_at)}</td></tr>"
         f"<tr><th>Category</th><td>{html.escape(flag.category)}</td></tr>"
@@ -645,6 +640,6 @@ def counselor_flag_page(
         f"{history_rows}"
         "</tbody></table>"
     )
-    response = page("Flag", body)
+    response = page("Flag", body, account=account, db=db, now=clock)
     response.headers["Cache-Control"] = "no-store"
     return response
