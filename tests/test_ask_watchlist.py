@@ -19,6 +19,7 @@ from library_assistant.app import app
 from library_assistant.catalog import Catalog, Record
 from library_assistant.config import Settings
 from library_assistant.dependencies import get_catalog, get_settings, get_watchlist
+from library_assistant.install_settings import SUPERVISION_MODE, set_setting
 from library_assistant.routers.live import LiveBus, get_live_bus
 from library_assistant.routers.session import SUPPORTIVE_REPLY, _in_flight
 from library_assistant.staff import create_account
@@ -104,16 +105,15 @@ def events(monkeypatch) -> list[tuple[str, dict]]:
 @pytest.fixture
 def client(catalog, events):
     db = connect(":memory:")
+    teacher_id = create_account(db, "registering-teacher", "correct horse", "teacher")
     db.execute(
         "INSERT INTO registration_keys (account_id, key_hash, rotated_at) "
         "VALUES (?, ?, ?)",
-        (
-            create_account(db, "registering-teacher", "correct horse", "teacher"),
-            hash_token(REGISTRATION_KEY),
-            NOW.isoformat(),
-        ),
+        (teacher_id, hash_token(REGISTRATION_KEY), NOW.isoformat()),
     )
     db.commit()
+    # No Watch is started in this fixture: open the gate directly (lib-793.3).
+    set_setting(db, SUPERVISION_MODE, "off", teacher_id, NOW)
     settings = Settings(
         openai_endpoint="http://model.example.com:8080", openai_model="llama3"
     )

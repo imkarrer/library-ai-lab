@@ -39,6 +39,9 @@ class FlagRow:
     exported: int | None
     escalated_at: str | None
     escalated_by: int | None
+    # Set once at raise time (ADR-0010 addendum): the gate was closed when this Flag
+    # was first raised. A repeat does not change it.
+    raised_unwatched: int
 
 
 def raise_flag(
@@ -55,6 +58,7 @@ def raise_flag(
     entry_id: str | None = None,
     watchlist_version: str | None = None,
     reason: str | None = None,
+    raised_unwatched: bool = False,
 ) -> int:
     """Raise a new flag and return its ID."""
     cursor = db.execute(
@@ -72,8 +76,9 @@ def raise_flag(
             watchlist_version,
             reason,
             raised_at,
-            exported
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+            exported,
+            raised_unwatched
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
         """,
         (
             transcript_id,
@@ -88,6 +93,7 @@ def raise_flag(
             watchlist_version,
             reason,
             raised_at,
+            raised_unwatched,
         ),
     )
     db.commit()
@@ -118,6 +124,7 @@ def raise_or_repeat(
     entry_id: str | None = None,
     watchlist_version: str | None = None,
     reason: str | None = None,
+    raised_unwatched: bool = False,
 ) -> tuple[int, bool]:
     """Raise a new flag or increment repeat count if same flag already exists.
 
@@ -183,6 +190,7 @@ def raise_or_repeat(
             entry_id,
             watchlist_version,
             reason,
+            raised_unwatched,
         )
         return (flag_id, False)
 
@@ -210,7 +218,8 @@ def open_flags(db: sqlite3.Connection) -> list[FlagRow]:
             last_repeat_at,
             exported,
             escalated_at,
-            escalated_by
+            escalated_by,
+            raised_unwatched
         FROM flags
         WHERE closed_at IS NULL
         ORDER BY raised_at DESC
@@ -250,7 +259,8 @@ def get_flag(db: sqlite3.Connection, flag_id: int) -> FlagRow | None:
             last_repeat_at,
             exported,
             escalated_at,
-            escalated_by
+            escalated_by,
+            raised_unwatched
         FROM flags
         WHERE id = ?
         """,

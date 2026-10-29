@@ -79,3 +79,48 @@ def watch_is_on(db: sqlite3.Connection, now: datetime) -> bool:
     """Is anyone on Watch: the check the gate on Card sign-in and asks reads."""
     _drop_lapsed(db, now)
     return db.execute("SELECT 1 FROM watchers LIMIT 1").fetchone() is not None
+
+
+def gate_is_open(db: sqlite3.Connection, now: datetime) -> bool:
+    """The gate on Card sign-in and asks (lib-f24.77): `live` needs a Watch; `off` is
+    always open; `periodic` is open unless a review is overdue by more than the pause
+    setting."""
+    # Imported here: install_settings imports staff, which imports this module.
+    from library_assistant.install_settings import (
+        DEFAULT_PAUSE_WHEN_REVIEW_OVERDUE_MINUTES,
+        DEFAULT_REVIEWS_EVERY_MINUTES,
+        DEFAULT_SUPERVISION_MODE,
+        PAUSE_WHEN_REVIEW_OVERDUE_MINUTES,
+        REVIEWS_EVERY_MINUTES,
+        SUPERVISION_MODE,
+        get_int_setting,
+        get_setting,
+    )
+
+    mode = get_setting(db, SUPERVISION_MODE, DEFAULT_SUPERVISION_MODE)
+    if mode == "off":
+        return True
+    if mode == "live":
+        return watch_is_on(db, now)
+
+    # mode == "periodic"
+    pause_minutes = get_int_setting(
+        db,
+        PAUSE_WHEN_REVIEW_OVERDUE_MINUTES,
+        DEFAULT_PAUSE_WHEN_REVIEW_OVERDUE_MINUTES,
+    )
+    if pause_minutes <= 0:
+        return True
+
+    from library_assistant.access import review_due_at
+
+    settings_dict = {
+        "supervision_mode": mode,
+        "reviews_every_minutes": str(
+            get_int_setting(db, REVIEWS_EVERY_MINUTES, DEFAULT_REVIEWS_EVERY_MINUTES)
+        ),
+    }
+    due_at = review_due_at(db, settings_dict, now)
+    if due_at is None:
+        return True
+    return now < due_at + timedelta(minutes=pause_minutes)

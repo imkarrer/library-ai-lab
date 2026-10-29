@@ -24,6 +24,7 @@ from library_assistant.app import app
 from library_assistant.catalog import Catalog, Record
 from library_assistant.config import Settings
 from library_assistant.dependencies import get_catalog, get_settings, get_watchlist
+from library_assistant.install_settings import SUPERVISION_MODE, set_setting
 from library_assistant.routers.session import SUPPORTIVE_REPLY, _in_flight
 from library_assistant.staff import create_account
 from library_assistant.watchlist import Entry, Watchlist
@@ -150,9 +151,10 @@ def lanes(monkeypatch) -> FakeLanes:
 def client(lanes):
     db = connect(":memory:")
     app.dependency_overrides[get_db] = lambda: db
-    registration_key = issue_registration_key(
-        db, create_account(db, "registering-teacher", "correct horse", "teacher"), NOW
-    )
+    teacher_id = create_account(db, "registering-teacher", "correct horse", "teacher")
+    registration_key = issue_registration_key(db, teacher_id, NOW)
+    # No Watch is started in this fixture: open the gate directly (lib-793.3).
+    set_setting(db, SUPERVISION_MODE, "off", teacher_id, NOW)
     app.dependency_overrides[get_settings] = lambda: OVERSIGHT_SETTINGS
     app.dependency_overrides[get_catalog] = lambda: FakeCatalog()
     app.dependency_overrides[get_clock] = lambda: NOW

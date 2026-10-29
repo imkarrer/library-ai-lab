@@ -22,6 +22,7 @@ from starlette.types import Receive, Scope, Send
 
 from library_assistant.access import (
     NO_STORE,
+    PAUSED_TEXT,
     REFUSAL_TEXT,
     Session,
     get_clock,
@@ -56,18 +57,13 @@ from library_assistant.oversight import (
 )
 from library_assistant.prompt import SearchLineFilter, build_messages
 from library_assistant.routers.live import LiveBus, get_live_bus
+from library_assistant.watch import gate_is_open
 from library_assistant.watchlist import Watchlist, normalize
 
 # Quoted word for word by the AI literacy unit (docs/curriculum/ai-literacy-unit.md).
 BANNER_TEXT = "This can be wrong, check the source."
 
 ERROR_TEXT = "Something went wrong. Ask the librarian."
-
-# ADR-0010's paused wording: the assistant waits for an adult; nothing is broken.
-PAUSED_TEXT = (
-    "The Library Assistant is taking a break until the librarian is ready. "
-    "Please ask the librarian or your teacher."
-)
 
 # How long the probe waits between asking a down Oversight endpoint whether it is back,
 # and the catch-up waits while a Card awaits a verdict.
@@ -421,6 +417,16 @@ def chat_page(session: SessionDep) -> HTMLResponse:
     )
 
 
+@router.get("/status")
+def status(
+    session: SessionDep,
+    db: sqlite3.Connection = Depends(get_db),
+    clock: datetime = Depends(get_clock),
+) -> JSONResponse:
+    """Tells the chat page whether the gate is paused or active (ADR-0010)."""
+    return JSONResponse({"paused": not gate_is_open(db, clock)}, headers=NO_STORE)
+
+
 @router.post("/ask", response_model=None)
 async def ask(
     request: AskRequest,
@@ -491,6 +497,9 @@ def _answer(
     now: Callable[[], datetime],
     probe_wait: Callable[[], Awaitable[None]],
 ) -> StreamingResponse:
+    # The gate (lib-793.3, ADR-0010): the Watchlist and the Supportive reply run in
+    # every mode; a closed gate otherwise gets the paused response, like `state.paused`.
+    gate_open = gate_is_open(db, clock)
     # Oversight down: carry on at once with the Watchlist alone (ADR-0004 addendum).
     use_oversight = settings.oversight_enabled and state.unavailable_since is None
     watchlist_alone = settings.oversight_enabled and not use_oversight
@@ -563,6 +572,7 @@ def _answer(
             clock.isoformat(),
             entry_id=entry.id,
             watchlist_version=watchlist.version,
+            raised_unwatched=not gate_open,
         )
 
     # First, we build the messages for the research prompt
@@ -724,9 +734,10 @@ def _answer(
             card_ref=session.card_ref,
         )
 
-    if state.paused:
-        # Paused by an adult (or by oversight_down = pause): the Watchlist ran above and
-        # a high-severity match got its Supportive reply; nothing reaches the model.
+    if state.paused or not gate_open:
+        # Paused by an adult (or by oversight_down = pause, or a closed gate): the
+        # Watchlist ran above and a high-severity match got its Supportive reply;
+        # nothing reaches the model.
         async def paused():
             try:
                 yield json.dumps({"detail": PAUSED_TEXT})

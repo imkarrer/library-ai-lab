@@ -28,6 +28,7 @@ from library_assistant.catalog import Catalog, Record
 from library_assistant.config import Settings
 from library_assistant.dependencies import get_catalog, get_settings
 from library_assistant.flags import close_flag, raise_flag
+from library_assistant.install_settings import SUPERVISION_MODE, set_setting
 from library_assistant.purge import purge
 from library_assistant.staff import create_account
 
@@ -101,16 +102,15 @@ def app_db(request, tmp_path):
     db_path = tmp_path / "assistant.db"
     db = connect(str(db_path))
     db.execute(f"PRAGMA journal_mode = {request.param}")
+    teacher_id = create_account(db, "registering-teacher", "correct horse", "teacher")
     db.execute(
         "INSERT INTO registration_keys (account_id, key_hash, rotated_at) "
         "VALUES (?, ?, ?)",
-        (
-            create_account(db, "registering-teacher", "correct horse", "teacher"),
-            hash_token(REGISTRATION_KEY),
-            NOW.isoformat(),
-        ),
+        (teacher_id, hash_token(REGISTRATION_KEY), NOW.isoformat()),
     )
     db.commit()
+    # No Watch is started in this fixture: open the gate directly (lib-793.3).
+    set_setting(db, SUPERVISION_MODE, "off", teacher_id, NOW)
     clock = {"now": NOW}
     settings = Settings(
         openai_endpoint="http://model.example.com:8080", openai_model="llama3"
