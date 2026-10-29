@@ -117,3 +117,35 @@ def get_supportive_reply_text(
 
     # Fill in the counselor placeholder
     return stripped.format(counselor=counselor_name)
+
+
+DEFAULT_COUNSELOR = "a school counselor"
+
+
+def reply_key(watchlist_category: str) -> str:
+    """The reply table's key for a Watchlist Rubric category ("threats-of-violence" ->
+    "threats_of_violence")."""
+    return watchlist_category.replace("-", "_")
+
+
+def install_overrides(db) -> tuple[str, dict[str, str]]:
+    """The Install's counselor line and per-category reply overrides (ADR-0011)."""
+    from library_assistant.install_settings import get_setting
+
+    counselor = get_setting(db, "counselor_name", DEFAULT_COUNSELOR)
+    overrides = {}
+    for category in PRECEDENCE_ORDER:
+        text = get_setting(db, f"supportive_reply_{category}", None)
+        if text:
+            overrides[category] = text
+    return counselor, overrides
+
+
+def reply_for(db, watchlist_categories) -> str:
+    """The one Supportive reply for a message whose high-severity matches name these
+    Watchlist categories: the first in ADR-0011's precedence, with the Install's
+    counselor line and overrides."""
+    keys = {reply_key(category) for category in watchlist_categories}
+    category = next((c for c in PRECEDENCE_ORDER if c in keys), PRECEDENCE_ORDER[0])
+    counselor, overrides = install_overrides(db)
+    return get_supportive_reply_text(category, counselor, overrides)

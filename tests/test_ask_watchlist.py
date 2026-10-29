@@ -23,6 +23,7 @@ from library_assistant.install_settings import SUPERVISION_MODE, set_setting
 from library_assistant.routers.live import LiveBus, get_live_bus
 from library_assistant.routers.session import SUPPORTIVE_REPLY, _in_flight
 from library_assistant.staff import create_account
+from library_assistant.supportive_replies import get_supportive_reply_text
 from library_assistant.watchlist import Entry, Watchlist
 
 ADR_0011 = (
@@ -60,7 +61,17 @@ LOW_ENTRY = Entry(
     must_match=("a test low phrase here",),
     must_not_match=("nothing",),
 )
-WATCHLIST = Watchlist(version="2026-10-25.1", entries=(HIGH_ENTRY, LOW_ENTRY))
+THREAT_ENTRY = Entry(
+    id="test-threat-high",
+    category="threats-of-violence",
+    severity="high",
+    phrases=("test threat phrase",),
+    must_match=("a test threat phrase here",),
+    must_not_match=("nothing",),
+)
+WATCHLIST = Watchlist(
+    version="2026-10-25.1", entries=(HIGH_ENTRY, LOW_ENTRY, THREAT_ENTRY)
+)
 
 HIGH_QUESTION = "I keep thinking test high phrase"
 LOW_QUESTION = "test low phrase, any book recs?"
@@ -267,3 +278,35 @@ def test_same_message_again_is_a_repeat_and_still_gets_the_reply(client, model_c
         (SUPPORTIVE_REPLY,),
         (SUPPORTIVE_REPLY,),
     ]
+
+
+def test_threat_gets_the_threats_of_violence_reply(client, model_calls):
+    """Watchlist categories are hyphenated; the reply table is not. A threat must get
+    its own reply, not the self-harm one (ADR-0011)."""
+    test_client, _ = client
+
+    response = test_client.post("/ask", json={"question": "a test threat phrase here"})
+
+    expected = get_supportive_reply_text("threats_of_violence", "a school counselor")
+    assert response.text == expected
+    assert response.text != SUPPORTIVE_REPLY
+
+
+def test_several_categories_get_the_first_by_precedence(client, model_calls):
+    test_client, _ = client
+
+    response = test_client.post(
+        "/ask", json={"question": "a test threat phrase and a test high phrase"}
+    )
+
+    assert response.text == SUPPORTIVE_REPLY
+
+
+def test_reply_uses_the_installs_counselor_line(client, model_calls):
+    test_client, db = client
+    teacher_id = db.execute("SELECT id FROM staff_accounts").fetchone()[0]
+    set_setting(db, "counselor_name", "Ms. Rivera in Room 12", teacher_id, NOW)
+
+    response = test_client.post("/ask", json={"question": HIGH_QUESTION})
+
+    assert "Ms. Rivera in Room 12" in response.text
