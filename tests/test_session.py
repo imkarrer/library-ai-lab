@@ -23,6 +23,7 @@ from library_assistant.app import app
 from library_assistant.catalog import Catalog, Record
 from library_assistant.config import Settings
 from library_assistant.dependencies import get_catalog, get_settings
+from library_assistant.install_settings import SUPERVISION_MODE, set_setting
 from library_assistant.routers.session import BANNER_TEXT, _in_flight
 from library_assistant.staff import create_account
 
@@ -65,16 +66,15 @@ def clock():
 @pytest.fixture
 def client(settings, clock):
     db = connect(":memory:")
+    teacher_id = create_account(db, "registering-teacher", "correct horse", "teacher")
     db.execute(
         "INSERT INTO registration_keys (account_id, key_hash, rotated_at) "
         "VALUES (?, ?, ?)",
-        (
-            create_account(db, "registering-teacher", "correct horse", "teacher"),
-            hash_token(REGISTRATION_KEY),
-            NOW.isoformat(),
-        ),
+        (teacher_id, hash_token(REGISTRATION_KEY), NOW.isoformat()),
     )
     db.commit()
+    # No Watch is started in this fixture: open the gate directly (lib-793.3).
+    set_setting(db, SUPERVISION_MODE, "off", teacher_id, NOW)
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[get_settings] = lambda: settings
     app.dependency_overrides[get_catalog] = lambda: FakeCatalog()

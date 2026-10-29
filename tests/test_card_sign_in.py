@@ -14,7 +14,11 @@ from library_assistant.access import (
 )
 from library_assistant.app import app
 from library_assistant.config import Settings
-from library_assistant.install_settings import SESSION_IDLE_MINUTES
+from library_assistant.install_settings import (
+    SESSION_IDLE_MINUTES,
+    SUPERVISION_MODE,
+    set_setting,
+)
 from library_assistant.schoolday import school_day_end_for
 from library_assistant.staff import create_account
 
@@ -35,6 +39,8 @@ def client():
     app.dependency_overrides[get_clock] = lambda: FIXED_CLOCK
     REGISTRATION_ACCOUNT_ID = create_account(db, "teacher", "correct horse", "teacher")
     REGISTRATION_KEY = issue_registration_key(db, REGISTRATION_ACCOUNT_ID, FIXED_CLOCK)
+    # No Watch is started in this fixture: open the gate directly (lib-793.3).
+    set_setting(db, SUPERVISION_MODE, "off", REGISTRATION_ACCOUNT_ID, FIXED_CLOCK)
     try:
         yield TestClient(app), db
     finally:

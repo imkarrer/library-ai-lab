@@ -21,6 +21,7 @@ from library_assistant.config import Settings, get_settings
 from library_assistant.flag_history import EVENTS
 from library_assistant.holds import create_holds_table
 from library_assistant.schoolday import school_day_end_for
+from library_assistant.watch import gate_is_open
 
 DB_PATH = os.environ.get("LIBRARY_ASSISTANT_DB", "library_assistant.db")
 
@@ -30,6 +31,12 @@ REFUSAL_TEXT = "This card has stopped working. Ask your teacher for a new one."
 NO_STORE = {"Cache-Control": "no-store"}
 
 IDLE_TEXT = "this session ended, scan your card again"
+
+# ADR-0010's paused wording: the assistant waits for an adult; nothing is broken.
+PAUSED_TEXT = (
+    "The Library Assistant is taking a break until the librarian is ready. "
+    "Please ask the librarian or your teacher."
+)
 
 SESSION_COOKIE = "session"
 
@@ -214,7 +221,8 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
             last_repeat_at TEXT,
             exported INTEGER NOT NULL DEFAULT 0,
             escalated_at TEXT,
-            escalated_by INTEGER
+            escalated_by INTEGER,
+            raised_unwatched INTEGER NOT NULL DEFAULT 0
         )
         """
     )
@@ -291,6 +299,10 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
     _add_missing_columns(conn, "flags", ("exported", "escalated_by"))
     if "escalated_at" not in {r[1] for r in conn.execute("PRAGMA table_info(flags)")}:
         conn.execute("ALTER TABLE flags ADD COLUMN escalated_at TEXT")
+    # An older flags table predates the gate; its Flags read as raised while watched.
+    _add_missing_columns(
+        conn, "flags", ("raised_unwatched",), "INTEGER NOT NULL DEFAULT 0"
+    )
     # An older staff_accounts table predates deactivation; its accounts stay active.
     _add_missing_columns(
         conn, "staff_accounts", ("is_active",), "INTEGER NOT NULL DEFAULT 1"
@@ -589,6 +601,9 @@ def post_sign_in(
     expires_at_dt = datetime.fromisoformat(expires_at)
     if clock > expires_at_dt:
         return PlainTextResponse(REFUSAL_TEXT, status_code=403, headers=NO_STORE)
+
+    if not gate_is_open(db, clock):
+        return PlainTextResponse(PAUSED_TEXT, status_code=503, headers=NO_STORE)
 
     # If the request already carries a `session` cookie, delete that sessions row
     # before creating the new one, so the previous Student's Session on this device ends

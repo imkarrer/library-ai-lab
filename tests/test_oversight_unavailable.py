@@ -30,7 +30,11 @@ from library_assistant.app import app
 from library_assistant.catalog import Catalog, Record
 from library_assistant.config import Settings
 from library_assistant.dependencies import get_catalog, get_settings, get_watchlist
-from library_assistant.install_settings import OVERSIGHT_DOWN, set_setting
+from library_assistant.install_settings import (
+    OVERSIGHT_DOWN,
+    SUPERVISION_MODE,
+    set_setting,
+)
 from library_assistant.oversight import PROBE_TEXT, screening_state
 from library_assistant.routers import session as session_router
 from library_assistant.routers.session import (
@@ -190,9 +194,10 @@ def db(lanes, clock, probe_wait):
     app.dependency_overrides[get_now] = lambda: lambda: clock["now"]
     app.dependency_overrides[get_probe_wait] = lambda: probe_wait
     app.dependency_overrides[get_watchlist] = lambda: EMPTY_WATCHLIST
-    registration_key = issue_registration_key(
-        db, create_account(db, "registering-teacher", "correct horse", "teacher"), NOW
-    )
+    teacher_id = create_account(db, "registering-teacher", "correct horse", "teacher")
+    registration_key = issue_registration_key(db, teacher_id, NOW)
+    # No Watch is started in this fixture: open the gate directly (lib-793.3).
+    set_setting(db, SUPERVISION_MODE, "off", teacher_id, NOW)
     try:
         response = TestClient(app).post(
             "/batches",
