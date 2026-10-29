@@ -20,6 +20,7 @@ import sqlite3
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
@@ -30,8 +31,10 @@ from library_assistant.access import (
     revoke_batch_of_session,
     revoke_card_of_session,
 )
-from library_assistant.dependencies import get_catalog
+from library_assistant.config import Settings
+from library_assistant.dependencies import get_catalog, get_settings
 from library_assistant.models import Citation
+from library_assistant.oversight import ScreeningState, get_screening_state
 from library_assistant.staff import LibrarianDep, StandInDep, page
 from library_assistant.watch import is_watching
 
@@ -451,6 +454,8 @@ __HEARTBEAT__
     tile.querySelector(".latest").textContent = shorten(data.question);
     tiles.prepend(tile);
   });
+  // Screening went down or came back: the status line and its button are the server's.
+  source.addEventListener("screening", () => location.reload());
 })();
 </script>""".replace("__LIMIT__", str(LATEST_QUESTION_LIMIT)).replace(
     "__HEARTBEAT__", HEARTBEAT_SCRIPT
@@ -521,14 +526,45 @@ __HEARTBEAT__
 </script>""".replace("__HEARTBEAT__", HEARTBEAT_SCRIPT)
 
 
+def _screening_mode_form(mode: str, label: str) -> str:
+    return (
+        '<form method="post" action="/staff/live/screening-mode">'
+        f'<input type="hidden" name="mode" value="{mode}">'
+        f'<button type="submit">{label}</button></form>'
+    )
+
+
+def _screening_html(state: ScreeningState, timezone: str) -> str:
+    """While Oversight is down, since when (school time) and a Pause Sessions button;
+    while Sessions are paused, a Resume button (ADR-0004 addendum)."""
+    parts = []
+    if state.unavailable_since is not None:
+        since = state.unavailable_since.astimezone(ZoneInfo(timezone))
+        parts.append(
+            '<p class="screening-unavailable" role="status">'
+            f"Screening is unavailable since {since:%H:%M}.</p>"
+        )
+    if state.paused:
+        parts.append(
+            '<p class="sessions-paused" role="status">Sessions are paused.</p>'
+        )
+        parts.append(_screening_mode_form("resume", "Resume Sessions"))
+    elif state.unavailable_since is not None:
+        parts.append(_screening_mode_form("pause", "Pause Sessions"))
+    return f'<div id="screening">{"".join(parts)}</div>' if parts else ""
+
+
 @router.get("/live")
 def live_view(
     account: StandInDep,
     db: sqlite3.Connection = Depends(get_db),
     clock: datetime = Depends(get_clock),
+    settings: Settings = Depends(get_settings),
+    state: ScreeningState = Depends(get_screening_state),
 ) -> HTMLResponse:
-    """The overview: one tile per active Session and the Watch control, no forms; safe to
-    leave on screen."""
+    """The overview: one tile per active Session, safe to leave on screen. Its only
+    controls are the Watch button and, while screening is unavailable or Sessions are
+    paused, Pause (or Resume) Sessions."""
     tiles = active_sessions(db, clock)
     body = (
         "".join(_tile_html(tile) for tile in tiles)
@@ -536,12 +572,31 @@ def live_view(
         else '<p id="no-sessions">No active Sessions.</p>'
     )
     watch_control = _watch_control(is_watching(db, account.id, clock))
+    screening = _screening_html(state, settings.school_timezone)
     response = page(
         "Live view",
-        f'<h1>Live view</h1>{watch_control}<div id="tiles">{body}</div>{OVERVIEW_SCRIPT}',
+        f'<h1>Live view</h1>{watch_control}{screening}<div id="tiles">{body}</div>'
+        f"{OVERVIEW_SCRIPT}",
     )
     response.headers["Cache-Control"] = "no-store"
     return response
+
+
+@router.post("/live/screening-mode")
+def screening_mode(
+    account: StandInDep,
+    mode: str = Form(...),
+    state: ScreeningState = Depends(get_screening_state),
+    bus: LiveBus = Depends(get_live_bus),
+) -> RedirectResponse:
+    """Pause or resume Sessions, an adult's choice whenever they make it (ADR-0004
+    addendum: a Librarian or Stand-in). Process memory only; nothing is stored."""
+    if mode not in ("pause", "resume"):
+        raise HTTPException(status_code=400, detail="mode must be pause or resume")
+    state.paused = mode == "pause"
+    state.paused_by_setting = False
+    bus.publish("screening", {"unavailable": state.unavailable_since is not None})
+    return RedirectResponse("/staff/live", status_code=303)
 
 
 @router.get("/live/events")
