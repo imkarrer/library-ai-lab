@@ -12,7 +12,6 @@ from library_assistant.access import (
     connect,
     get_clock,
     get_db,
-    get_registration_key,
     hash_token,
 )
 from library_assistant.app import app
@@ -635,9 +634,18 @@ def bus():
 
 
 @pytest.fixture
-def asking_client(client, bus, monkeypatch):
+def asking_client(client, db, bus, monkeypatch):
     """A Card signed in through the real flow, with the model endpoint faked."""
-    app.dependency_overrides[get_registration_key] = lambda: REGISTRATION_KEY
+    db.execute(
+        "INSERT INTO registration_keys (account_id, key_hash, rotated_at) "
+        "VALUES (?, ?, ?)",
+        (
+            create_account(db, "registering-teacher", "correct horse", "teacher"),
+            hash_token(REGISTRATION_KEY),
+            NOW.isoformat(),
+        ),
+    )
+    db.commit()
     app.dependency_overrides[get_settings] = lambda: Settings(
         openai_endpoint="http://model.example.com:8080", openai_model="llama3"
     )

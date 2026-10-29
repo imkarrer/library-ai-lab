@@ -86,10 +86,6 @@ def get_clock() -> datetime:
     return datetime.now(UTC)
 
 
-def get_registration_key() -> str | None:
-    return os.environ.get("LIBRARY_ASSISTANT_REGISTRATION_KEY")
-
-
 # The counts each Purge run records beside its time (PurgeReport's fields).
 PURGE_RUN_COUNTS = (
     "deleted",
@@ -102,13 +98,17 @@ PURGE_RUN_COUNTS = (
 
 
 def _add_missing_columns(
-    conn: sqlite3.Connection, table: str, columns: tuple[str, ...]
+    conn: sqlite3.Connection,
+    table: str,
+    columns: tuple[str, ...],
+    definition: str = "INTEGER",
 ) -> None:
-    """Add integer columns an older database's table lacks (NULL on old rows)."""
+    """Add columns an older database's table lacks: NULL on old rows, unless
+    `definition` gives a default."""
     present = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
     for column in columns:
         if column not in present:
-            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} INTEGER")
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
 FLAG_HISTORY_SQL = """
@@ -158,7 +158,8 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
             token_hash TEXT PRIMARY KEY,
             card_number TEXT NOT NULL,
             expires_at TEXT NOT NULL,
-            class_label TEXT NOT NULL
+            class_label TEXT NOT NULL,
+            registered_by_account_id INTEGER REFERENCES staff_accounts (id)
         )
         """
     )
@@ -239,6 +240,7 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
             password_hash TEXT NOT NULL,
             role TEXT NOT NULL CHECK (role IN ('librarian', 'teacher', 'counselor')),
             is_stand_in INTEGER NOT NULL DEFAULT 0,
+            is_active INTEGER NOT NULL DEFAULT 1,
             created_at TEXT NOT NULL
         )
         """
@@ -263,6 +265,18 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
         )
         """
     )
+    # Each Teacher's or the Librarian's own Registration key (ADR-0002 addendum,
+    # "each Teacher registers with their own key"). Rotating replaces this row, so the
+    # old key's hash is simply gone.
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS registration_keys (
+            account_id INTEGER PRIMARY KEY REFERENCES staff_accounts (id),
+            key_hash TEXT NOT NULL,
+            rotated_at TEXT NOT NULL
+        )
+        """
+    )
     # The Purge run record: one row per run, with its report (library_assistant.purge).
     # Its existence for a day end also stops the Purge running twice for it.
     conn.execute(
@@ -277,6 +291,10 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
     _add_missing_columns(conn, "flags", ("exported", "escalated_by"))
     if "escalated_at" not in {r[1] for r in conn.execute("PRAGMA table_info(flags)")}:
         conn.execute("ALTER TABLE flags ADD COLUMN escalated_at TEXT")
+    # An older staff_accounts table predates deactivation; its accounts stay active.
+    _add_missing_columns(
+        conn, "staff_accounts", ("is_active",), "INTEGER NOT NULL DEFAULT 1"
+    )
     # Holds (ADR-0003 addendum): a scope the Purge keeps; never a Student.
     create_holds_table(conn)
     # Install settings (library_assistant.install_settings). Only the Librarian manages
@@ -394,20 +412,52 @@ class TokenPayload(BaseModel):
 router = APIRouter()
 
 
-def _require_key(presented: str, expected: str | None) -> None:
-    if not expected or presented != expected:
+def account_for_registration_key(db: sqlite3.Connection, key: str) -> int | None:
+    """The active staff account whose Registration key this is, or None.
+
+    None when the key was never issued, was rotated away, or belongs to an account the
+    Librarian has deactivated: a deactivated account's key stops working at once
+    (ADR-0002 addendum), though its hash row stays.
+    """
+    row = db.execute(
+        "SELECT registration_keys.account_id FROM registration_keys "
+        "JOIN staff_accounts ON staff_accounts.id = registration_keys.account_id "
+        "WHERE registration_keys.key_hash = ? AND staff_accounts.is_active = 1",
+        (hash_token(key),),
+    ).fetchone()
+    return row[0] if row else None
+
+
+def issue_registration_key(
+    db: sqlite3.Connection, account_id: int, clock: datetime
+) -> str:
+    """Mint a fresh Registration key for an account, replacing any key it already had."""
+    key = secrets.token_urlsafe(32)
+    db.execute(
+        "INSERT INTO registration_keys (account_id, key_hash, rotated_at) VALUES (?, ?, ?) "
+        "ON CONFLICT (account_id) DO UPDATE SET "
+        "key_hash = excluded.key_hash, rotated_at = excluded.rotated_at",
+        (account_id, hash_token(key), clock.isoformat()),
+    )
+    db.commit()
+    return key
+
+
+def _account_for_key_or_403(db: sqlite3.Connection, key: str) -> int:
+    account_id = account_for_registration_key(db, key)
+    if account_id is None:
         raise HTTPException(status_code=403, detail="invalid registration key")
+    return account_id
 
 
 @router.post("/batches", status_code=201)
 def register_batch(
     batch: BatchRegistration,
     db: sqlite3.Connection = Depends(get_db),
-    registration_key: str | None = Depends(get_registration_key),
     clock: datetime = Depends(get_clock),
     settings: Settings = Depends(get_settings),
 ) -> dict[str, int]:
-    _require_key(batch.registration_key, registration_key)
+    account_id = _account_for_key_or_403(db, batch.registration_key)
     end = school_day_end_for(clock, settings)
     if clock >= end:
         raise HTTPException(
@@ -420,14 +470,16 @@ def register_batch(
             detail="A Batch must expire by the end of today's school day.",
         )
     db.executemany(
-        "INSERT OR REPLACE INTO cards (token_hash, card_number, expires_at, class_label) "
-        "VALUES (?, ?, ?, ?)",
+        "INSERT OR REPLACE INTO cards "
+        "(token_hash, card_number, expires_at, class_label, registered_by_account_id) "
+        "VALUES (?, ?, ?, ?, ?)",
         [
             (
                 hash_token(card.token),
                 card.card_number,
                 batch.expires_at.isoformat(),
                 batch.class_label,
+                account_id,
             )
             for card in batch.cards
         ],
@@ -440,9 +492,8 @@ def register_batch(
 def revoke_card(
     revoke: RevokeCard,
     db: sqlite3.Connection = Depends(get_db),
-    registration_key: str | None = Depends(get_registration_key),
 ) -> dict[str, str]:
-    _require_key(revoke.registration_key, registration_key)
+    _account_for_key_or_403(db, revoke.registration_key)
     db.execute(
         "DELETE FROM cards WHERE class_label = ? AND card_number = ? AND expires_at = ?",
         (revoke.class_label, revoke.card_number, revoke.expires_at.isoformat()),
@@ -455,9 +506,8 @@ def revoke_card(
 def revoke_batch(
     revoke: RevokeBatch,
     db: sqlite3.Connection = Depends(get_db),
-    registration_key: str | None = Depends(get_registration_key),
 ) -> dict[str, str]:
-    _require_key(revoke.registration_key, registration_key)
+    _account_for_key_or_403(db, revoke.registration_key)
     db.execute(
         "DELETE FROM cards WHERE class_label = ? AND expires_at = ?",
         (revoke.class_label, revoke.expires_at.isoformat()),

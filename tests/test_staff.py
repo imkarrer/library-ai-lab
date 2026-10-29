@@ -1,3 +1,4 @@
+import sqlite3
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -6,10 +7,11 @@ from fastapi.testclient import TestClient
 
 from library_assistant.access import (
     SESSION_COOKIE,
+    account_for_registration_key,
     connect,
     get_clock,
     get_db,
-    get_registration_key,
+    issue_registration_key,
 )
 from library_assistant.app import app
 from library_assistant.staff import (
@@ -22,11 +24,11 @@ from library_assistant.staff import (
     verify_password,
 )
 from library_assistant.staff import router as staff_router
+from library_assistant.watch import is_watching, start_watch
 
 # Far in the future on purpose: sign-in sets the cookie to expire with the Card, an
 # absolute time the HTTP client compares with the real clock, so a past NOW drops it.
 NOW = datetime(2036, 10, 27, 14, 0, tzinfo=UTC)
-REGISTRATION_KEY = "s3cret-registration-key"
 
 
 @pytest.fixture
@@ -43,7 +45,6 @@ def clock():
 def client(db, clock):
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[get_clock] = lambda: clock["now"]
-    app.dependency_overrides[get_registration_key] = lambda: REGISTRATION_KEY
     try:
         yield TestClient(app)
     finally:
@@ -99,11 +100,12 @@ def test_staff_home_anonymous_is_401(client):
     assert 'href="/staff/login"' in response.text
 
 
-def test_student_cookie_is_401_on_staff_home(client):
+def test_student_cookie_is_401_on_staff_home(client, db):
+    teacher_id = create_account(db, "teacher", "correct horse", "teacher")
     client.post(
         "/batches",
         json={
-            "registration_key": REGISTRATION_KEY,
+            "registration_key": issue_registration_key(db, teacher_id, NOW),
             "cards": [{"token": "token-1", "card_number": "14"}],
             "expires_at": (NOW + timedelta(hours=2)).isoformat(),
             "class_label": "Period 3",
@@ -215,7 +217,8 @@ def test_stand_in_gets_403_on_accounts_and_keys_and_settings(client, db):
 
 def test_librarian_sees_accounts_and_keys_pages(client, db):
     create_account(db, "librarian", "correct horse", "librarian")
-    create_account(db, "teacher", "correct horse", "teacher")
+    teacher_id = create_account(db, "teacher", "correct horse", "teacher")
+    key = issue_registration_key(db, teacher_id, NOW)
     _sign_in(client)
 
     accounts = client.get("/staff/accounts")
@@ -224,7 +227,112 @@ def test_librarian_sees_accounts_and_keys_pages(client, db):
 
     keys = client.get("/staff/keys")
     assert keys.status_code == 200
-    assert REGISTRATION_KEY in keys.text
+    assert "teacher" in keys.text
+    assert key not in keys.text
+
+
+def test_librarian_rotates_any_accounts_key(client, db):
+    create_account(db, "librarian", "correct horse", "librarian")
+    teacher_id = create_account(db, "teacher", "correct horse", "teacher")
+    old_key = issue_registration_key(db, teacher_id, NOW)
+    _sign_in(client)
+
+    rotated = client.post(f"/staff/accounts/{teacher_id}/key/rotate")
+    assert rotated.status_code == 200
+    new_key = rotated.text.split("<pre>")[1].split("</pre>")[0]
+    assert new_key and new_key != old_key
+    assert account_for_registration_key(db, new_key) == teacher_id
+    assert account_for_registration_key(db, old_key) is None
+
+
+def test_librarian_deactivates_teacher_and_its_staff_sign_in_ends(client, db):
+    create_account(db, "librarian", "correct horse", "librarian")
+    teacher_id = create_account(db, "teacher", "correct horse", "teacher")
+
+    _sign_in(client, username="teacher")
+    assert client.get("/staff").status_code == 200
+    teacher_cookie = client.cookies[STAFF_SESSION_COOKIE]
+    client.cookies.clear()
+    start_watch(db, teacher_id, NOW)
+
+    _sign_in(client)
+    response = client.post(
+        f"/staff/accounts/{teacher_id}/deactivate", follow_redirects=False
+    )
+    assert response.status_code == 303
+    # As at sign-out, it stops being a watcher (ADR-0010).
+    assert not is_watching(db, teacher_id, NOW)
+    assert "deactivated" in client.get("/staff/accounts").text
+    client.cookies.clear()
+
+    # The Teacher's open staff session ends, and signing in again is refused.
+    client.cookies.set(STAFF_SESSION_COOKIE, teacher_cookie)
+    assert client.get("/staff").status_code == 401
+    client.cookies.clear()
+    assert _sign_in(client, username="teacher").status_code == 401
+
+
+@pytest.mark.parametrize("role", ["teacher", "counselor"])
+def test_non_librarian_cannot_deactivate_an_account(client, db, role):
+    create_account(db, role, "correct horse", role)
+    other_id = create_account(db, "other", "correct horse", "teacher")
+    _sign_in(client, username=role)
+
+    assert client.post(f"/staff/accounts/{other_id}/deactivate").status_code == 403
+    row = db.execute(
+        "SELECT is_active FROM staff_accounts WHERE id = ?", (other_id,)
+    ).fetchone()
+    assert row == (1,)
+
+
+def test_librarian_account_cannot_be_deactivated(client, db):
+    librarian_id = create_account(db, "librarian", "correct horse", "librarian")
+    _sign_in(client)
+    assert client.post(f"/staff/accounts/{librarian_id}/deactivate").status_code == 400
+    assert client.post("/staff/accounts/9999/deactivate").status_code == 404
+
+
+def test_older_database_gains_active_flag_with_accounts_active(tmp_path):
+    """A staff_accounts table from before deactivation keeps every account active."""
+    path = tmp_path / "old.db"
+    old = sqlite3.connect(path)
+    old.execute(
+        "CREATE TABLE staff_accounts (id INTEGER PRIMARY KEY, username TEXT UNIQUE "
+        "NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL, "
+        "is_stand_in INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL)"
+    )
+    old.execute(
+        "INSERT INTO staff_accounts (username, password_hash, role, created_at) "
+        "VALUES ('teacher', 'x', 'teacher', ?)",
+        (NOW.isoformat(),),
+    )
+    old.commit()
+    old.close()
+
+    db = connect(str(path))
+    teacher_id = db.execute("SELECT id FROM staff_accounts").fetchone()[0]
+    key = issue_registration_key(db, teacher_id, NOW)
+    assert account_for_registration_key(db, key) == teacher_id
+
+
+def test_teacher_rotates_own_key(client, db):
+    create_account(db, "librarian", "correct horse", "librarian")
+    teacher_id = create_account(db, "teacher", "correct horse", "teacher")
+    _sign_in(client, username="teacher")
+
+    rotated = client.post("/staff/key/rotate")
+    assert rotated.status_code == 200
+    new_key = rotated.text.split("<pre>")[1].split("</pre>")[0]
+    assert account_for_registration_key(db, new_key) == teacher_id
+
+
+@pytest.mark.parametrize("role", ["teacher", "counselor"])
+def test_non_librarian_cannot_rotate_others_key(client, db, role):
+    create_account(db, role, "correct horse", role)
+    other_id = create_account(db, "other", "correct horse", "teacher")
+    _sign_in(client, username=role)
+
+    assert client.post(f"/staff/accounts/{other_id}/key/rotate").status_code == 403
 
 
 def test_setup_creates_librarian(client, db):
