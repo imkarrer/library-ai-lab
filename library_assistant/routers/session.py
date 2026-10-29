@@ -337,6 +337,32 @@ def _oldest_unscreened(db: sqlite3.Connection) -> tuple | None:
     ).fetchone()
 
 
+def start_catch_up_if_needed(
+    db: sqlite3.Connection,
+    settings: Settings,
+    bus: LiveBus,
+    now: Callable[[], datetime],
+    wait: Callable[[], Awaitable[None]],
+) -> bool:
+    """Start catch-up if Oversight is enabled and there are unscreened exchanges.
+
+    Returns True if catch-up was started, False otherwise.
+    Does not set unavailable_since as Oversight is not known to be down.
+    """
+    if not settings.oversight_enabled:
+        return False
+
+    if _oldest_unscreened(db) is None:
+        return False
+
+    global _probe_task
+    if _probe_task is None or _probe_task.done():
+        _probe_task = asyncio.create_task(
+            _probe_and_catch_up(db, settings, bus, now, wait)
+        )
+    return True
+
+
 async def screens_settled(timeout: float) -> None:
     """Wait for any in-flight oversight screens to complete, up to the given timeout."""
     if not _screens:
