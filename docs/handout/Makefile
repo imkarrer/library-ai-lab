@@ -8,7 +8,8 @@
 # hook points CHROME_PATH at the browser (resolve-chrome.sh). The handout's palette is the
 # assistant's own, library_assistant/static/palette.css, so a change there rebuilds it too.
 
-MARP    := marp
+# --no-stdin: with stdin not a terminal (an agent, CI), Marp waits to read Markdown from it.
+MARP    := marp --no-stdin
 DOC     := librarian-handout.md
 BUILD   := build
 PALETTE := ../../library_assistant/static/palette.css
