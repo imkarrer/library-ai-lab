@@ -18,9 +18,10 @@ from library_assistant.access import (
 from library_assistant.app import app
 from library_assistant.catalog import Catalog, Record
 from library_assistant.config import Settings
-from library_assistant.dependencies import get_catalog, get_settings
+from library_assistant.dependencies import get_catalog, get_settings, get_watchlist
 from library_assistant.routers.live import LiveBus, get_live_bus, live_events
 from library_assistant.staff import STAFF_SESSION_COOKIE, StaffAccount, create_account
+from library_assistant.watchlist import Entry, Watchlist
 
 # Far in the future on purpose, matching tests/test_staff.py's convention: a past NOW
 # would make every Card and staff session in this file look already expired.
@@ -702,8 +703,8 @@ def test_answer_event_published_after_finish(asking_client, db, bus):
     asking_client.post("/ask", json={"question": "a book about bulls?"})
 
     messages = _drain(queue)
-    assert [kind for kind, _ in messages] == ["question", "answer"]
-    _, data = messages[1]
+    assert [kind for kind, _ in messages] == ["question", "delta", "answer"]
+    _, data = messages[-1]
     session_no = db.execute("SELECT rowid FROM sessions").fetchone()[0]
     transcript_id, stored_answer = db.execute(
         "SELECT id, answer FROM transcripts"
@@ -722,6 +723,112 @@ def test_answer_event_published_after_finish(asking_client, db, bus):
     }
     # Published after finish_exchange: the transcript already holds the answer.
     assert stored_answer == "Try Ferdinand"
+
+
+def _fake_model(monkeypatch, deltas: list[str]) -> None:
+    """The model endpoint streams `deltas`, one SSE chunk each."""
+    body = b"".join(
+        b"data: "
+        + json.dumps({"choices": [{"delta": {"content": delta}}]}).encode()
+        + b"\n\n"
+        for delta in deltas
+    )
+    body += b"data: [DONE]\n\n"
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, content=body, headers={"content-type": "text/event-stream"}
+        )
+
+    monkeypatch.setattr(
+        httpx.AsyncHTTPTransport, "handle_async_request", handle_async_request
+    )
+
+
+SHOWN_DELTAS = ["Try Ferdinand.\n", "It is about a bull.\n", "He likes flowers.\n"]
+
+
+def test_delta_events_in_order_for_each_delta(asking_client, bus, monkeypatch):
+    _fake_model(monkeypatch, [*SHOWN_DELTAS, "SEARCH: bulls; flowers\n"])
+    queue = bus.subscribe()
+
+    response = asking_client.post("/ask", json={"question": "a book about bulls?"})
+
+    messages = _drain(queue)
+    assert [kind for kind, _ in messages] == [
+        "question",
+        "delta",
+        "delta",
+        "delta",
+        "answer",
+    ]
+    texts = [data["text"] for kind, data in messages if kind == "delta"]
+    # Only what the Student is shown: the SEARCH line never goes out.
+    assert texts == SHOWN_DELTAS
+    assert response.text.startswith("".join(SHOWN_DELTAS))
+    assert "SEARCH" not in response.text
+
+
+def test_delta_events_carry_session_no_and_transcript_id(
+    asking_client, db, bus, monkeypatch
+):
+    _fake_model(monkeypatch, SHOWN_DELTAS)
+    queue = bus.subscribe()
+
+    asking_client.post("/ask", json={"question": "a book about bulls?"})
+
+    session_no, session_hash = db.execute(
+        "SELECT rowid, session_hash FROM sessions"
+    ).fetchone()
+    transcript_id = db.execute("SELECT id FROM transcripts").fetchone()[0]
+    deltas = [data for kind, data in _drain(queue) if kind == "delta"]
+    assert deltas == [
+        {"session_no": session_no, "transcript_id": transcript_id, "text": text}
+        for text in SHOWN_DELTAS
+    ]
+    assert session_hash not in json.dumps(deltas)
+
+
+def test_supportive_reply_sends_no_delta_events(asking_client, bus):
+    entry = Entry(
+        id="test-self-harm-high",
+        category="self-harm",
+        severity="high",
+        phrases=("test high phrase",),
+        must_match=("a test high phrase here",),
+        must_not_match=("nothing",),
+    )
+    app.dependency_overrides[get_watchlist] = lambda: Watchlist(
+        version="2026-10-25.1", entries=(entry,)
+    )
+    queue = bus.subscribe()
+
+    response = asking_client.post("/ask", json={"question": "a test high phrase here"})
+
+    messages = _drain(queue)
+    # No model call, so nothing streams: the answer event carries the reply whole.
+    assert [kind for kind, _ in messages] == ["question", "answer"]
+    assert messages[-1][1]["answer"] == response.text
+
+
+def test_detail_page_script_handles_delta_events(client, db):
+    _sign_in_as(client, db, "librarian")
+    _card(db, "token-14", "14")
+    session_hash = _session(db, "token-14")
+    _ask(db, session_hash, "Period 3", "14", "a question")
+    session_no = db.execute(
+        "SELECT rowid FROM sessions WHERE session_hash = ?", (session_hash,)
+    ).fetchone()[0]
+
+    response = client.get(f"/staff/live/sessions/{session_no}")
+
+    script = response.text[response.text.index("<script>") :]
+    assert 'addEventListener("delta"' in script
+    assert ".textContent += data.text" in script
+    # The delta listener comes before the answer listener that replaces its text.
+    assert script.index('addEventListener("delta"') < script.index(
+        'addEventListener("answer"'
+    )
 
 
 async def _never_returns() -> None:
