@@ -712,7 +712,7 @@ def catalog_record(
     """Show a Record's details from the Catalog."""
     record = catalog.get(record_id)
     if record is None:
-        return HTMLResponse("<h1>Not Found</h1>", status_code=404)
+        raise HTTPException(status_code=404, detail="no such record")
 
     # Render the record details in a page
     content = (
