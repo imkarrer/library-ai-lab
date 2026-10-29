@@ -397,7 +397,7 @@ def test_startup_catch_up_purge_honours_holds(db, monkeypatch):
     unheld = _transcript(db, "Period 5", "14")
     monkeypatch.setattr(app_module, "connect", lambda: db)
     app.dependency_overrides[get_clock] = lambda: AFTER_TODAYS_END + timedelta(days=2)
-    app.dependency_overrides[Settings] = lambda: SETTINGS
+    app.dependency_overrides[get_settings] = lambda: SETTINGS
     try:
         with TestClient(app):
             pass
