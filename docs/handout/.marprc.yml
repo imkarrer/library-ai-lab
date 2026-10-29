@@ -1,7 +1,11 @@
 # Marp settings for the handout (see README.md). Source lines wrap at 92 columns like the rest
 # of the repo's Markdown, so a newline must not become a line break on the page.
 html: true
-themeSet: ./handout.css
+# The palette is the assistant's own (library_assistant/static/palette.css), so the handout
+# and the app's pages change colour together.
+themeSet:
+  - ../../library_assistant/static/palette.css
+  - ./handout.css
 options:
   markdown:
     breaks: false

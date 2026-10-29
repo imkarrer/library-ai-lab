@@ -94,12 +94,9 @@ CHAT_PAGE_HTML = """<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/library.css">
 <title>Library Assistant</title>
-<style>
-  body {{ font-family: sans-serif; max-width: 40em; margin: 1em auto; }}
-  .banner {{ background: #fff4ce; border: 1px solid #c9a400; padding: 0.5em; }}
-  #answer {{ white-space: pre-wrap; margin-top: 1em; }}
-</style>
 </head>
 <body>
   <p class="banner" role="note">{banner}</p>
