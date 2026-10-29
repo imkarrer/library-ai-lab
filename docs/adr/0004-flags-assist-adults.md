@@ -162,7 +162,10 @@ the Watchlist, the floor every Install has, keeps running regardless.
   Oversight off.
 - **The adults are told, and act when they can.** The Live view shows that screening is
   unavailable and since when. A Librarian or Stand-in can pause Sessions from there whenever
-  they choose, and resume them. Pausing is never automatic.
+  they choose, and resume them. Pausing is never automatic unless the Install chose it: the
+  `oversight_down` setting (lib-f24.77) is `carry_on` by default, and `pause` pauses Sessions
+  when Oversight goes down and lifts that pause when it recovers. A pause an adult chose lifts
+  only when an adult resumes.
 - **Screening catches up.** The assistant keeps probing the Oversight endpoint. When it
   answers again, the exchanges admitted while it was down are screened, oldest first, and
   each Flag that results shows its raised time against the exchange's time. Until it is
