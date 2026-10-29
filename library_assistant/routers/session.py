@@ -28,6 +28,7 @@ from library_assistant.access import (
     get_clock,
     get_db,
 )
+from library_assistant.alarms import announce_flag
 from library_assistant.catalog import Catalog
 from library_assistant.config import Settings
 from library_assistant.dependencies import (
@@ -238,8 +239,10 @@ def _record_verdict(
     verdict: Verdict,
     at: datetime,
     screening: str,
+    bus: LiveBus,
 ) -> None:
-    """Store the verdict on its exchange, and raise its Flag (or a repeat) on a concern."""
+    """Store the verdict on its exchange, and raise its Flag (or a repeat) on a concern:
+    a new high-severity Flag sounds the Alarm on the open staff pages (ADR-0010)."""
     db.execute(
         "UPDATE transcripts SET verdict = ?, screened_at = ?, screening = ? WHERE id = ?",
         (
@@ -257,7 +260,7 @@ def _record_verdict(
     )
     db.commit()
     if verdict.category:
-        raise_or_repeat(
+        flag_id, is_repeat = raise_or_repeat(
             db,
             transcript_id,
             class_label,
@@ -270,6 +273,7 @@ def _record_verdict(
             at.isoformat(),
             reason=verdict.reason,
         )
+        announce_flag(db, bus.publish, flag_id, is_repeat)
 
 
 def _publish_screening(bus: LiveBus) -> None:
@@ -382,6 +386,7 @@ async def _probe_and_catch_up(
                     verdict,
                     now(),
                     "watchlist_alone",
+                    bus,
                 )
 
 
@@ -560,7 +565,7 @@ def _answer(
 
     # Handle Watchlist matches - raise flags for all matches regardless of severity
     for entry in matches:
-        raise_or_repeat(
+        flag_id, is_repeat = raise_or_repeat(
             db,
             transcript_id,
             session.class_label,
@@ -575,6 +580,7 @@ def _answer(
             watchlist_version=watchlist.version,
             raised_unwatched=not gate_open,
         )
+        announce_flag(db, bus.publish, flag_id, is_repeat)
 
     # First, we build the messages for the research prompt
     messages = build_messages(request.question)
@@ -684,6 +690,7 @@ def _answer(
                     verdict,
                     clock,
                     "oversight",
+                    bus,
                 )
             except OversightUnavailable:
                 # The Watchlist already ran. The message is released as soon as its

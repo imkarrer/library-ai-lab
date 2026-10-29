@@ -192,9 +192,10 @@ def test_high_severity_gets_supportive_reply_and_no_model_call(
         SUPPORTIVE_REPLY,
         "",
     )
-    assert [kind for kind, _ in events] == ["question", "answer"]
-    assert events[1][1]["answer"] == SUPPORTIVE_REPLY
-    assert events[1][1]["citations"] == []
+    # The Flag's Alarm and count (ADR-0010) come before the Supportive reply's answer.
+    assert [kind for kind, _ in events] == ["question", "alarm", "flag_count", "answer"]
+    assert events[3][1]["answer"] == SUPPORTIVE_REPLY
+    assert events[3][1]["citations"] == []
     assert _in_flight == set()
 
 

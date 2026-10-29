@@ -328,8 +328,11 @@ Never put the Cards on the shared screen: anyone in the room could scan one.
    every Live view tab for longer than the Watch grace and the volunteers are paused.
 5. Screen-share the browser window, not the terminal.
 
-**GAP (lib-ppv.1):** Start watch is meant to play the Alarm chime once as a sound check
-(ADR-0010). The chime is not built yet, so nothing plays.
+Start watch plays the Alarm chime once: that is the sound check (ADR-0010), and the click is
+what lets the browser play sound at all. Have the venue's audio on and listen for it; if it is
+silent, check **Alarm chime** is On in `/staff/settings` and the laptop is not muted. If any
+high-severity Flag is still unacknowledged from rehearsal, its Alarm banner appears now, before
+anything else: Acknowledge it before you share the screen.
 
 ## Step 8. The volunteers chat; the Live view updates live and streams the answer
 
@@ -372,22 +375,26 @@ demo we've added one harmless phrase that counts as a self-harm disclosure."*
    the first line aloud, or have the volunteer hold the phone up.
 3. A Flag is raised: high severity, category self-harm, source watchlist, entry `demo-flag`.
 
-**GAP (lib-ppv.1, in progress):** the Alarm is not built yet. When it lands, every watching
-page shows a banner that stays, a changed tab title, and a repeating chime, with no Student
-words in any of them (CONTEXT.md, "Alarm"). Until then, show the Flag this way: refresh the
-Live view (card 1's tile now carries "Flag: high"), then switch to the Flag queue tab and
-refresh it. Say: *"In the finished version this screen would be ringing now, and it never
-shows the words, so it's safe on a projector."*
+4. The Alarm sounds at once on every open staff page (the Live view, the Session detail, and
+   the Flag queue tab), with no refresh: a banner that stays ("Alarm: high self-harm
+   (watchlist), Conference demo · card 1, registered by demo-teacher, raised ..."), the tab
+   title "(1) Alarm - ...", a red favicon, and the chime, repeating every **Alarm repeat
+   seconds** (30) until someone Acknowledges. The "Open Flags" count goes up by one.
+
+Say: *"The screen is ringing, and it never shows the words, so it's safe on a projector. The
+words are one click away, on the Flag."* (Card 1's tile shows "Flag: high" after a refresh.)
 
 ## Step 10. Acknowledge, then the Flag page: Export and Close
 
-1. **Acknowledge.** GAP (lib-ppv.1): Acknowledge comes with the Alarm and is not built yet.
-   When it lands, press it on the Alarm banner: it records who and when, silences the Alarm
-   on every page, and does not close the Flag. Until then, say so and move on.
-2. In the Flag queue tab, the Flag's row shows raised at, category, severity, source, entry,
+1. **Acknowledge.** Press **Acknowledge** on the Alarm banner. It records who and when, and
+   silences the Alarm on every page at once: the banner goes, the tab title and favicon come
+   back, the chime stops. It does not close the Flag. Say: *"That's me saying I'm on it. The
+   Flag stays open until it's worked."* An Alarm nobody Acknowledges replays at the next
+   Start watch.
+2. In the Flag queue tab (refresh it), the Flag's row shows raised at, category, severity, source, entry,
    Class ("Conference demo"), Card ("1"), and Registered by (`demo-teacher`). Click **View**.
-3. The Flag page (`/staff/flags/<id>`) shows the same fields, the question and the reply, and
-   its History (each view is recorded). Point at "Not yet exported. Next Purge: ..." and the
+3. The Flag page (`/staff/flags/<id>`) shows the same fields, who Acknowledged it and when,
+   the question and the reply, and its History (each view is recorded). Point at "Not yet exported. Next Purge: ..." and the
    checkbox "The school does not need this exchange": a high-severity Flag cannot be closed
    unexported without that explicit confirmation, because closing it is what lets the Purge
    delete the exchange.
@@ -594,8 +601,6 @@ As of this runbook; re-check before the trip.
   `.flox/env/manifest.toml` binds `127.0.0.1:8000`, so the demo runs the assistant by hand
   (Step 5), and lib-f24.9's "one flox command starts the assistant and the model server" does
   not hold for a demo with phones.
-- **Alarm and Acknowledge are not built** (lib-ppv.1, in progress): no banner, tab title, or
-  chime on a high-severity Flag, no chime on Start watch, no Acknowledge (Steps 7, 9, 10).
 - **The Purge loop ignores the environment's school day** (`library_assistant/app.py`'s
   lifespan builds `Settings()` rather than `Settings.from_env()`): it runs at 15:30
   America/Chicago, while the Flag page's "Next Purge" shows the configured time (Step 14).

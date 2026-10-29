@@ -15,6 +15,7 @@ from library_assistant.install_settings import router as install_settings_router
 from library_assistant.oversight import acquire_oversight_lock
 from library_assistant.purge import purge_loop, run_if_due
 from library_assistant.routers.about import router as about_router
+from library_assistant.routers.alarms import router as alarms_router
 from library_assistant.routers.flags import router as flags_router
 from library_assistant.routers.holds import router as holds_router
 from library_assistant.routers.live import router as live_router
@@ -77,6 +78,7 @@ app.include_router(flags_router)
 app.include_router(holds_router)
 app.include_router(install_settings_router)
 app.include_router(watch_router)
+app.include_router(alarms_router)
 app.add_exception_handler(StaffSignInRequired, sign_in_required_handler)
 # The only access log: route template, status, duration (ADR-0003 addendum).
 access_log.configure()

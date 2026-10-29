@@ -33,6 +33,7 @@ from library_assistant.access import (
     revoke_batch_of_session,
     revoke_card_of_session,
 )
+from library_assistant.alarm_banner import alarm_banner
 from library_assistant.config import Settings
 from library_assistant.dependencies import get_catalog, get_settings
 from library_assistant.models import Citation
@@ -101,8 +102,11 @@ async def event_stream(
     bus: LiveBus,
     queue: asyncio.Queue[Message],
     wait: Callable[[], Awaitable[None]],
+    allow: Callable[[str, dict], bool] | None = None,
 ) -> AsyncIterator[str]:
     """One SSE event per published message, and a `ping` event each time `wait` returns.
+    With `allow`, only the messages it passes (a Counselor's stream hears only
+    Escalations, never a question or an answer).
 
     A pending read survives a ping, so no message is lost to one, and a pending ping
     survives a message, so a busy class does not hold back the Watch heartbeat. Closing
@@ -122,7 +126,8 @@ async def event_stream(
             if next_message in done:
                 kind, data = next_message.result()
                 next_message = None
-                yield sse_message(kind, data)
+                if allow is None or allow(kind, data):
+                    yield sse_message(kind, data)
             else:
                 done_ping, ping = ping, None
                 done_ping.result()  # a failed wait ends the stream, never spins
@@ -417,9 +422,17 @@ WATCH_CONTROL = """<p id="watch"><span id="watch-status">__STATUS__</span>
   document.addEventListener("watch", (event) => show(event.detail.watching));
   button.addEventListener("click", () => {
     const action = button.dataset.watching === "yes" ? "end" : "start";
+    // The click is the gesture a browser needs before sound: the sound check.
+    if (action === "start" && window.alarmChime) window.alarmChime();
     fetch("/staff/watch/" + action, { method: "POST", credentials: "same-origin" })
       .then((response) => response.json())
-      .then((data) => show(data.watching));
+      .then((data) => {
+        // Unacknowledged Alarms replay at Start watch, before anything else.
+        if (data.alarms) {
+          document.dispatchEvent(new CustomEvent("alarm-replay", { detail: data.alarms }));
+        }
+        show(data.watching);
+      });
   });
 })();
 </script>"""
@@ -458,7 +471,7 @@ OVERVIEW_SCRIPT = """<script>
     tile.append(link);
     return tile;
   };
-  const source = new EventSource("/staff/live/events");
+  const source = window.staffEvents || (window.staffEvents = new EventSource("/staff/live/events"));
 __HEARTBEAT__
   source.addEventListener("question", (event) => {
     const data = JSON.parse(event.data);
@@ -497,7 +510,7 @@ DETAIL_SCRIPT = """<script>
   };
   const find = (id) =>
     exchanges.querySelector('[data-transcript-id="' + Number(id) + '"]');
-  const source = new EventSource("/staff/live/events");
+  const source = window.staffEvents || (window.staffEvents = new EventSource("/staff/live/events"));
 __HEARTBEAT__
   source.addEventListener("question", (event) => {
     const data = JSON.parse(event.data);
@@ -596,8 +609,8 @@ def live_view(
     screening = _screening_html(state, settings.school_timezone)
     response = page(
         "Live view",
-        f'<h1>Live view</h1>{watch_control}{screening}<div id="tiles">{body}</div>'
-        f"{OVERVIEW_SCRIPT}",
+        f"<h1>Live view</h1>{alarm_banner(db, account, clock)}{watch_control}"
+        f'{screening}<div id="tiles">{body}</div>{OVERVIEW_SCRIPT}',
     )
     response.headers["Cache-Control"] = "no-store"
     return response
@@ -651,7 +664,7 @@ def session_detail_view(
 
     # Build page content
     content = (
-        f"<h1>Session Detail</h1>"
+        f"<h1>Session Detail</h1>{alarm_banner(db, account, clock)}"
         f"<p><strong>Class:</strong> {html.escape(class_label)}</p>"
         f"<p><strong>Card:</strong> {html.escape(card_number)}</p>"
         f'<p><a href="/staff/live">← Back to Live view</a></p>'
