@@ -10,6 +10,8 @@ import sys
 import urllib.request
 from pathlib import Path
 
+import httpx
+
 REPO = Path(__file__).resolve().parent.parent
 
 
@@ -69,9 +71,22 @@ def test_up_seed_down_clear(tmp_path):
         assert config["class_label"] == "Period 3"
         assert config["class_list"][0] == "Paige Turner"
 
-        # Seeding again creates nothing and keeps every password.
+        # Easy to type on stage: the word after the dot.
+        assert "librarian.overdue (librarian): overdue" in credentials
+        # Seeding again creates nothing and puts a changed password back.
+        import sqlite3
+
+        db = sqlite3.connect(state / "demo.db")
+        db.execute("UPDATE staff_accounts SET password_hash = 'x'")
+        db.commit()
+        db.close()
         _stack(state, "seed")
         assert (state / "credentials.txt").read_text() == credentials
+        login = httpx.post(
+            f"http://127.0.0.1:{port}/staff/login",
+            data={"username": "counselor.hugsworth", "password": "hugsworth"},
+        )
+        assert login.status_code == 303
 
         assert len(_pids(state)) == 2
         status = _stack(state, "status")

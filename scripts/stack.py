@@ -12,7 +12,8 @@
 Every setting the assistant needs is given to its process here, so nothing is sourced by
 hand and nothing depends on a shell's exports (lib-f9o). State lives in one folder outside
 the repo, only you can read it (`--state`, default ~/library-assistant-demo): the database,
-each process's pid and log, and `credentials.txt` with the demo cast's passwords.
+each process's pid and log, and `credentials.txt` with the demo cast's passwords (the
+word after the dot: `librarian.overdue` signs in with `overdue`).
 Nothing here leaves the machine (ADR-0006): every process listens on 127.0.0.1 or, with
 --lan, the laptop's own address.
 """
@@ -22,7 +23,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import secrets
 import shutil
 import signal
 import subprocess
@@ -56,6 +56,12 @@ class Persona:
     role: str
     name: str
     part: str
+
+    @property
+    def password(self) -> str:
+        """The word after the dot: easy to type on stage. A demo stack runs on the
+        presenter's laptop with made-up people; a school's accounts set their own."""
+        return self.username.split(".", 1)[1]
 
 
 # Who `seed` makes sure exists, on every `up`. The deck (docs/handout/demo-deck.md)
@@ -381,20 +387,25 @@ def seed(state: Path, quiet: bool = False) -> None:
         set_setting,
     )
     from library_assistant.minting_page import download_filename, filled_minting_page
-    from library_assistant.staff import create_account
+    from library_assistant.staff import create_account, hash_password
 
     state.mkdir(mode=0o700, parents=True, exist_ok=True)
     db = connect(str(state / "demo.db"))
     now = datetime.now(UTC)
-    created: list[tuple[str, str, str]] = []
+    created: list[str] = []
     for persona in DEMO_CAST:
         if db.execute(
             "SELECT 1 FROM staff_accounts WHERE username = ?", (persona.username,)
         ).fetchone():
+            # Put the easy password back, should someone have changed it.
+            db.execute(
+                "UPDATE staff_accounts SET password_hash = ? WHERE username = ?",
+                (hash_password(persona.password), persona.username),
+            )
+            db.commit()
             continue
-        password = secrets.token_urlsafe(9)
-        create_account(db, persona.username, password, persona.role)
-        created.append((persona.username, persona.role, password))
+        create_account(db, persona.username, persona.password, persona.role)
+        created.append(persona.username)
     librarian, teacher, counselor = DEMO_CAST
     librarian_id = db.execute(
         "SELECT id FROM staff_accounts WHERE username = ?", (librarian.username,)
@@ -410,12 +421,11 @@ def seed(state: Path, quiet: bool = False) -> None:
         ).fetchone():
             set_setting(db, key, value, librarian_id, now)
 
-    if created:
-        credentials = state / "credentials.txt"
-        with credentials.open("a") as out:
-            for username, role, password in created:
-                out.write(f"{username} ({role}): {password}\n")
-        credentials.chmod(0o600)
+    credentials = state / "credentials.txt"
+    credentials.write_text(
+        "".join(f"{p.username} ({p.role}): {p.password}\n" for p in DEMO_CAST)
+    )
+    credentials.chmod(0o600)
 
     config = (
         json.loads(_config_path(state).read_text())
@@ -441,8 +451,8 @@ def seed(state: Path, quiet: bool = False) -> None:
         page.chmod(0o600)
     if not quiet:
         _say("Seeded:")
-    for username, role, _ in created:
-        _say(f"  {role} account `{username}` (password in {state / 'credentials.txt'})")
+    for username in created:
+        _say(f"  account `{username}`")
     if not quiet:
         _say(f"  {teacher.name}'s Minting page: {page}")
 
@@ -520,9 +530,12 @@ def status(state: Path) -> None:
     if page.exists():
         _say(f"  Make Cards:    open {page}")
     if (state / "demo.db").exists():
-        _say("  The cast:")
+        _say("  The cast (username / password):")
         for persona in DEMO_CAST:
-            _say(f"    {persona.name:<14} {persona.username:<20} {persona.part}")
+            _say(
+                f"    {persona.name:<14} {persona.username:<20} {persona.password:<10} "
+                f"{persona.part}"
+            )
         _say(f"    {DEMO_CLASS}: {', '.join(DEMO_STUDENTS)}")
     if not any(_read_pid(state, c.name) for c in components):
         _say("  Nothing running. `./stack up` starts it.")
