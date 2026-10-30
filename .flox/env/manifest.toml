@@ -7,8 +7,18 @@ nodejs.pkg-path = "nodejs"
 
 [install.llama-cpp]
 pkg-path = "llama-cpp"
+# Own group: the model servers upgrade on their own (`flox upgrade models`), not with
+# python and uv.
+pkg-group = "models"
 # Only the M5 Pro demo runs the model server; dev boxes point LIBRARY_ASSISTANT_OPENAI_*
 # at llm-box instead (ADR-0008).
+systems = ["aarch64-darwin"]
+
+[install.ollama]
+pkg-path = "ollama"
+pkg-group = "models"
+# Metal on Apple Silicon: both demo Lanes (./stack up) run on it, at the same speed as
+# Ollama.app. Linux dev boxes use llm-box (ADR-0008).
 systems = ["aarch64-darwin"]
 
 [vars]
@@ -70,14 +80,15 @@ command = '''
   fi
   # No -v, --log-prompts-dir, or --slot-save-path, and --no-slots (ADR-0003 addendum): the
   # model server keeps no log or cache of a question. 127.0.0.1 only (ADR-0006).
-  # --n-gpu-layers 0 (lib-30v): on the M5 Pro, llama.cpp's Metal backend fails every request
-  # with an out-of-memory error whatever is offloaded; the CPU answers at ~12 tokens/s.
+  # Metal again (lib-30v): llama.cpp 0.6.0 failed every request on the M5 Pro with a Metal
+  # out-of-memory error; 0.7.0 fits all 49 layers on the GPU (~25-32 tokens/s, against ~12
+  # on the CPU), with under 1 GiB of the GPU's working set to spare: nothing else can be
+  # loaded beside it. ./stack runs Ollama instead.
   exec llama-server \
     --model "$model" \
     --host 127.0.0.1 \
     --port 8080 \
     --ctx-size 8192 \
-    --n-gpu-layers 0 \
     --no-slots
 '''
 systems = ["aarch64-darwin"]

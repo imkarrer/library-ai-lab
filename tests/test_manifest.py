@@ -18,9 +18,16 @@ def _model_command() -> str:
     return _service_command("model")
 
 
-def test_model_server_runs_on_the_cpu():
-    """lib-30v: the M5 Pro's Metal backend fails every request; the CPU answers."""
-    assert "--n-gpu-layers 0" in _model_command()
+def test_model_server_uses_the_gpu():
+    """lib-30v: llama.cpp 0.7.0 answers on the M5 Pro's GPU, so it is not held to the CPU."""
+    assert "--n-gpu-layers 0" not in _model_command()
+
+
+def test_ollama_comes_from_the_environment_on_the_demo_mac():
+    """./stack runs both Lanes on the manifest's Ollama, not an Ollama.app (ADR-0008)."""
+    ollama = tomllib.loads(MANIFEST.read_text())["install"]["ollama"]
+    assert ollama["pkg-path"] == "ollama"
+    assert ollama["systems"] == ["aarch64-darwin"]
 
 
 def test_model_server_is_local_only_and_keeps_no_question():

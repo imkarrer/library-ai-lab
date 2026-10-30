@@ -40,8 +40,11 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
 DEFAULT_STATE = Path.home() / "library-assistant-demo"
-OLLAMA_BIN = Path("/Applications/Ollama.app/Contents/Resources/ollama")
-ANSWER_OLLAMA = "http://127.0.0.1:11434"
+# Both Lanes run on the flox environment's own Ollama (`ollama` in the manifest), never on
+# an Ollama.app that happens to be installed: 11436, not Ollama's default 11434, so an app
+# or LaunchAgent on 11434 cannot answer in its place.
+ANSWER_OLLAMA_PORT = 11436
+ANSWER_OLLAMA = f"http://127.0.0.1:{ANSWER_OLLAMA_PORT}"
 OVERSIGHT_OLLAMA_PORT = 11435
 FAKE_MODEL_PORT = 8090
 ANSWER_MODEL, ANSWER_EFFORT = "gpt-oss:20b", "low"
@@ -234,6 +237,27 @@ def _config_path(state: Path) -> Path:
     return state / "stack.json"
 
 
+def ollama_env(port: int, context_length: int) -> dict[str, str]:
+    """One Ollama's environment. 127.0.0.1 only and no cloud features (ADR-0006: unset,
+    `ollama serve` fetches model recommendations from ollama.com at start); no debug
+    logging, which writes prompts and request bodies (ADR-0003 addendum)."""
+    env = {
+        name: value
+        for name, value in os.environ.items()
+        if name not in ("OLLAMA_DEBUG", "OLLAMA_DEBUG_LOG_REQUESTS")
+    }
+    return {
+        **env,
+        "OLLAMA_HOST": f"127.0.0.1:{port}",
+        "OLLAMA_NO_CLOUD": "1",
+        "OLLAMA_CONTEXT_LENGTH": str(context_length),
+        "OLLAMA_NUM_PARALLEL": "1",
+        "OLLAMA_MAX_LOADED_MODELS": "1",
+        "OLLAMA_KEEP_ALIVE": "30m",
+        "OLLAMA_FLASH_ATTENTION": "1",
+    }
+
+
 def assistant_env(state: Path, config: dict) -> dict[str, str]:
     """The assistant's whole configuration, given to its process directly."""
     if config["mock"]:
@@ -344,27 +368,24 @@ def up(state: Path, args: argparse.Namespace) -> None:
             f"http://127.0.0.1:{args.fake_port}/health",
         )
     else:
-        if not _healthy(f"{ANSWER_OLLAMA}/api/version"):
+        ollama = shutil.which("ollama")
+        if ollama is None:
             raise SystemExit(
-                "Ollama is not answering on 127.0.0.1:11434 (its LaunchAgent starts it at "
-                "login); start it, or run `./stack up --mock`."
+                "No `ollama` on PATH: run through ./stack (flox activate), on the M5 Pro, "
+                "or run `./stack up --mock`."
             )
-        if not OLLAMA_BIN.exists():
-            raise SystemExit(f"Oversight needs Ollama.app ({OLLAMA_BIN}).")
-        oversight_env = {
-            **os.environ,
-            "OLLAMA_HOST": f"127.0.0.1:{OVERSIGHT_OLLAMA_PORT}",
-            "OLLAMA_CONTEXT_LENGTH": "4096",
-            "OLLAMA_NUM_PARALLEL": "1",
-            "OLLAMA_MAX_LOADED_MODELS": "1",
-            "OLLAMA_KEEP_ALIVE": "30m",
-            "OLLAMA_FLASH_ATTENTION": "1",
-        }
+        _start(
+            state,
+            "answer-ollama",
+            [ollama, "serve"],
+            ollama_env(ANSWER_OLLAMA_PORT, 16384),
+            f"{ANSWER_OLLAMA}/api/version",
+        )
         _start(
             state,
             "oversight-ollama",
-            [str(OLLAMA_BIN), "serve"],
-            oversight_env,
+            [ollama, "serve"],
+            ollama_env(OVERSIGHT_OLLAMA_PORT, 4096),
             f"http://127.0.0.1:{OVERSIGHT_OLLAMA_PORT}/api/version",
         )
         _say("  warming both models (first time after a while: 10 to 30 s)")
@@ -398,6 +419,7 @@ def down(state: Path) -> None:
     _say("Stopping the stack:")
     _stop(state, "assistant", signal.SIGINT)
     _stop(state, "oversight-ollama", signal.SIGTERM)
+    _stop(state, "answer-ollama", signal.SIGTERM)
     _stop(state, "fake-model", signal.SIGTERM)
 
 
@@ -502,6 +524,7 @@ def clear(state: Path) -> None:
         "catalog-fixture.db",
         "stack.json",
         "assistant.log",
+        "answer-ollama.log",
         "oversight-ollama.log",
         "fake-model.log",
     ]
@@ -524,6 +547,7 @@ def status(state: Path) -> None:
     )
     components = [
         Component("assistant", f"{base_url(config)}/health" if config else ""),
+        Component("answer-ollama", f"{ANSWER_OLLAMA}/api/version"),
         Component(
             "oversight-ollama", f"http://127.0.0.1:{OVERSIGHT_OLLAMA_PORT}/api/version"
         ),

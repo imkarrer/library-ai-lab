@@ -193,3 +193,18 @@ def test_up_with_https_serves_a_certificate_a_device_can_verify(tmp_path):
         _stack(state, "down")
     _stack(state, "clear")
     assert not (state / "tls").exists()
+
+
+def test_ollama_env_is_local_only_with_no_cloud_and_no_prompt_logging(monkeypatch):
+    sys.path.insert(0, str(REPO / "scripts"))
+    import stack
+
+    monkeypatch.setenv("OLLAMA_DEBUG", "2")
+    monkeypatch.setenv("OLLAMA_DEBUG_LOG_REQUESTS", "1")
+    monkeypatch.setenv("OLLAMA_HOST", "elsewhere:11434")
+    env = stack.ollama_env(11435, 4096)
+    assert env["OLLAMA_HOST"] == "127.0.0.1:11435"  # ADR-0006
+    assert env["OLLAMA_NO_CLOUD"] == "1"  # ADR-0006: no ollama.com calls
+    assert "OLLAMA_DEBUG" not in env  # ADR-0003 addendum
+    assert "OLLAMA_DEBUG_LOG_REQUESTS" not in env
+    assert env["OLLAMA_CONTEXT_LENGTH"] == "4096"

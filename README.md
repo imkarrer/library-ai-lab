@@ -24,7 +24,7 @@ One command runs the whole stack on this machine (`scripts/stack.py`):
 
 ```bash
 ./stack up --mock    # the fake model (scripts/fake_model.py): no Ollama, answers in a second
-./stack up           # both Lanes on this Mac's Ollama: gpt-oss:20b answers, qwen3.5:4b screens
+./stack up           # both Lanes on flox's own Ollama: gpt-oss:20b answers, qwen3.5:4b screens
 ./stack up --lan     # listening on the Wi-Fi address, so phones can reach it
 ./stack up --https   # HTTPS from the stack's own CA; /staff/it-kit has what IT needs
 ./stack status       # what is running, the sign-in URL, Make Cards, the passwords file
