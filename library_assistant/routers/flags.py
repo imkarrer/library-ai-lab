@@ -28,7 +28,8 @@ from library_assistant.alarms import (
     acknowledgement,
     announce_escalation,
     announce_flag_closed,
-    announce_flag_reopened,
+    announce_flag_row,
+    flag_stage,
 )
 from library_assistant.config import Settings, get_settings
 from library_assistant.flag_history import append_event, get_history
@@ -294,6 +295,11 @@ def flag_page(
         + '<p><label>Reason <input name="reason" required></label></p>'
         + f"<p><button>{button}</button></p></form>"
     )
+    if flag.escalated_at is not None:
+        form = (
+            f'<p class="owner">Escalated {html.escape(flag.escalated_at)}: the Counselor '
+            "now owns this Flag and its resolution, and closes it.</p>"
+        )
 
     # Only the Librarian escalates, and only when a Counselor exists (ADR-0004).
     escalation_form = ""
@@ -311,13 +317,7 @@ def flag_page(
         )
     # raised -> acknowledged -> closed, whatever the severity (ADR-0010 amendment).
     acknowledged = acknowledgement(db, flag.id) is not None
-    stage = (
-        "Closed"
-        if flag.closed_at is not None
-        else "Acknowledged"
-        if acknowledged
-        else "New"
-    )
+    stage = flag_stage(flag, acknowledged)
     acknowledge_form = ""
     if (
         flag.closed_at is None
@@ -363,21 +363,32 @@ def flag_page(
     return response
 
 
-@router.post("/flags/{flag_id}/close", response_model=None)
-def close_flag_route(
+# An Escalated Flag belongs to the Counselor, who resolves and closes it (lib-6n9); any
+# other open Flag to the Librarian or a Stand-in.
+ESCALATED_OWNER = (
+    "this Flag is Escalated: the Counselor owns it and its resolution, and closes it"
+)
+
+
+def _close(
+    db: sqlite3.Connection,
+    bus: LiveBus,
+    clock: datetime,
+    settings: Settings,
+    account: StaffAccount,
     flag_id: int,
-    account: StandInDep,
-    outcome: Annotated[str, Form()],
-    reason: Annotated[str, Form()],
-    confirm: Annotated[bool, Form()] = False,
-    db: sqlite3.Connection = Depends(get_db),
-    clock: datetime = Depends(get_clock),
-    settings: Settings = Depends(get_settings),
-    bus: LiveBus = Depends(get_live_bus),
-) -> RedirectResponse:
+    outcome: str,
+    reason: str,
+    confirm: bool,
+    as_counselor: bool,
+) -> None:
     flag = get_flag(db, flag_id)
     if flag is None:
         raise HTTPException(status_code=404, detail="no such flag")
+    if as_counselor and flag.escalated_at is None:
+        raise HTTPException(status_code=404, detail="flag is not escalated")
+    if not as_counselor and flag.escalated_at is not None:
+        raise HTTPException(status_code=409, detail=ESCALATED_OWNER)
 
     # A high-severity Flag that has not been exported needs the closer's explicit
     # confirmation, since closing it is what lets the Purge delete its exchange.
@@ -399,7 +410,62 @@ def close_flag_route(
     acknowledge_before_close(db, bus.publish, flag_id, account.id, clock)
     close_flag(db, flag_id, clock.isoformat(), account.username, outcome, reason)
     announce_flag_closed(db, bus.publish, flag_id)
+
+
+def _reopen(
+    db: sqlite3.Connection,
+    bus: LiveBus,
+    clock: datetime,
+    account: StaffAccount,
+    flag_id: int,
+    reason: str,
+    as_counselor: bool,
+) -> None:
+    flag = get_flag(db, flag_id)
+    if flag is None:
+        raise HTTPException(status_code=404, detail="no such flag")
+    if as_counselor and flag.escalated_at is None:
+        raise HTTPException(status_code=404, detail="flag is not escalated")
+    if not as_counselor and flag.escalated_at is not None:
+        raise HTTPException(status_code=409, detail=ESCALATED_OWNER)
+    try:
+        reopen_flag(db, flag_id, clock.isoformat(), account.username, reason)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    announce_flag_row(db, bus.publish, flag_id)
+
+
+@router.post("/flags/{flag_id}/close", response_model=None)
+def close_flag_route(
+    flag_id: int,
+    account: StandInDep,
+    outcome: Annotated[str, Form()],
+    reason: Annotated[str, Form()],
+    confirm: Annotated[bool, Form()] = False,
+    db: sqlite3.Connection = Depends(get_db),
+    clock: datetime = Depends(get_clock),
+    settings: Settings = Depends(get_settings),
+    bus: LiveBus = Depends(get_live_bus),
+) -> RedirectResponse:
+    _close(db, bus, clock, settings, account, flag_id, outcome, reason, confirm, False)
     return RedirectResponse("/staff/flags", status_code=303)
+
+
+@router.post("/counselor/flags/{flag_id}/close", response_model=None)
+def counselor_close_flag_route(
+    flag_id: int,
+    account: Annotated[StaffAccount, Depends(require_role("counselor"))],
+    outcome: Annotated[str, Form()],
+    reason: Annotated[str, Form()],
+    confirm: Annotated[bool, Form()] = False,
+    db: sqlite3.Connection = Depends(get_db),
+    clock: datetime = Depends(get_clock),
+    settings: Settings = Depends(get_settings),
+    bus: LiveBus = Depends(get_live_bus),
+) -> RedirectResponse:
+    """The Counselor closes a Flag Escalated to them: they own its resolution."""
+    _close(db, bus, clock, settings, account, flag_id, outcome, reason, confirm, True)
+    return RedirectResponse("/staff/counselor", status_code=303)
 
 
 @router.get("/flags/{flag_id}/export")
@@ -494,15 +560,21 @@ def reopen_flag_route(
     clock: datetime = Depends(get_clock),
     bus: LiveBus = Depends(get_live_bus),
 ) -> RedirectResponse:
-    flag = get_flag(db, flag_id)
-    if flag is None:
-        raise HTTPException(status_code=404, detail="no such flag")
-    try:
-        reopen_flag(db, flag_id, clock.isoformat(), account.username, reason)
-    except ValueError as error:
-        raise HTTPException(status_code=422, detail=str(error)) from error
-    announce_flag_reopened(db, bus.publish, flag_id)
+    _reopen(db, bus, clock, account, flag_id, reason, as_counselor=False)
     return RedirectResponse(f"/staff/flags/{flag_id}", status_code=303)
+
+
+@router.post("/counselor/flags/{flag_id}/reopen", response_model=None)
+def counselor_reopen_flag_route(
+    flag_id: int,
+    account: Annotated[StaffAccount, Depends(require_role("counselor"))],
+    reason: Annotated[str, Form()],
+    db: sqlite3.Connection = Depends(get_db),
+    clock: datetime = Depends(get_clock),
+    bus: LiveBus = Depends(get_live_bus),
+) -> RedirectResponse:
+    _reopen(db, bus, clock, account, flag_id, reason, as_counselor=True)
+    return RedirectResponse(f"/staff/counselor/flags/{flag_id}", status_code=303)
 
 
 @router.post("/flags/{flag_id}/escalate", response_model=None)
@@ -525,8 +597,11 @@ def escalate_flag_route(
         raise HTTPException(status_code=409, detail="flag is already escalated")
     if not reason.strip():
         raise HTTPException(status_code=400, detail="reason required")
+    # Escalating is an interaction: the Librarian's Acknowledgement, if nobody gave one.
+    acknowledge_flag(db, bus.publish, flag_id, account.id, clock)
     escalate_flag(db, flag_id, clock.isoformat(), account.id, account.username, reason)
     announce_escalation(db, bus.publish, flag_id)
+    announce_flag_row(db, bus.publish, flag_id)
     return RedirectResponse(f"/staff/flags/{flag_id}", status_code=303)
 
 
@@ -638,7 +713,7 @@ def counselor_flag_page(
         else ""
     )
     form = (
-        f'<form method="post" action="/staff/flags/{flag.id}/{action}">'
+        f'<form method="post" action="/staff/counselor/flags/{flag.id}/{action}">'
         + (
             '<p><label>Outcome <select name="outcome" required>'
             f"{outcome_options}</select></label></p>"
@@ -667,6 +742,7 @@ def counselor_flag_page(
     body = (
         "<h1>Flag</h1>"
         "<table><tbody>"
+        f"<tr><th>Stage</th><td>{flag_stage(flag, True)}</td></tr>"
         f"<tr><th>Raised at</th><td>{html.escape(flag.raised_at)}</td></tr>"
         f"<tr><th>Category</th><td>{html.escape(flag.category)}</td></tr>"
         f"<tr><th>Severity</th><td>{html.escape(flag.severity)}</td></tr>"

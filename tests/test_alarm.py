@@ -546,26 +546,119 @@ def test_closing_keeps_an_earlier_acknowledgement(librarian, setup, clock):
     assert [event for event, _ in _history(setup, flag_id)].count("acknowledged") == 1
 
 
-def test_closing_an_escalated_flag_silences_the_counselors_alarm_too(
+def _escalate(librarian, flag_id):
+    return librarian.post(
+        f"/staff/flags/{flag_id}/escalate",
+        data={"reason": "for the counselor"},
+        follow_redirects=False,
+    )
+
+
+def test_the_counselor_closes_an_escalated_flag_and_silences_their_alarm(
     librarian, setup, bus
 ):
+    """Escalated, the Flag and its resolution belong to the Counselor (lib-6n9)."""
+    counselor = _staff(setup, "the-counselor", "counselor")
     flag_id = _high_flag(setup)
-    setup.execute(
-        "UPDATE flags SET escalated_at = ? WHERE id = ?", (NOW.isoformat(), flag_id)
-    )
-    setup.commit()
+    _escalate(librarian, flag_id)
     queue = bus.subscribe()
 
-    _close(librarian, flag_id)
-
-    silenced = _of(_drain(queue), "silenced")
-    assert sorted(item["escalation"] for item in silenced) == [False, True]
-    assert (
-        setup.execute(
-            "SELECT escalation_acknowledged_at FROM flags WHERE id = ?", (flag_id,)
-        ).fetchone()[0]
-        is not None
+    response = counselor.post(
+        f"/staff/counselor/flags/{flag_id}/close",
+        data={
+            "outcome": "handled",
+            "reason": "met with the student",
+            "confirm": "true",
+        },
+        follow_redirects=False,
     )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/staff/counselor"
+    messages = _drain(queue)
+    assert [item["escalation"] for item in _of(messages, "silenced")] == [True]
+    assert [row["flag_id"] for row in _of(messages, "flag_closed")] == [flag_id]
+    events = _history(setup, flag_id)
+    assert events[-2:] == [
+        ("acknowledged", "the-counselor"),
+        ("closed", "the-counselor"),
+    ]
+
+
+def test_the_librarian_may_not_close_or_reopen_an_escalated_flag(librarian, setup):
+    _staff(setup, "the-counselor", "counselor")
+    flag_id = _high_flag(setup)
+    _escalate(librarian, flag_id)
+
+    refused = _close(librarian, flag_id)
+    assert refused.status_code == 409
+    assert "Counselor owns it" in refused.json()["detail"]
+    page = librarian.get(f"/staff/flags/{flag_id}").text
+    assert f'action="/staff/flags/{flag_id}/close"' not in page
+    assert "the Counselor now owns this Flag" in page
+    assert "<tr><th>Stage</th><td>Escalated: the Counselor owns it</td></tr>" in page
+
+    close_flag(setup, flag_id, NOW.isoformat(), "the-counselor", "handled", "done")
+    reopen = librarian.post(
+        f"/staff/flags/{flag_id}/reopen",
+        data={"reason": "again"},
+        follow_redirects=False,
+    )
+    assert reopen.status_code == 409
+
+
+def test_the_counselor_page_closes_through_the_counselors_own_route(librarian, setup):
+    counselor = _staff(setup, "the-counselor", "counselor")
+    flag_id = _high_flag(setup)
+    _escalate(librarian, flag_id)
+
+    page = counselor.get(f"/staff/counselor/flags/{flag_id}").text
+
+    assert f'action="/staff/counselor/flags/{flag_id}/close"' in page
+    assert f'action="/staff/flags/{flag_id}/close"' not in page
+
+
+def test_the_counselor_may_not_close_a_flag_not_escalated_to_them(setup):
+    counselor = _staff(setup, "the-counselor", "counselor")
+    flag_id = _high_flag(setup)
+
+    response = counselor.post(
+        f"/staff/counselor/flags/{flag_id}/close",
+        data={"outcome": "handled", "reason": "x", "confirm": "true"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 404
+
+
+def test_the_counselor_reopens_their_closed_flag(librarian, setup, bus):
+    counselor = _staff(setup, "the-counselor", "counselor")
+    flag_id = _high_flag(setup)
+    _escalate(librarian, flag_id)
+    close_flag(setup, flag_id, NOW.isoformat(), "the-counselor", "handled", "done")
+    queue = bus.subscribe()
+
+    response = counselor.post(
+        f"/staff/counselor/flags/{flag_id}/reopen",
+        data={"reason": "the student came back"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    [row] = _of(_drain(queue), "flag")
+    assert row["flag_id"] == flag_id and row["escalated"] is True
+
+
+def test_escalating_redraws_the_panel_row_as_escalated(librarian, setup, bus):
+    _staff(setup, "the-counselor", "counselor")
+    flag_id = _high_flag(setup, severity="low")
+    queue = bus.subscribe()
+
+    _escalate(librarian, flag_id)
+
+    [row] = _of(_drain(queue), "flag")
+    assert row["escalated"] is True and row["acknowledged"] is True
+    assert '<span class="stage">Escalated</span>' in librarian.get("/staff/live").text
 
 
 def test_a_refused_close_acknowledges_nothing(librarian, setup):
@@ -730,8 +823,10 @@ def test_escalation_reaches_the_counselor_stream(librarian, setup, bus):
         == 200
     )
     assert _config(counselor.get("/staff/counselor").text)["pending"] == []
-    # The Librarian's Alarm is separate: still unacknowledged.
-    assert len(librarian.post("/staff/watch/start").json()["alarms"]) == 1
+    # Escalating was the Librarian's interaction: their own Alarm is Acknowledged by it,
+    # so nothing replays at Start watch (lib-6n9).
+    assert librarian.post("/staff/watch/start").json()["alarms"] == []
+    assert ("acknowledged", "the-librarian") in _history(db, flag_id)
 
 
 def test_counselor_stream_carries_only_escalations():
