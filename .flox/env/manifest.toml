@@ -69,11 +69,14 @@ command = '''
   fi
   # No -v, --log-prompts-dir, or --slot-save-path, and --no-slots (ADR-0003 addendum): the
   # model server keeps no log or cache of a question. 127.0.0.1 only (ADR-0006).
+  # --n-gpu-layers 0 (lib-30v): on the M5 Pro, llama.cpp's Metal backend fails every request
+  # with an out-of-memory error whatever is offloaded; the CPU answers at ~12 tokens/s.
   exec llama-server \
     --model "$model" \
     --host 127.0.0.1 \
     --port 8080 \
     --ctx-size 8192 \
+    --n-gpu-layers 0 \
     --no-slots
 '''
 systems = ["aarch64-darwin"]

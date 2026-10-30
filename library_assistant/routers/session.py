@@ -659,9 +659,17 @@ def _answer(
                         payload = line.removeprefix("data: ")
                         if payload == "[DONE]":
                             break
-                        delta = json.loads(payload)["choices"][0]["delta"].get(
-                            "content", ""
-                        )
+                        event = json.loads(payload)
+                        # llama.cpp reports a failure inside the 200 stream, not as a
+                        # status: tell the Student, as for an unreachable model.
+                        if "error" in event:
+                            logger.warning(
+                                "model reported an error: %s",
+                                event["error"].get("type", "unknown"),
+                            )
+                            yield ("\n\n" if shown_parts else "") + ERROR_TEXT
+                            return
+                        delta = event["choices"][0]["delta"].get("content", "")
                         if delta:
                             # Use the filter to handle search lines
                             output = filter_instance.feed(delta)
