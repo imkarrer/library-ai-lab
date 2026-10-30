@@ -145,3 +145,39 @@ def test_up_uses_a_fake_model_already_running_and_leaves_it(tmp_path):
         _stack(state, "down")
         other.terminate()
         other.wait(timeout=10)
+
+
+def test_up_with_https_serves_a_certificate_a_device_can_verify(tmp_path):
+    """`--https`: the stack's own CA; the health check, the Minting page and the IT kit
+    all use https, and a client that trusts only the CA connects."""
+    import ssl
+
+    state = tmp_path / "stack"
+    port, fake_port = _free_port(), _free_port()
+    try:
+        out = _stack(
+            state,
+            "up",
+            "--mock",
+            "--https",
+            "--port",
+            str(port),
+            "--fake-port",
+            str(fake_port),
+        )
+        assert "assistant: up" in out
+        ca = state / "tls" / "library-assistant-ca.crt"
+        context = ssl.create_default_context(cafile=str(ca))
+        with urllib.request.urlopen(
+            f"https://127.0.0.1:{port}/it-check", context=context, timeout=5
+        ) as response:
+            assert (
+                "This device trusts the Library Assistant" in response.read().decode()
+            )
+        page = (state / "teacher.popquiz-minting-page.html").read_text()
+        assert f'"assistant_url": "https://127.0.0.1:{port}"' in page
+        assert "IT kit:" in _stack(state, "status")
+    finally:
+        _stack(state, "down")
+    _stack(state, "clear")
+    assert not (state / "tls").exists()
