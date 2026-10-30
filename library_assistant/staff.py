@@ -21,7 +21,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from library_assistant.access import (
     get_clock,
@@ -31,6 +31,7 @@ from library_assistant.access import (
 )
 from library_assistant.config import Settings
 from library_assistant.dependencies import get_settings
+from library_assistant.minting_page import download_filename, filled_minting_page
 from library_assistant.watch import end_watch
 
 STAFF_SESSION_COOKIE = "staff_session"
@@ -409,11 +410,24 @@ def staff_home(
 
     links_html = "<ul>" + "".join(links) + "</ul>" if links else ""
 
+    # The accounts that mint (ADR-0002 addendum): their Minting page, filled in.
+    minting_html = ""
+    if account.role in MINTING_ROLES:
+        minting_html = (
+            "<h2>Make Cards</h2>"
+            "<p>Download your Minting page, open it on your own computer, and make your "
+            "class's Cards there. It has this assistant's address and a new Registration "
+            "key built in; a Minting page you downloaded before stops working.</p>"
+            '<form method="post" action="/staff/minting-page">'
+            "<button>Download my Minting page</button></form>"
+        )
+
     return page(
         "Staff",
         f"<h1>Library Assistant staff</h1>"
         f"<p>Signed in as {html.escape(account.username)} ({account.role}).</p>"
         f"{links_html}"
+        f"{minting_html}"
         '<form method="post" action="/staff/logout"><button>Sign out</button></form>',
         account=account,
         db=db,
@@ -542,7 +556,43 @@ def _key_row_html(row: tuple[int, str, str]) -> str:
         f"<td>{html.escape(role)}</td>"
         f'<td><form method="post" action="/staff/accounts/{account_id}/key/rotate">'
         "<button>Rotate key</button></form></td>"
+        f"<td>{_minting_page_form(account_id, role)}</td>"
         "</tr>"
+    )
+
+
+# The roles that mint Batches (ADR-0002 addendum): a Counselor never does.
+MINTING_ROLES = ("librarian", "teacher")
+
+
+def _minting_page_form(account_id: int, role: str) -> str:
+    if role not in MINTING_ROLES:
+        return ""
+    return (
+        f'<form method="post" action="/staff/accounts/{account_id}/minting-page">'
+        "<button>Download Minting page (new key)</button></form>"
+    )
+
+
+def _minting_page_download(
+    request: Request, db: sqlite3.Connection, account_id: int, username: str, clock
+) -> Response:
+    """Rotate `account_id`'s key and send its filled Minting page as a download.
+
+    The key is stored only as a hash, so the page needs a new one: issuing it here is
+    what makes every earlier copy of this account's page stop registering.
+    """
+    key = issue_registration_key(db, account_id, clock)
+    return Response(
+        filled_minting_page(str(request.base_url), username, key),
+        media_type="text/html; charset=utf-8",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{download_filename(username)}"'
+            ),
+            # The page holds a live key: no browser or proxy keeps a copy.
+            "Cache-Control": "no-store",
+        },
     )
 
 
@@ -562,7 +612,8 @@ def keys_page(
     ).fetchall()
     body = (
         "<h1>Registration keys</h1>"
-        "<table><thead><tr><th>Username</th><th>Role</th><th></th></tr></thead><tbody>"
+        "<table><thead><tr><th>Username</th><th>Role</th><th></th><th></th></tr>"
+        "</thead><tbody>"
         f"{''.join(_key_row_html(row) for row in rows)}"
         "</tbody></table>"
         '<form method="post" action="/staff/key/rotate">'
@@ -594,6 +645,39 @@ def rotate_account_key_route(
         db=db,
         now=clock,
     )
+
+
+@router.post("/accounts/{account_id}/minting-page", response_model=None)
+def account_minting_page_route(
+    account_id: int,
+    request: Request,
+    account: LibrarianDep,
+    db: sqlite3.Connection = Depends(get_db),
+    clock: datetime = Depends(get_clock),
+) -> Response:
+    """Librarian-only: a Teacher's Minting page with a new key, to hand to them."""
+    row = db.execute(
+        "SELECT username, role FROM staff_accounts WHERE id = ? AND is_active = 1",
+        (account_id,),
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="no such account")
+    if row[1] not in MINTING_ROLES:
+        raise HTTPException(status_code=400, detail="a Counselor does not make Cards")
+    return _minting_page_download(request, db, account_id, row[0], clock)
+
+
+@router.post("/minting-page", response_model=None)
+def own_minting_page_route(
+    request: Request,
+    account: StaffDep,
+    db: sqlite3.Connection = Depends(get_db),
+    clock: datetime = Depends(get_clock),
+) -> Response:
+    """A Teacher's (or the Librarian's) own Minting page, with a new key."""
+    if account.role not in MINTING_ROLES:
+        raise HTTPException(status_code=403, detail="a Counselor does not make Cards")
+    return _minting_page_download(request, db, account.id, account.username, clock)
 
 
 @router.post("/key/rotate", response_model=None)

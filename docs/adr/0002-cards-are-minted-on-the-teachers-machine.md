@@ -53,3 +53,26 @@ the Teacher), and a second digital holder (fastest, but the widest exposure of t
 Card-to-Student link, held in school systems as a pupil record under ADR-0001). Every Flag
 shows the registering Teacher and the Batch's registration date, so the right Teacher, or the
 right envelope, can be found.
+
+## Addendum: the assistant hands out each Teacher's Minting page, filled in
+
+Decided 2026-10-29 (lib-ers). Pasting a 43-character Registration key into the offline
+Minting page was the step no Teacher would do. So the assistant now offers the page as a
+download, with its own address and a new Registration key for that account written into the
+page's install-config block: the Librarian downloads it for a Teacher from **Keys**, or a
+Teacher downloads their own from `/staff`. Downloading issues a new key (the old one is
+stored only as a hash, so it cannot be written out), so every earlier copy of that account's
+page stops registering.
+
+The page is the repo's `offline-minting.html` byte for byte apart from that block, and a
+test holds it to that. Tokens are still made in the Teacher's browser, offline, and only
+their hashes are registered, so "the server never had it" still holds for Tokens and for the
+Card-to-Student link. What changes is where the Minting code comes from: the assistant now
+hands it out. A compromised assistant could hand out a page that leaks Tokens, which the
+rejected "server mints" option also allowed. This is accepted because the page is fetched
+once, not on every use, and can be compared with the repo's copy. A school that wants the
+stricter posture gives Teachers the repo's page and the key separately, as before.
+
+The downloaded file holds a live key, so it is sent with `Cache-Control: no-store`, and the
+page tells the Teacher to keep it to themselves. A lost copy is handled like a lost key: the
+Librarian downloads a new one, and the lost copy stops working.
