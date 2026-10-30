@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
+from page_scripts import assert_scripts_parse
 
 from library_assistant.access import (
     account_for_registration_key,
@@ -148,3 +149,17 @@ def test_config_cannot_break_out_of_its_script_element():
 def test_download_filename_keeps_to_safe_characters():
     assert download_filename("demo-teacher") == "demo-teacher-minting-page.html"
     assert download_filename('a "b"/c') == "a_b_c-minting-page.html"
+
+
+@pytest.mark.parametrize(
+    "path", ["/staff", "/staff/live", "/staff/flags", "/staff/keys", "/staff/settings"]
+)
+def test_staff_page_scripts_parse(client, accounts, path):
+    _sign_in(client, "librarian")
+    response = client.get(path)
+    assert response.status_code == 200
+    assert_scripts_parse(response.text)
+
+
+def test_downloaded_minting_page_scripts_parse():
+    assert_scripts_parse(filled_minting_page("http://192.0.2.10:8000", "t", "k"))
