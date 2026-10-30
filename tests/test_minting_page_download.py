@@ -163,3 +163,9 @@ def test_staff_page_scripts_parse(client, accounts, path):
 
 def test_downloaded_minting_page_scripts_parse():
     assert_scripts_parse(filled_minting_page("http://192.0.2.10:8000", "t", "k"))
+
+
+def test_downloaded_page_defaults_the_stop_time_to_the_school_day_end():
+    filled = filled_minting_page("http://192.0.2.10:8000", "t", "k", "15:15")
+    assert _config(filled)["school_day_end"] == "15:15"
+    assert "school_day_end" not in _config(filled_minting_page("http://x", "t", "k"))

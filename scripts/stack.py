@@ -378,7 +378,11 @@ def seed(state: Path, quiet: bool = False) -> None:
     page = state / "teacher-minting-page.html"
     if teacher and not page.exists():
         key = issue_registration_key(db, teacher[0], now)
-        page.write_text(filled_minting_page(base_url(config), teacher[1], key))
+        page.write_text(
+            filled_minting_page(
+                base_url(config), teacher[1], key, config.get("day_end", "23:59")
+            )
+        )
         page.chmod(0o600)
     if not quiet:
         _say("Seeded:")
