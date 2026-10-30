@@ -123,6 +123,28 @@
     it can recognise a Card but never learns who holds it. Names you type stay on this page and in
     the Roster you keep.</p>
 
+    <!-- Rosters kept on this computer (lib-3t8): find who held a Card -->
+    <section id="find-card" class="panel hidden" style="margin-bottom:18px">
+        <h2>Find a Card</h2>
+        <p class="hint">Rosters from Cards made in this browser, kept on this computer for 7 days,
+        then deleted. They never reach the Library Assistant.</p>
+        <div class="grid">
+            <div class="form-group">
+                <label for="find-class">Class:</label>
+                <select id="find-class"></select>
+            </div>
+            <div class="form-group">
+                <label for="find-number">Card number:</label>
+                <input type="number" id="find-number" min="1">
+            </div>
+        </div>
+        <div id="find-result" class="hidden" style="margin-top:12px"></div>
+        <details>
+            <summary>Rosters on this computer</summary>
+            <ul class="roster-list" id="saved-rosters"></ul>
+        </details>
+    </section>
+
     <!-- Step 1: make and register the Batch -->
     <div id="step1" class="step active panel">
         <div class="grid">
@@ -211,7 +233,9 @@
             <button id="download-csv-btn" class="secondary">Download Roster CSV</button>
             <button id="print-roster-btn" class="secondary">Print Sealed Roster Sheet</button>
             <button id="back-to-config-btn" class="secondary">Make another Batch</button>
+            <button id="finish-btn">Finish</button>
         </div>
+        <div id="finish-note" class="success hidden"></div>
         <details>
             <summary>Technical details: Token hashes (for verifying against the server database by hand)</summary>
             <p>Each Card's Token is hashed with SHA-256 on this machine, the same way the server
@@ -2880,6 +2904,105 @@ ${sheetHtml}
             document.getElementById('loopback-warning').classList.toggle('hidden', !isLoopback(base));
         }
 
+        // Rosters kept on the Teacher's computer (lib-3t8): Class, Batch dates, and Card number
+        // to name, never a Token, so a Flag can be traced back days later. Each one deletes
+        // itself after ROSTER_DAYS; it never leaves this browser (ADR-0002).
+        const ROSTER_STORE = 'library-assistant-rosters';
+        const ROSTER_DAYS = 7;
+
+        function loadRosters(storage, now = new Date()) {
+            try {
+                const all = JSON.parse(storage.getItem(ROSTER_STORE) || '[]');
+                return Array.isArray(all) ? all.filter(r => new Date(r.keepUntil) > now) : [];
+            } catch (error) {
+                return [];
+            }
+        }
+
+        function saveRosters(storage, rosters) {
+            try {
+                storage.setItem(ROSTER_STORE, JSON.stringify(rosters));
+                return true;
+            } catch (error) {
+                return false;  // a browser that keeps nothing: the downloaded Roster is the copy
+            }
+        }
+
+        // One Batch's Roster as kept: its identity is its Class and expiry, as the
+        // assistant knows the Batch.
+        function rosterRecord(data) {
+            const madeAt = data.startDate;
+            return {
+                id: `${data.classLabel}|${data.expiresAt.toISOString()}`,
+                classLabel: data.classLabel,
+                madeAt: madeAt.toISOString(),
+                expiresAt: data.expiresAt.toISOString(),
+                keepUntil: new Date(madeAt.getTime() + ROSTER_DAYS * 86400000).toISOString(),
+                rows: data.rosterRows.map(r => ({ cardNumber: r.cardNumber, students: r.students })),
+            };
+        }
+
+        function upsertRoster(rosters, record) {
+            return [...rosters.filter(r => r.id !== record.id), record];
+        }
+
+        // Who held Card `cardNumber` in `classLabel`: every kept Batch's answer, newest first,
+        // or only the Batch that expires at `expiresAt` when it is given.
+        function findCard(rosters, classLabel, cardNumber, expiresAt = null) {
+            return rosters
+                .filter(r => r.classLabel === classLabel)
+                .filter(r => !expiresAt || new Date(r.expiresAt).getTime() === new Date(expiresAt).getTime())
+                .sort((a, b) => b.madeAt.localeCompare(a.madeAt))
+                .map(r => ({ roster: r, row: r.rows.find(row => row.cardNumber === String(cardNumber)) }))
+                .filter(found => found.row);
+        }
+
+        function keepThisRoster() {
+            const data = window.generatedData;
+            if (!data) return false;
+            const saved = saveRosters(localStorage, upsertRoster(loadRosters(localStorage), rosterRecord(data)));
+            renderFindCard();
+            return saved;
+        }
+
+        function shortDate(iso) {
+            return new Date(iso).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
+        }
+
+        function renderFindCard() {
+            const rosters = loadRosters(localStorage);
+            document.getElementById('find-card').classList.toggle('hidden', rosters.length === 0);
+            const select = document.getElementById('find-class');
+            const chosen = select.value;
+            const labels = [...new Set(rosters.map(r => r.classLabel))];
+            select.innerHTML = labels.map(l => `<option>${escapeHtml(l)}</option>`).join('');
+            if (labels.includes(chosen)) select.value = chosen;
+            document.getElementById('saved-rosters').innerHTML = rosters
+                .sort((a, b) => b.madeAt.localeCompare(a.madeAt))
+                .map(r => `<li><span>${escapeHtml(r.classLabel)} \u00b7 ${shortDate(r.madeAt)} \u00b7 ` +
+                    `${r.rows.filter(x => x.students).length} of ${r.rows.length} named</span>` +
+                    `<span>kept until ${shortDate(r.keepUntil)} ` +
+                    `<button class="secondary" data-delete-roster="${escapeHtml(r.id)}">Delete</button></span></li>`)
+                .join('');
+            showFindResult();
+        }
+
+        function showFindResult() {
+            const box = document.getElementById('find-result');
+            const number = document.getElementById('find-number').value;
+            if (!number) {
+                box.classList.add('hidden');
+                return;
+            }
+            const found = findCard(loadRosters(localStorage), document.getElementById('find-class').value, number);
+            box.classList.remove('hidden');
+            box.className = found.length ? 'success' : 'error';
+            box.innerHTML = found.length
+                ? found.map(f => `Card ${escapeHtml(f.row.cardNumber)}: <strong>${escapeHtml(f.row.students || 'no name recorded')}</strong>` +
+                    ` <span class="hint">(${shortDate(f.roster.madeAt)})</span>`).join('<br>')
+                : 'Not in the Rosters on this computer. Check the printed or downloaded Roster.';
+        }
+
         // Where one-at-a-time hand-out goes next: forward or back one Card, never off either end.
         function handoutIndex(index, total, step) {
             return Math.min(Math.max(index + step, 0), Math.max(total - 1, 0));
@@ -2996,6 +3119,8 @@ ${sheetHtml}
                     result.base = base;
                     result.handoutIndex = 0;
                     result.handedOut = new Set();
+                    window.generatedData = result;
+                    keepThisRoster();
                     result.sheetHtml = generateQRSheet(result.cards, classLabel, base, names);
                     window.generatedData = result;
                     document.getElementById('audit-table-body').innerHTML = generateAuditTableRows(result.cards);
@@ -3011,6 +3136,29 @@ ${sheetHtml}
                 }
             });
 
+            renderFindCard();
+            document.getElementById('find-class').addEventListener('change', showFindResult);
+            document.getElementById('find-number').addEventListener('input', showFindResult);
+            document.getElementById('saved-rosters').addEventListener('click', function(event) {
+                const id = event.target.dataset && event.target.dataset.deleteRoster;
+                if (!id) return;
+                saveRosters(localStorage, loadRosters(localStorage).filter(r => r.id !== id));
+                renderFindCard();
+            });
+
+            document.getElementById('finish-btn').addEventListener('click', function() {
+                const data = window.generatedData;
+                const kept = keepThisRoster();
+                const record = rosterRecord(data);
+                const note = document.getElementById('finish-note');
+                note.classList.remove('hidden');
+                note.className = kept ? 'success' : 'error';
+                note.textContent = kept
+                    ? `The Roster is kept on this computer until ${shortDate(record.keepUntil)}, for Find a Card. ` +
+                      'Also print the sealed Roster for the office, so it can be traced if this computer is not to hand.'
+                    : 'This browser could not keep the Roster: download it or print it now, or the names are lost when you close the page.';
+            });
+
             document.getElementById('tab-handout').addEventListener('click', () => { showTab('handout'); renderHandout(); });
             document.getElementById('tab-print').addEventListener('click', () => showTab('print'));
 
@@ -3019,6 +3167,7 @@ ${sheetHtml}
                 const typed = document.getElementById('handout-name').value.trim();
                 if (typed) {
                     data.rosterRows[data.handoutIndex].students = typed;
+                    keepThisRoster();
                 }
                 data.handedOut.add(data.handoutIndex);
                 data.handoutIndex = handoutIndex(data.handoutIndex, data.cards.length, 1);
