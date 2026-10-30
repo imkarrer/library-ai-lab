@@ -258,6 +258,15 @@ def ollama_env(port: int, context_length: int) -> dict[str, str]:
     }
 
 
+def install_hint(config: dict) -> str:
+    """Whether a browser will offer to install Make Cards: only in a secure context, HTTPS or
+    this computer's own address. Plain HTTP at the Wi-Fi address runs it in a tab (and with
+    --lan nothing listens on 127.0.0.1, so there is no local address to offer instead)."""
+    if config.get("https") or config["host"] == "127.0.0.1":
+        return "Install it from the address bar"
+    return "runs in a tab; Install needs HTTPS: --https"
+
+
 def assistant_env(state: Path, config: dict) -> dict[str, str]:
     """The assistant's whole configuration, given to its process directly."""
     if config["mock"]:
@@ -587,7 +596,7 @@ def status(state: Path) -> None:
     if config and _read_pid(state, "assistant"):
         _say(
             f"  Make Cards:    {base_url(config)}/staff/mint/  "
-            f"(as {DEMO_CAST[1].name}; Install it from the address bar)"
+            f"(as {DEMO_CAST[1].name}; {install_hint(config)})"
         )
     page = state / download_filename(DEMO_CAST[1].username)
     if page.exists():
