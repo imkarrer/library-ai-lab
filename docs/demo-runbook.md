@@ -14,7 +14,7 @@ school would. **Librarian** and **Teacher** steps are what school staff do, and 
 only in a browser: no Terminal, no script. Show those on stage exactly as written.
 
 **Shortcut:** `./stack up --lan` does the Presenter's part of Steps 2 and 5 in one command
-(accounts, settings, Make Cards prefilled for the Teacher, the Oversight Ollama, warming both models,
+(accounts, settings, Make Cards prefilled for the Teacher, both Ollamas, warming both models,
 the assistant on the LAN address), and `./stack down` stops it; see `README.md`, "Running
 it". The steps below are what it does, by hand, for when something needs doing differently.
 
@@ -63,30 +63,34 @@ Do this at home, online, on the M5 Pro. Everything here downloads; nothing after
    Run every later command from this same folder. The model is cached inside the checkout
    (`.flox/cache/models/`), so a second checkout or worktree does not see it.
 
-3. Activate once, online. The first activation installs Python, uv, llama.cpp, and the
-   Python packages (from PyPI). It prints `Installing Python packages...` the first time.
+3. Activate once, online. The first activation installs Python, uv, Ollama, llama.cpp,
+   and the Python packages (from PyPI). It prints `Installing Python packages...` the first
+   time.
 
    ```bash
    flox activate -- python3 -c "import fastapi, uvicorn, qrcode, httpx; print('env ok')"
    ```
 
-4. Get the demo model. The M5 Pro runs it in **Ollama.app** (the `ollama-app` cask, served
-   by a LaunchAgent; see the `local-ai` layer in the workstation repo), which uses the GPU.
-   The flox `llama-cpp` cannot: its Metal backend fails every request on this Mac (lib-30v).
-   Pull the model once, online (about 14 GB):
+4. Get the demo models. The M5 Pro runs both Lanes on the environment's own Ollama
+   (`ollama` in the manifest, from the Flox catalog), on the GPU: about 59 tokens/s on
+   `gpt-oss:20b`, the same as Ollama.app. Pull the models once, online (about 14 GB and
+   3.4 GB) into `~/.ollama/models`, which every Ollama on this Mac shares. Pulling needs a
+   server running, so this starts a temporary one on a spare port and stops it after:
 
    ```bash
-   ollama pull gpt-oss:20b
-   curl -s http://127.0.0.1:11434/api/version
+   flox activate -- bash -c 'export OLLAMA_HOST=127.0.0.1:11499
+     ollama serve >/dev/null 2>&1 & s=$!; sleep 3
+     ollama pull gpt-oss:20b && ollama pull qwen3.5:4b; kill $s'
    ```
 
    `gpt-oss:20b` (Apache-2.0) answers in 3 to 8 seconds here and writes the `SEARCH:` line
    the Catalog search reads. Measured on this Mac and rejected: `qwen3.6:27b` (18 GB, does
    not fit in 24 GB beside everything else) and `qwen3.5:4b` (faster, but slips on the
-   `SEARCH:` line). Ollama listens on `127.0.0.1` only and keeps no log or copy of a
-   question (its LaunchAgent writes no log; `~/.ollama/cache` holds only its model list).
+   `SEARCH:` line; it screens for Oversight instead). Each Ollama listens on `127.0.0.1`
+   only and keeps no log or copy of a question (`~/.ollama/cache` holds only its model
+   list).
 
-   Without Ollama, the flox model server is the fallback, on the CPU: fetch its model with
+   The flox model server (llama.cpp) is the fallback: fetch its model with
    `flox activate -- bash scripts/fetch_demo_model.sh` (about 19 GB; it ends with
    `Verified: ...gguf`) and see Step 5, "Without Ollama".
 
@@ -129,7 +133,7 @@ volunteers' questions.
    export LIBRARY_ASSISTANT_DB="$HOME/library-assistant-demo/demo.db"
    export LIBRARY_ASSISTANT_CATALOG_PATH="$PWD/catalog.db"
    export LIBRARY_ASSISTANT_DEMO=1
-   export LIBRARY_ASSISTANT_OPENAI_ENDPOINT=http://127.0.0.1:11434/v1
+   export LIBRARY_ASSISTANT_OPENAI_ENDPOINT=http://127.0.0.1:11436/v1
    export LIBRARY_ASSISTANT_OPENAI_MODEL=gpt-oss:20b
    export LIBRARY_ASSISTANT_OPENAI_REASONING_EFFORT=low
    export LIBRARY_ASSISTANT_OVERSIGHT_ENDPOINT=http://127.0.0.1:11435/v1
@@ -138,14 +142,15 @@ volunteers' questions.
    EOF
    ```
 
-   The three `OPENAI` lines point the Answer lane at Ollama's `gpt-oss:20b`.
+   The three `OPENAI` lines point the Answer lane at its Ollama's `gpt-oss:20b`, on port
+   11436 (Step 5).
    `REASONING_EFFORT=low` matters: without it the model thinks silently for most of a minute
    before its first word. The three `OVERSIGHT` lines turn on the Oversight Lane: a second,
    small model that screens every message for what the Watchlist's phrases miss ("Billy says
    I stink and makes me cry" is a bullying Flag from Oversight, not from the Watchlist). It
    runs on a second Ollama (Step 5). Its `REASONING_EFFORT=none` matters more: without it
    `qwen3.5:4b` spends its whole reply thinking, returns no verdict, and Oversight reports
-   itself down. Pull it once, online: `ollama pull qwen3.5:4b` (3.4 GB).
+   itself down. Step 1 pulled it.
 
    `LIBRARY_ASSISTANT_DEMO=1` adds the demo Watchlist entry
    (`library_assistant/watchlist-demo.toml`): the phrase **library demo flag**, Rubric category
@@ -265,29 +270,44 @@ in Step 5, once the services are up.
 
 ## Step 5. Start the services
 
-**Presenter.** Ollama runs the Answer lane's model already (its LaunchAgent starts it at
-login, on `127.0.0.1:11434`). The Oversight Lane gets a second Ollama of its own, so neither
-Lane waits on the other (ADR-0004). Four Terminal tabs, all at the repo root: tab 1 runs the
-Oversight Ollama, tab 2 the assistant, tab 3 is for checks and warming, tab 4 spare.
+**Presenter.** Each Lane gets an Ollama of its own, from the flox environment, so neither
+Lane waits on the other (ADR-0004): the Answer lane's on `127.0.0.1:11436`, the Oversight
+Lane's on `127.0.0.1:11435`. Not Ollama's default 11434, so an Ollama.app or LaunchAgent
+left on 11434 cannot answer in their place. Four Terminal tabs, all at the repo root: tab 1
+runs both Ollamas, tab 2 the assistant, tab 3 is for checks and warming, tab 4 spare.
 
-Tab 1, the Oversight Ollama, on `127.0.0.1:11435`, sharing the downloaded models:
+Tab 1, enter the environment and set what both Ollamas share:
 
 ```bash
-OLLAMA_HOST=127.0.0.1:11435 OLLAMA_CONTEXT_LENGTH=4096 OLLAMA_NUM_PARALLEL=1 \
-  OLLAMA_MAX_LOADED_MODELS=1 OLLAMA_KEEP_ALIVE=30m OLLAMA_FLASH_ATTENTION=1 \
-  /Applications/Ollama.app/Contents/Resources/ollama serve
+flox activate
+unset OLLAMA_DEBUG OLLAMA_DEBUG_LOG_REQUESTS
+export OLLAMA_NO_CLOUD=1 OLLAMA_NUM_PARALLEL=1 OLLAMA_MAX_LOADED_MODELS=1 \
+  OLLAMA_KEEP_ALIVE=30m OLLAMA_FLASH_ATTENTION=1
 ```
 
-Leave it running. Tab 3, warm both models so the first question is quick:
+`OLLAMA_NO_CLOUD=1` matters: without it `ollama serve` asks ollama.com for model
+recommendations as it starts, which an Install must never do (ADR-0006). The debug variables
+are unset because `OLLAMA_DEBUG_LOG_REQUESTS` writes request bodies, questions included, to
+the log (ADR-0003 addendum). Then start the two, sharing the downloaded models:
 
 ```bash
-curl -s http://127.0.0.1:11434/v1/chat/completions -H 'content-type: application/json' \
+OLLAMA_HOST=127.0.0.1:11436 OLLAMA_CONTEXT_LENGTH=16384 ollama serve &
+OLLAMA_HOST=127.0.0.1:11435 OLLAMA_CONTEXT_LENGTH=4096 ollama serve
+```
+
+The first is the Answer lane's, in the background; the second is the Oversight Lane's. Leave
+the tab running: Ctrl-C stops the Oversight Ollama, then `kill %1` stops the other.
+
+Tab 3, warm both models so the first question is quick:
+
+```bash
+curl -s http://127.0.0.1:11436/v1/chat/completions -H 'content-type: application/json' \
   -d '{"model":"gpt-oss:20b","messages":[{"role":"user","content":"Say ready."}],"reasoning_effort":"low"}' \
   | grep -o '"content":"[^"]*"'
 curl -s http://127.0.0.1:11435/v1/chat/completions -H 'content-type: application/json' \
   -d '{"model":"qwen3.5:4b","messages":[{"role":"user","content":"Say ready."}],"reasoning_effort":"none"}' \
   | grep -o '"content":"[^"]*"'
-curl -s http://127.0.0.1:11434/api/ps; curl -s http://127.0.0.1:11435/api/ps
+curl -s http://127.0.0.1:11436/api/ps; curl -s http://127.0.0.1:11435/api/ps
 ```
 
 The first calls take 10 to 15 seconds while the models load; Ollama keeps them loaded for 30
@@ -296,9 +316,11 @@ later than that. Both fit on the GPU together (about 12.8 and 3.2 GB of the 24),
 here: a screen takes about a second and the answer's first words still come in about 0.3
 seconds. That leaves little memory free, so quit memory-hungry apps first.
 
-**Without Ollama** (fallback): run the flox model server on the CPU instead. It is slower
-(first words about 6 seconds after Ask), and `demo.env`'s three `OPENAI` lines must be
-removed so the assistant uses it:
+**Without Ollama** (fallback): run the flox model server (llama.cpp) instead. It uses the GPU
+too, at about 24 to 32 tokens/s against Ollama's 59, but takes nearly all of the GPU's
+working set (about 17.8 GiB), so it cannot run beside either Ollama: stop tab 1 (or
+`./stack down`) first. With no Oversight Ollama, Oversight is down (Recovery, "Oversight is
+down"). `demo.env`'s three `OPENAI` lines must be removed so the assistant uses it:
 
 ```bash
 flox activate
@@ -328,9 +350,9 @@ lsof -nP -iTCP -sTCP:LISTEN | grep -E 'ollama|python'
 lsof -nP -a -p "$(pgrep -d, -f 'python3 -m library_assistant')" -iTCP
 ```
 
-Expect `{"status":"ok"}`; `ollama` listening on `127.0.0.1:11434` and `127.0.0.1:11435`
+Expect `{"status":"ok"}`; `ollama` listening on `127.0.0.1:11436` and `127.0.0.1:11435`
 only; the assistant (`python`) listening on `$LAN_IP:8000` only. Every connection the
-assistant has should be to `127.0.0.1:11434` or `11435` (the two models) or from an address on
+assistant has should be to `127.0.0.1:11436` or `11435` (the two models) or from an address on
 the router's network (your browser, the phones). Re-run the last line during the demo if anyone asks: that is the answer to "does
 anything leave the building?". Nothing in the assistant can reach the internet anyway: its one
 outbound client is scoped to the model endpoint (ADR-0006), and the room has no uplink.
@@ -560,31 +582,35 @@ Symptom: answers never start, or the phone shows "Something went wrong. Ask the 
 The Watchlist, the Supportive reply, and Flags do not need the model, so Step 9 still works.
 
 ```bash
-curl -s http://127.0.0.1:11434/api/version              # tab 3: is Ollama up?
-curl -s http://127.0.0.1:11434/api/ps                   # is gpt-oss:20b loaded?
-launchctl kickstart -k gui/$(id -u)/org.nixos.ollama    # restart Ollama
+./stack status                              # tab 3: is answer-ollama up?
+curl -s http://127.0.0.1:11436/api/version  # or by hand: is the Answer lane's Ollama up?
+curl -s http://127.0.0.1:11436/api/ps       # is gpt-oss:20b loaded?
 ```
 
-Then warm it again (Step 5, tab 1). If `api/ps` lists another model, another app is using
-Ollama and has pushed the demo model out (`OLLAMA_MAX_LOADED_MODELS=1`): quit it and warm
-again.
+Under `./stack`, its log is `answer-ollama.log` in the stack folder
+(`~/library-assistant-demo`); restart it with `./stack down && ./stack up --lan`. On the
+manual path, look at tab 1 and re-run its commands. Then warm it again (Step 5, tab 3). If
+`api/ps` lists another model, something else is using that Ollama and has pushed the demo
+model out (`OLLAMA_MAX_LOADED_MODELS=1`): stop it and warm again.
 
 On the flox fallback instead: `flox services status`, `flox services logs model -n 50`, and
 `flox services restart model`. `Compute error` or `kIOGPUCommandBufferCallbackErrorOutOfMemory`
-in its log means it is running on the GPU, which fails on the M5 Pro: check the manifest's
-model command still has `--n-gpu-layers 0`, then leave the activation and start it again.
+in its log means something else holds GPU memory, most likely the Ollamas: stop them
+(`./stack down`, or tab 1), then restart the model server.
 "Demo model not found" means `scripts/fetch_demo_model.sh` did not finish, or ran in another
 checkout.
 
 ### Oversight is down: carry on or pause
 
-The Oversight Lane is the second Ollama in Step 5, tab 1. Never point
-`LIBRARY_ASSISTANT_OVERSIGHT_ENDPOINT` at the Answer lane's Ollama (`11434`): it holds one
+The Oversight Lane is the second Ollama in Step 5, tab 1 (`oversight-ollama` under
+`./stack`). Never point `LIBRARY_ASSISTANT_OVERSIGHT_ENDPOINT` at the Answer lane's Ollama
+(`11436`): it holds one
 model at a time, so the two would swap models on every message, and the Oversight Lane must
 never take capacity from the Answer lane (ADR-0004).
 
-If it stops answering, check `curl -s http://127.0.0.1:11435/api/version` and restart tab 1's
-command. Meanwhile the Live view shows "Screening is unavailable since HH:MM." What happens next is the **Oversight down** setting
+If it stops answering, check `curl -s http://127.0.0.1:11435/api/version` (or
+`./stack status`, and `oversight-ollama.log` in the stack folder) and restart it: tab 1's
+second command, or `./stack down && ./stack up --lan`. Meanwhile the Live view shows "Screening is unavailable since HH:MM." What happens next is the **Oversight down** setting
 on `/staff/settings`:
 
 - **Carry on** (the demo's choice): Students keep chatting, screened by the Watchlist alone;
@@ -708,10 +734,11 @@ As of this runbook; re-check before the trip.
 - **The assistant cannot run as a flox service for the demo** (lib-f9o).
   `flox services start assistant` does not see the variables `demo.env` and `today.env`
   export, so Steps 2 and 5 start it with `uvicorn` in its own tab instead.
-- **The Oversight Ollama runs in a Terminal tab** (lib-ktv), not as a LaunchAgent like the
-  Answer lane's, so it stops if the tab closes or the Mac restarts.
-- **The model comes from Ollama.app, which flox does not install** (lib-30v). The flox
-  `llama-cpp` (0.6.0) fails every request on the M5 Pro's GPU, so the demo uses this Mac's
-  Ollama and the flox model server is a slower CPU fallback. A school's flox Install still
-  needs a llama.cpp whose GPU backend works here.
+- **The Ollamas stop when their parent does** (lib-ktv). Under `./stack` both run in the
+  background until `./stack down`; on the manual path both run in Step 5's tab 1. Neither
+  survives a restart of the Mac: run `./stack up --lan` (or tab 1) again.
+- **The flox model server cannot run beside the Ollamas** (lib-30v). llama.cpp 0.7.0 fixed
+  0.6.0's Metal out-of-memory failure and runs on the GPU, but it takes nearly all of the
+  GPU's working set, so it is a fallback only. The demo no longer needs Ollama.app or its
+  LaunchAgent; they can be retired in the workstation repo.
 - **No staff page shows Purge runs**; the after-the-talk check uses `sqlite3` (Step 14).

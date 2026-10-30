@@ -5,12 +5,20 @@
     "install": {
       "llama-cpp": {
         "pkg-path": "llama-cpp",
+        "pkg-group": "models",
         "systems": [
           "aarch64-darwin"
         ]
       },
       "nodejs": {
         "pkg-path": "nodejs"
+      },
+      "ollama": {
+        "pkg-path": "ollama",
+        "pkg-group": "models",
+        "systems": [
+          "aarch64-darwin"
+        ]
       },
       "python": {
         "pkg-path": "python312"
@@ -42,7 +50,7 @@
         "command": "  # library_assistant/__main__.py runs uvicorn with no access log (it writes the raw path\n  # and query, which could carry a Token or Card number; ADR-0003 addendum) and a bounded\n  # shutdown, and reads LIBRARY_ASSISTANT_HOST / _PORT.\n  cd \"$FLOX_ENV_PROJECT\" && exec \"$FLOX_ENV_CACHE/venv/bin/python\" -m library_assistant\n"
       },
       "model": {
-        "command": "  model=\"$FLOX_ENV_CACHE/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf\"\n  if [ ! -f \"$model\" ]; then\n    echo \"Demo model not found; run scripts/fetch_demo_model.sh once, online, first.\" >&2\n    exit 1\n  fi\n  # No -v, --log-prompts-dir, or --slot-save-path, and --no-slots (ADR-0003 addendum): the\n  # model server keeps no log or cache of a question. 127.0.0.1 only (ADR-0006).\n  # --n-gpu-layers 0 (lib-30v): on the M5 Pro, llama.cpp's Metal backend fails every request\n  # with an out-of-memory error whatever is offloaded; the CPU answers at ~12 tokens/s.\n  exec llama-server \\\n    --model \"$model\" \\\n    --host 127.0.0.1 \\\n    --port 8080 \\\n    --ctx-size 8192 \\\n    --n-gpu-layers 0 \\\n    --no-slots\n",
+        "command": "  model=\"$FLOX_ENV_CACHE/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf\"\n  if [ ! -f \"$model\" ]; then\n    echo \"Demo model not found; run scripts/fetch_demo_model.sh once, online, first.\" >&2\n    exit 1\n  fi\n  # No -v, --log-prompts-dir, or --slot-save-path, and --no-slots (ADR-0003 addendum): the\n  # model server keeps no log or cache of a question. 127.0.0.1 only (ADR-0006).\n  # Metal again (lib-30v): llama.cpp 0.6.0 failed every request on the M5 Pro with a Metal\n  # out-of-memory error; 0.7.0 fits all 49 layers on the GPU (~25-32 tokens/s, against ~12\n  # on the CPU), with under 1 GiB of the GPU's working set to spare: nothing else can be\n  # loaded beside it. ./stack runs Ollama instead.\n  exec llama-server \\\n    --model \"$model\" \\\n    --host 127.0.0.1 \\\n    --port 8080 \\\n    --ctx-size 8192 \\\n    --no-slots\n",
         "systems": [
           "aarch64-darwin"
         ]
@@ -53,32 +61,60 @@
     {
       "attr_path": "llama-cpp",
       "broken": false,
-      "derivation": "/nix/store/4shayqbj8w51i7lg3470xqk0f03k30f1-llama-cpp-0.6.0.drv",
+      "derivation": "/nix/store/kq4sq0s96ck0kifp6j5xk8q0j23gaq4c-llama-cpp-0.7.0.drv",
       "description": "Inference of Meta's LLaMA model (and others) in pure C/C++",
       "install_id": "llama-cpp",
       "license": "MIT",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=02c087f3fe673c9e317f206a627cb6b910336dbe",
-      "name": "llama-cpp-0.6.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=31ecbaca1bdefa45dffc409f0250bd8039ea0010",
+      "name": "llama-cpp-0.7.0",
       "pname": "llama-cpp",
-      "rev": "02c087f3fe673c9e317f206a627cb6b910336dbe",
-      "rev_count": 1097682,
-      "rev_date": "2026-10-20T13:28:04Z",
-      "scrape_date": "2026-10-21T05:50:28.978604Z",
+      "rev": "31ecbaca1bdefa45dffc409f0250bd8039ea0010",
+      "rev_count": 1103272,
+      "rev_date": "2026-10-27T14:17:15Z",
+      "scrape_date": "2026-10-29T05:48:03.755348Z",
       "stabilities": [
-        "staging",
         "unstable"
       ],
       "unfree": false,
-      "version": "0.6.0",
+      "version": "0.7.0",
       "outputs_to_install": [
         "out"
       ],
       "outputs": {
-        "dev": "/nix/store/w06afzvrfg5bzrnsq08fgbshcnvqy2gw-llama-cpp-0.6.0-dev",
-        "out": "/nix/store/i7m2b6nr3j1x9hr9ycabf67wjwsdi8js-llama-cpp-0.6.0"
+        "dev": "/nix/store/2i5fqdaxmznmygqp7gar2a4sznsddgxa-llama-cpp-0.7.0-dev",
+        "out": "/nix/store/yr7smxph0ldwriqvn5f7ri3y1kcg9n6y-llama-cpp-0.7.0"
       },
       "system": "aarch64-darwin",
-      "group": "toplevel",
+      "group": "models",
+      "priority": 5
+    },
+    {
+      "attr_path": "ollama",
+      "broken": false,
+      "derivation": "/nix/store/bbrgr77zp21r6xl290r65fi7fbiv9zs8-ollama-0.40.6.drv",
+      "description": "Get up and running with large language models locally",
+      "install_id": "ollama",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=31ecbaca1bdefa45dffc409f0250bd8039ea0010",
+      "name": "ollama-0.40.6",
+      "pname": "ollama",
+      "rev": "31ecbaca1bdefa45dffc409f0250bd8039ea0010",
+      "rev_count": 1103272,
+      "rev_date": "2026-10-27T14:17:15Z",
+      "scrape_date": "2026-10-29T05:48:03.792562Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.40.6",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/6p89i9ni8fd6rk25xljrmkpy2skdll74-ollama-0.40.6"
+      },
+      "system": "aarch64-darwin",
+      "group": "models",
       "priority": 5
     },
     {
