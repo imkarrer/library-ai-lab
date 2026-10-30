@@ -355,3 +355,34 @@ def test_one_form_asks_for_the_address_and_key_before_making_cards(
     assert 'id="registration-key"' in step1
     assert 'id="step3"' not in page_html
     assert "Download Cards" in page_html
+
+
+def test_install_config_is_read_and_a_damaged_one_is_ignored(
+    app_logic_script: str,
+) -> None:
+    """A downloaded page carries its address and key (minting_page.py); the shipped
+    page's empty block, or a damaged one, fills in nothing."""
+    js = f"""
+{NODE_STUB_DOCUMENT}
+{app_logic_script}
+process.stdout.write(JSON.stringify([
+  parseInstallConfig('{{"assistant_url": "http://192.0.2.10:8000", "registration_key": "k"}}'),
+  parseInstallConfig('{{}}'),
+  parseInstallConfig('not json'),
+  parseInstallConfig(''),
+]));
+"""
+    assert json.loads(_run_node(js)) == [
+        {"assistant_url": "http://192.0.2.10:8000", "registration_key": "k"},
+        {},
+        {},
+        {},
+    ]
+
+
+def test_page_hides_the_key_field_when_the_key_is_built_in(page_html: str) -> None:
+    assert '<script type="application/json" id="install-config">{}</script>' in (
+        page_html
+    )
+    assert 'id="key-group"' in page_html
+    assert 'id="key-built-in"' in page_html
