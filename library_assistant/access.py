@@ -57,21 +57,33 @@ CARD_PAGE_HTML = """<!DOCTYPE html>
     const finishButton = document.getElementById("finish");
 
     const match = window.location.hash.match(/t=([^&]+)/);
-    if (match) {
-      const token = decodeURIComponent(match[1]);
+    // The Token leaves the address bar at once and lives only in this page's memory.
+    history.replaceState(null, "", window.location.pathname);
+    const RETRY_MS = 5000;
+    const signIn = (token) => {
       fetch("/card", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
         body: JSON.stringify({ token: token }),
-      }).then((response) => {
-        history.replaceState(null, "", window.location.pathname);
+      }).then(async (response) => {
         if (response.ok) {
           window.location.replace("/chat");
+        } else if (response.status === 503) {
+          // Nobody is on Watch: a valid Card waits, and this same scan signs in the
+          // moment an adult starts watching (ADR-0010). Not a dead Card.
+          statusEl.textContent = await response.text();
+          setTimeout(() => signIn(token), RETRY_MS);
         } else {
           statusEl.textContent = "This card has stopped working. Ask your teacher for a new one.";
         }
+      }).catch(() => {
+        statusEl.textContent = "Can't reach the Library Assistant. Trying again...";
+        setTimeout(() => signIn(token), RETRY_MS);
       });
+    };
+    if (match) {
+      signIn(decodeURIComponent(match[1]));
     } else {
       statusEl.textContent = "No card token found.";
     }
@@ -86,6 +98,27 @@ CARD_PAGE_HTML = """<!DOCTYPE html>
 </body>
 </html>
 """
+
+
+def utc_iso(moment: datetime) -> str:
+    """How a Card's expiry is stored and matched: UTC ISO 8601, so the SQL that compares
+    expiries as text (Live view tiles, the Purge) orders them as times (lib-4vf). A Batch
+    registered with an offset ("-05:00", as the CLI sends) sorted as expired hours early."""
+    return moment.astimezone(UTC).isoformat()
+
+
+def _expiries_in_utc(conn: sqlite3.Connection) -> None:
+    """Convert expiries stored with an offset before lib-4vf; a no-op once done."""
+    for table, column in (("cards", "expires_at"), ("flags", "batch_expires_at")):
+        rows = conn.execute(
+            f"SELECT rowid, {column} FROM {table} WHERE {column} NOT LIKE '%+00:00'"
+        ).fetchall()
+        for rowid, value in rows:
+            conn.execute(
+                f"UPDATE {table} SET {column} = ? WHERE rowid = ?",
+                (utc_iso(datetime.fromisoformat(value)), rowid),
+            )
+    conn.commit()
 
 
 def hash_token(token: str) -> str:
@@ -357,6 +390,7 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
         """
     )
     conn.commit()
+    _expiries_in_utc(conn)
     return conn
 
 
@@ -531,7 +565,7 @@ def register_batch(
             (
                 card.token_hash,
                 card.card_number,
-                batch.expires_at.isoformat(),
+                utc_iso(batch.expires_at),
                 batch.class_label,
                 account_id,
             )
@@ -550,7 +584,7 @@ def revoke_card(
     _account_for_key_or_403(db, revoke.registration_key)
     db.execute(
         "DELETE FROM cards WHERE class_label = ? AND card_number = ? AND expires_at = ?",
-        (revoke.class_label, revoke.card_number, revoke.expires_at.isoformat()),
+        (revoke.class_label, revoke.card_number, utc_iso(revoke.expires_at)),
     )
     db.commit()
     return {"status": "revoked"}
@@ -564,7 +598,7 @@ def revoke_batch(
     _account_for_key_or_403(db, revoke.registration_key)
     db.execute(
         "DELETE FROM cards WHERE class_label = ? AND expires_at = ?",
-        (revoke.class_label, revoke.expires_at.isoformat()),
+        (revoke.class_label, utc_iso(revoke.expires_at)),
     )
     db.commit()
     return {"status": "revoked"}
