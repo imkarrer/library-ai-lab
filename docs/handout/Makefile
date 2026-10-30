@@ -13,6 +13,7 @@ MARP    := marp --no-stdin
 DOC     := librarian-handout.md
 BUILD   := build
 PALETTE := ../../library_assistant/static/palette.css
+COMPONENTS := ../../library_assistant/static/components.css
 
 # The activation hook sets this; resolving it here too covers a shell where it didn't run.
 # HTML export does not need a browser, so a miss here is not fatal.
@@ -28,7 +29,7 @@ all: check-marp html pdf
 html: check-marp $(BUILD)/librarian-handout.html
 pdf: check-marp $(BUILD)/librarian-handout.pdf
 
-DEPS := $(DOC) handout.css $(PALETTE) .marprc.yml
+DEPS := $(DOC) handout.css $(PALETTE) $(COMPONENTS) .marprc.yml
 
 check-marp:
 	@command -v $(MARP) >/dev/null 2>&1 || { \

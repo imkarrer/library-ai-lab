@@ -1,5 +1,6 @@
-"""The assistant's one stylesheet, `/library.css`: the shared palette (static/palette.css,
-which the Marp handout imports too) followed by the page styles (static/library.css).
+"""The assistant's one stylesheet, `/library.css`: the shared palette (static/palette.css)
+and shared look (static/components.css), both of which the Marp handout imports too,
+followed by the page styles (static/library.css).
 
 Served by the assistant itself, like the chime: a page fetches nothing from past the
 Install (ADR-0006). No Session is needed, because the Card and /about pages use it before
@@ -26,7 +27,7 @@ router = APIRouter()
 def theme_css() -> str:
     return "\n".join(
         (STATIC_DIR / name).read_text(encoding="utf-8")
-        for name in ("palette.css", "library.css")
+        for name in ("palette.css", "components.css", "library.css")
     )
 
 
@@ -36,5 +37,7 @@ def stylesheet() -> Response:
     return Response(
         theme_css(),
         media_type="text/css",
-        headers={"Cache-Control": "max-age=3600"},
+        # Revalidated on every page: an updated Install shows its new look at once, not an
+        # hour later. The sheet is small and served on the school network.
+        headers={"Cache-Control": "no-cache"},
     )

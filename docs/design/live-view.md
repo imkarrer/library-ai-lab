@@ -18,7 +18,7 @@ they step away, as they would with any pupil record on screen.
 | Who | Librarian (and Stand-in, lib-793.1) | Same |
 | One row per | Active Session, most recent activity first | Exchange, oldest first |
 | Shows | Class label, Card number, time since last activity, message count, latest question (80 chars), Flag marker | Each question, its answer streaming in as it's written, Citations |
-| Controls | **Start watch / End watch** only (ADR-0010): nothing that changes a Session, so it's safe to leave on screen or share | Revoke this Card, Revoke the Batch, each behind a confirm |
+| Controls | **Start watch / End watch** only (ADR-0010): nothing that changes a Session, so it's safe to leave on screen or share. The staff top bar around every page (navigation, Sign out) changes no Session either | Revoke this Card, Revoke the Batch, each behind a confirm |
 | Never shows | A name, a Token or hash, Roster data, a Flag's category or reason | The same |
 
 `n` is the Session's row number in the database: opaque, and never the Session's hash.

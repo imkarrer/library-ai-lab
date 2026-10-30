@@ -101,17 +101,69 @@ CHAT_PAGE_HTML = """<!DOCTYPE html>
 <link rel="stylesheet" href="/library.css">
 <title>Library Assistant</title>
 </head>
-<body>
-  <p class="banner" role="note">{banner}</p>
-  <p>{class_label} &middot; card {card_number}</p>
-  <form id="ask">
-    <input id="question" name="question" size="50" autocomplete="off" required>
-    <button>Ask</button>
-  </form>
-  <div id="answer"></div>
-  <p><button id="finish">End session</button></p>
-  <p><a href="/about">What happens to what I type</a></p>
+<body class="student">
+  <header class="student-bar">
+    <span class="brand">Library Assistant</span>
+    <span class="who">{class_label} &middot; card {card_number}</span>
+  </header>
+  <main class="chat">
+    <p class="banner" role="note">{banner}</p>
+    <div id="thread" class="thread" aria-live="polite"></div>
+    <div class="turn">
+      <div id="asked" class="bubble student" hidden></div>
+      <div id="answer" class="bubble assistant"></div>
+    </div>
+    <form id="ask" class="composer">
+      <input id="question" name="question" autocomplete="off" required
+        placeholder="Ask about a topic, or look for a book">
+      <button>Ask</button>
+    </form>
+    <footer class="student-foot">
+      <button id="finish" class="link">End session</button>
+      <a href="/about">What happens to what I type</a>
+    </footer>
+  </main>
   <script>
+    // A finished answer's books ("Books in our library:" then one "Citation: Title (call
+    // number)" line each) become a list of book cards; the overview stays as text.
+    const BOOKS_HEADER = "\\n\\nBooks in our library:";
+    const renderBooks = (bubble) => {{
+      const text = bubble.textContent;
+      const at = text.indexOf(BOOKS_HEADER);
+      if (at < 0) return;
+      const citations = text.slice(at + BOOKS_HEADER.length).split("\\n")
+        .map((line) => line.match(/^Citation: (.*) \\(([^()]*)\\)$/))
+        .filter(Boolean);
+      bubble.textContent = text.slice(0, at);
+      const books = document.createElement("div");
+      books.className = "books";
+      const heading = document.createElement("p");
+      heading.className = "books-title";
+      heading.textContent = "Books in our library";
+      books.append(heading);
+      for (const [, title, callNumber] of citations) {{
+        const book = document.createElement("div");
+        book.className = "book";
+        const name = document.createElement("strong");
+        name.textContent = title.replace(/\\s*\\/$/, "");
+        const shelf = document.createElement("span");
+        shelf.textContent = callNumber;
+        book.append(name, shelf);
+        books.append(book);
+      }}
+      bubble.append(books);
+    }};
+    // The last turn moves up into the thread before a new question is asked.
+    const thread = document.getElementById("thread");
+    const asked = document.getElementById("asked");
+    const keepTurn = () => {{
+      if (asked.hidden) return;
+      const turn = document.createElement("div");
+      turn.className = "turn";
+      turn.append(asked.cloneNode(true), document.getElementById("answer").cloneNode(true));
+      for (const element of turn.querySelectorAll("[id]")) element.removeAttribute("id");
+      thread.append(turn);
+    }};
     document.getElementById("finish").addEventListener("click", () => {{
       fetch("/card/finish", {{ method: "POST", credentials: "same-origin" }}).then(() => {{
         document.body.textContent = "Session ended. You can close this page.";
@@ -126,6 +178,9 @@ CHAT_PAGE_HTML = """<!DOCTYPE html>
       const questionInput = document.getElementById("question");
       const askButton = form.querySelector("button");
       const question = questionInput.value;
+      keepTurn();
+      asked.textContent = question;
+      asked.hidden = false;
       answer.textContent = "";
       // Disable Ask button immediately on submit
       questionInput.disabled = true;
@@ -194,9 +249,12 @@ CHAT_PAGE_HTML = """<!DOCTYPE html>
         // The connection dropped mid-answer: say so, and let the Student ask again.
         answer.textContent += (answer.textContent ? "\\n\\n" : "") + ERROR_TEXT;
       }}
-      // Re-enable Ask button after successful stream
+      renderBooks(answer);
+      // Re-enable Ask button after successful stream; the box is cleared for the next one.
+      questionInput.value = "";
       questionInput.disabled = false;
       askButton.disabled = false;
+      questionInput.focus();
     }});
   </script>
 </body>
