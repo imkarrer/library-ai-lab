@@ -178,6 +178,7 @@ def purge(db, now: datetime, settings: Settings) -> PurgeReport:
             continue
         db.execute("DELETE FROM flag_history WHERE flag_id = ?", (flag_id,))
         db.execute("DELETE FROM flag_repeats WHERE flag_id = ?", (flag_id,))
+        db.execute("DELETE FROM identification_requests WHERE flag_id = ?", (flag_id,))
         db.execute("DELETE FROM flags WHERE id = ?", (flag_id,))
 
     # Token hashes are deleted at the first Purge after their Batch expires or is

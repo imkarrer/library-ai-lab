@@ -14,6 +14,7 @@ import library_assistant.purge as purge_module
 from library_assistant.app import app
 from library_assistant.config import Settings
 from library_assistant.holds import create_holds_table
+from library_assistant.identification import create_identification_table
 from library_assistant.purge import purge, purge_loop, run_if_due
 
 
@@ -123,6 +124,7 @@ def db():
             """
         )
         create_holds_table(db)
+        create_identification_table(db)
         db.commit()
         yield db
     finally:

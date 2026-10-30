@@ -2,7 +2,7 @@
 
 The page runs from a file:// URL on the Teacher's machine, so its POST to /batches is a
 cross-origin request the browser blocks unless the assistant answers CORS. Only /batches
-does: it authenticates with the Registration key in the body, never a cookie, so allowing
+and the Minting page's Identification requests do: they authenticate with the Registration key in the body, never a cookie, so allowing
 any origin without credentials gives a page nothing it could not already send. Every other
 route, the staff pages and their session cookies included, stays same-origin.
 """
@@ -13,18 +13,28 @@ from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 REGISTRATION_PATH = "/batches"
+# The Minting page also reads and answers its Teacher's Identification requests (lib-axb),
+# authenticated the same way, by the Registration key in the body.
+IDENTIFICATION_PATH = "/batches/identification-requests"
+
+
+def _page_may_call(path: str) -> bool:
+    return path in (REGISTRATION_PATH, IDENTIFICATION_PATH) or (
+        path.startswith(IDENTIFICATION_PATH + "/") and path.endswith("/answer")
+    )
+
 
 _ALLOW_ORIGIN = (b"access-control-allow-origin", b"*")
 
 
 class RegistrationCorsMiddleware:
-    """Pure ASGI middleware, like AccessLogMiddleware, scoped to REGISTRATION_PATH."""
+    """Pure ASGI middleware, like AccessLogMiddleware, scoped to the Minting page's routes."""
 
     def __init__(self, app: ASGIApp) -> None:
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http" or scope["path"] != REGISTRATION_PATH:
+        if scope["type"] != "http" or not _page_may_call(scope["path"]):
             await self.app(scope, receive, send)
             return
 

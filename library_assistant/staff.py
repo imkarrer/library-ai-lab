@@ -511,15 +511,51 @@ def staff_home(
             "<button>Download my Minting page</button></form></section>"
         )
 
+    requests_html = _identification_requests_html(db, account)
+
     return page(
         "Staff",
         f"<h1>Welcome, {html.escape(account.username)}</h1>"
         f'<p class="lede">Signed in as {html.escape(account.username)} ({account.role}).</p>'
+        f"{requests_html}"
         f"{minting_html}"
         f"{links_html}",
         account=account,
         db=db,
         now=clock,
+    )
+
+
+def _identification_requests_html(db: sqlite3.Connection, account: StaffAccount) -> str:
+    """The questions waiting for this Teacher: who held a Card (lib-axb). The answer is a
+    name, so it is given in person; here the Teacher only says that they have."""
+    from library_assistant.identification import open_requests_for
+
+    requests = open_requests_for(db, account.id)
+    if not requests:
+        return ""
+    items = "".join(
+        '<li class="id-request">'
+        f"<p><strong>{html.escape(r.requested_by)}</strong> ({html.escape(r.requested_by_role)})"
+        f" needs to know who held <strong>{html.escape(r.class_label)} &middot; card "
+        f"{html.escape(r.card_number)}</strong>.</p>"
+        + (
+            '<p class="urgent">This is urgent: go and find them now.</p>'
+            if r.severity == "high"
+            else ""
+        )
+        + f'<form method="post" action="/staff/identification/{r.id}/answer">'
+        '<button name="answer" value="told">I\'ve told them</button> '
+        '<button name="answer" value="not_in_rosters" class="secondary">'
+        "Not in my Rosters</button></form></li>"
+        for r in requests
+    )
+    return (
+        '<section class="card-panel id-requests"><h2>Who held these Cards?</h2>'
+        "<p>Open your Minting page: it shows each name from the Roster on your computer "
+        "(or use Find a Card). Tell the person asking, in person. Never type a name into "
+        "the assistant.</p>"
+        f'<ul class="id-list">{items}</ul></section>'
     )
 
 
@@ -761,6 +797,22 @@ def account_minting_page_route(
     if row[1] not in MINTING_ROLES:
         raise HTTPException(status_code=400, detail="a Counselor does not make Cards")
     return _minting_page_download(request, db, account_id, row[0], clock, settings)
+
+
+@router.post("/identification/{request_id}/answer", response_model=None)
+def answer_identification_route(
+    request_id: int,
+    account: StaffDep,
+    answer: str = Form(...),
+    db: sqlite3.Connection = Depends(get_db),
+    clock: datetime = Depends(get_clock),
+) -> RedirectResponse:
+    """A Teacher answers their own request: told, or not in their Rosters. No name."""
+    from library_assistant.identification import answer as answer_request
+
+    if answer_request(db, request_id, account.id, answer, clock) is None:
+        raise HTTPException(status_code=404, detail="no open request of yours")
+    return RedirectResponse("/staff", status_code=303)
 
 
 @router.post("/minting-page", response_model=None)

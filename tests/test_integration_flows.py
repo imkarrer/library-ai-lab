@@ -297,3 +297,37 @@ def test_the_live_view_stream_carries_a_new_flag_row(install, librarian):
     [row] = seen
     assert row["class_label"] == "Journey stream"
     assert row["severity"] == "low" and "category" not in row
+
+
+def test_the_counselor_asks_the_teacher_who_held_an_escalated_card(install, librarian):
+    """Identification (lib-axb): the question goes through the assistant; the name never
+    does. The Teacher's Minting page matches it against the Roster on its computer."""
+    [token] = install.mint(1, "Journey identify")
+    install.student(token).post("/ask", json={"question": "everyone picks on me"})
+    [(flag_id, *_)] = _wait_for(lambda: _flags(install, "Journey identify"))
+    librarian.post(
+        f"/staff/flags/{flag_id}/escalate", data={"reason": "for the counselor"}
+    )
+
+    counselor = install.staff("counselor")
+    assert (
+        "Ask teacher who held it"
+        in counselor.get(f"/staff/counselor/flags/{flag_id}").text
+    )
+    counselor.post(f"/staff/counselor/flags/{flag_id}/identify")
+
+    page = httpx.post(
+        f"{install.base}/batches/identification-requests",
+        json={"registration_key": install.teacher_key},
+    )
+    [request] = [
+        r for r in page.json()["requests"] if r["class_label"] == "Journey identify"
+    ]
+    assert request["requested_by"] == "counselor" and request["card_number"] == "1"
+    httpx.post(
+        f"{install.base}/batches/identification-requests/{request['request_id']}/answer",
+        json={"registration_key": install.teacher_key, "answer": "told"},
+    )
+
+    after = counselor.get(f"/staff/counselor/flags/{flag_id}").text
+    assert "teacher has the name and told counselor" in after

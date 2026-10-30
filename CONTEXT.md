@@ -195,7 +195,9 @@ Acknowledgement if nobody had given one.
 
 **Identification**:
 An adult learning which Student held a Card number by asking the Teacher who holds the
-Roster. Always offline, between adults.
+Roster. Always offline, between adults. The Flag page's **Ask the Teacher** sends the question
+through the assistant; the Teacher's Minting page shows the name from the Roster on their
+computer, and only "told them" or "not in my Rosters" comes back. Never the name.
 _Avoid_: de-anonymization, lookup
 
 ## Rollout

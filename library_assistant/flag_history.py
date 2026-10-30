@@ -18,6 +18,8 @@ EVENTS = (
     "repeated",
     "escalated",
     "exported",
+    "identification_requested",
+    "identification_answered",
 )
 
 

@@ -94,3 +94,23 @@ of a pupil record now sits on the Teacher's computer for a week instead of only 
 Teacher chose to keep; a school that does not want that tells Teachers to use the page in a
 private browser window, which keeps nothing, and to keep the printed Roster.
 
+## Addendum: Identification requests carry the question, never the name
+
+Decided 2026-10-29 by the owner (lib-axb): "make it as easy as possible for the counselor to
+know who to talk to." The adult working a Flag (the Librarian, a Stand-in, or the Counselor who
+owns an Escalated Flag) presses **Ask the Teacher who held it** on the Flag page. The request
+names the Flag's Class label, Card number, and Batch expiry, the Teacher who registered the
+Batch, who asked, and when. The Teacher sees it on `/staff`, and their Minting page, which
+reads its Teacher's open requests with the Registration key it already carries, matches each
+one against the Rosters kept on that computer (the addendum above) and shows the name **on
+the Teacher's screen only**. The Teacher answers **I've told them** or **Not in my Rosters**,
+and the name passes between the two adults in person. The assistant records the request and
+the answer in the Flag's History, never a name, so "the server never had it" still holds. A
+high-severity Flag's panel says not to wait for the answer: find the Teacher now.
+
+So that a Flag found after the Batch's day still knows whom to ask, each Flag now keeps the
+registering Teacher's account when it is raised: the Purge deletes an expired Card's row, and
+with it the only other record of who registered the Batch. This adds staff data to a Flag,
+which the ADR-0002 addendum on Registration keys already showed on it, and nothing about a
+Student.
+

@@ -94,6 +94,9 @@
         .roster-list li { display: flex; justify-content: space-between; padding: 6px 2px; border-bottom: 1px solid var(--rule); }
         .roster-list li.done { color: var(--ink-muted); }
         .roster-list li.current { font-weight: 700; color: var(--green-dark); }
+        .request-list { list-style: none; margin: 10px 0 0; padding: 0; }
+        .request-list li { border-top: 1px solid var(--rule); padding: 10px 0; }
+        .request-list p { margin: 4px 0; }
 
         /* The print sheet, on screen and on paper. */
         .qr-sheet { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; }
@@ -122,6 +125,14 @@
     leaves it: Registration sends the Library Assistant only a fingerprint (hash) of each code, so
     it can recognise a Card but never learns who holds it. Names you type stay on this page and in
     the Roster you keep.</p>
+
+    <!-- Identification requests for this Teacher (lib-axb), answered from the Rosters below -->
+    <section id="requests-panel" class="panel hidden" style="margin-bottom:18px">
+        <h2>Staff need to know who held these Cards</h2>
+        <p class="hint">The names below come from the Rosters on this computer and are shown only
+        here. Tell the person asking, in person; the name never goes back to the Library Assistant.</p>
+        <ul class="request-list" id="request-list"></ul>
+    </section>
 
     <!-- Rosters kept on this computer (lib-3t8): find who held a Card -->
     <section id="find-card" class="panel hidden" style="margin-bottom:18px">
@@ -2957,6 +2968,67 @@ ${sheetHtml}
                 .filter(found => found.row);
         }
 
+        // Identification requests (lib-axb): the Teacher's open questions from staff, each
+        // matched here against the Rosters this computer keeps. Only "told" or "not in my
+        // Rosters" goes back; the name stays on this screen.
+        function matchRequest(rosters, request) {
+            const [found] = findCard(rosters, request.class_label, request.card_number, request.batch_expires_at);
+            return found ? found.row.students || null : null;
+        }
+
+        async function fetchRequests(base, key) {
+            try {
+                const response = await fetch(`${base}/batches/identification-requests`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ registration_key: key }),
+                });
+                return response.ok ? (await response.json()).requests : null;
+            } catch (error) {
+                return null;  // not on the school network just now: try again later
+            }
+        }
+
+        async function sendAnswer(base, key, requestId, answer) {
+            try {
+                const response = await fetch(`${base}/batches/identification-requests/${requestId}/answer`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ registration_key: key, answer: answer }),
+                });
+                return response.ok;
+            } catch (error) {
+                return false;
+            }
+        }
+
+        function renderRequests(requests) {
+            const panel = document.getElementById('requests-panel');
+            panel.classList.toggle('hidden', !requests || requests.length === 0);
+            if (!requests) return;
+            const rosters = loadRosters(localStorage);
+            document.getElementById('request-list').innerHTML = requests.map(r => {
+                const name = matchRequest(rosters, r);
+                return `<li style="display:block">` +
+                    `<p><strong>${escapeHtml(r.requested_by)}</strong> (${escapeHtml(r.requested_by_role)}) ` +
+                    `asks who held <strong>${escapeHtml(r.class_label)} \u00b7 card ${escapeHtml(r.card_number)}</strong> ` +
+                    `<span class="hint">(Cards of ${shortDate(r.batch_expires_at)})</span></p>` +
+                    (r.severity === 'high' ? '<p class="error">This is urgent: go and find them now.</p>' : '') +
+                    (name
+                        ? `<p class="success">From your Roster: <strong>${escapeHtml(name)}</strong></p>`
+                        : '<p class="hint">Not in the Rosters on this computer: check your printed or downloaded Roster.</p>') +
+                    `<div class="actions"><button data-answer="told" data-request="${r.request_id}">I've told them</button>` +
+                    `<button class="secondary" data-answer="not_in_rosters" data-request="${r.request_id}">Not in my Rosters</button></div></li>`;
+            }).join('');
+        }
+
+        async function refreshRequests() {
+            const base = normaliseBase(document.getElementById('assistant-url').value);
+            const key = document.getElementById('registration-key').value.trim();
+            if (!base || !key) return;
+            renderRequests(await fetchRequests(base, key));
+        }
+
         function keepThisRoster() {
             const data = window.generatedData;
             if (!data) return false;
@@ -3137,6 +3209,17 @@ ${sheetHtml}
             });
 
             renderFindCard();
+            refreshRequests();
+            setInterval(refreshRequests, 60000);
+            document.getElementById('request-list').addEventListener('click', async function(event) {
+                const button = event.target.closest && event.target.closest('button[data-answer]');
+                if (!button) return;
+                button.disabled = true;
+                const base = normaliseBase(document.getElementById('assistant-url').value);
+                const key = document.getElementById('registration-key').value.trim();
+                await sendAnswer(base, key, button.dataset.request, button.dataset.answer);
+                refreshRequests();
+            });
             document.getElementById('find-class').addEventListener('change', showFindResult);
             document.getElementById('find-number').addEventListener('input', showFindResult);
             document.getElementById('saved-rosters').addEventListener('click', function(event) {

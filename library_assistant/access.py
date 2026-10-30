@@ -351,12 +351,25 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
     _add_missing_columns(
         conn, "flags", ("acknowledged_at", "escalation_acknowledged_at"), "TEXT"
     )
+    # The registering Teacher, kept on the Flag so it outlives the Card row the Purge
+    # deletes (lib-axb); filled in for older Flags while their Card is still there.
+    _add_missing_columns(conn, "flags", ("registered_by_account_id",))
+    conn.execute(
+        "UPDATE flags SET registered_by_account_id = (SELECT cards.registered_by_account_id "
+        "FROM cards WHERE cards.class_label = flags.class_label AND cards.card_number = "
+        "flags.card_number AND cards.expires_at = flags.batch_expires_at) "
+        "WHERE registered_by_account_id IS NULL"
+    )
     # An older staff_accounts table predates deactivation; its accounts stay active.
     _add_missing_columns(
         conn, "staff_accounts", ("is_active",), "INTEGER NOT NULL DEFAULT 1"
     )
     # Holds (ADR-0003 addendum): a scope the Purge keeps; never a Student.
     create_holds_table(conn)
+    # Identification requests (lib-axb): the question, never the name.
+    from library_assistant.identification import create_identification_table
+
+    create_identification_table(conn)
     # Install settings (library_assistant.install_settings). Only the Librarian manages
     # these (ADR-0010).
     conn.execute(
@@ -513,6 +526,17 @@ def registering_teacher(
         "WHERE cards.class_label = ? AND cards.card_number = ? AND cards.expires_at = ?",
         (class_label, card_number, expires_at),
     ).fetchone()
+    if row is None:
+        # The Purge deletes an expired Card's row at the end of its day; a Flag on it
+        # keeps its Teacher, recorded when the Flag was raised (lib-axb), so Identification
+        # the next morning still knows whom to ask.
+        row = db.execute(
+            "SELECT staff_accounts.username FROM flags "
+            "JOIN staff_accounts ON staff_accounts.id = flags.registered_by_account_id "
+            "WHERE flags.class_label = ? AND flags.card_number = ? "
+            "AND flags.batch_expires_at = ? ORDER BY flags.id DESC",
+            (class_label, card_number, expires_at),
+        ).fetchone()
     return row[0] if row else None
 
 
@@ -574,6 +598,44 @@ def register_batch(
     )
     db.commit()
     return {"registered": len(batch.cards)}
+
+
+class KeyOnly(BaseModel):
+    registration_key: str
+
+
+class IdentificationReply(BaseModel):
+    registration_key: str
+    answer: str
+
+
+@router.post("/batches/identification-requests")
+def teacher_identification_requests(
+    body: KeyOnly,
+    db: sqlite3.Connection = Depends(get_db),
+) -> dict[str, list[dict]]:
+    """The Minting page's view of its Teacher's open requests (lib-axb): enough to find
+    the name in the Rosters on that computer, never the Flag's words or category."""
+    from library_assistant.identification import open_requests_for
+
+    account_id = _account_for_key_or_403(db, body.registration_key)
+    return {"requests": [r.for_teacher() for r in open_requests_for(db, account_id)]}
+
+
+@router.post("/batches/identification-requests/{request_id}/answer")
+def teacher_identification_answer(
+    request_id: int,
+    body: IdentificationReply,
+    db: sqlite3.Connection = Depends(get_db),
+    clock: datetime = Depends(get_clock),
+) -> dict[str, str]:
+    """The Minting page records the Teacher's answer: told, or not in my Rosters."""
+    from library_assistant.identification import answer
+
+    account_id = _account_for_key_or_403(db, body.registration_key)
+    if answer(db, request_id, account_id, body.answer, clock) is None:
+        raise HTTPException(status_code=404, detail="no open request of yours")
+    return {"status": "answered"}
 
 
 @router.post("/batches/revoke-card", status_code=200)

@@ -96,8 +96,15 @@ def raise_flag(
             raised_unwatched,
         ),
     )
-    db.commit()
     flag_id = cursor.lastrowid
+    # Who registered the Card, kept on the Flag: the Card row goes at the next Purge.
+    db.execute(
+        "UPDATE flags SET registered_by_account_id = (SELECT registered_by_account_id "
+        "FROM cards WHERE class_label = ? AND card_number = ? AND expires_at = ?) "
+        "WHERE id = ?",
+        (class_label, card_number, batch_expires_at, flag_id),
+    )
+    db.commit()
     append_event(
         db,
         flag_id,

@@ -176,8 +176,14 @@ def test_offline_minting_sealed_roster_sheet_has_no_token_or_hash(
 
 
 def test_offline_minting_only_one_network_call(page_html: str) -> None:
-    """Only the Registration upload (fetch) ever leaves the machine; no other script src/href."""
-    assert page_html.count("fetch(") == 1
+    """The page talks only to its own Library Assistant's /batches routes (Registration,
+    and the Teacher's Identification requests, lib-axb); no other script src/href."""
+    calls = re.findall(r"fetch\(([^,]+),", page_html)
+    assert calls == [
+        "registrationUrl(base)",
+        "`${base}/batches/identification-requests`",
+        "`${base}/batches/identification-requests/${requestId}/answer`",
+    ]
     assert "<script src=" not in page_html
     assert '<link rel="stylesheet" href="http' not in page_html
 
@@ -599,3 +605,52 @@ def test_page_has_find_a_card_and_finish(page_html: str) -> None:
         'id="finish-btn"',
     ):
         assert element in page_html
+
+
+# --- Identification requests in the Minting page (lib-axb): the name is shown here only.
+
+
+def test_a_request_finds_its_name_in_the_kept_rosters(app_logic_script: str) -> None:
+    js = f"""
+{NODE_STUB_DOCUMENT}
+{app_logic_script}
+(async () => {{
+  const data = await generateCards(2, 'Period 3', '23:59', ['Fred', '']);
+  const rosters = upsertRoster([], rosterRecord(data));
+  const at = data.expiresAt.toISOString();
+  process.stdout.write(JSON.stringify([
+    matchRequest(rosters, {{class_label: 'Period 3', card_number: '1', batch_expires_at: at}}),
+    matchRequest(rosters, {{class_label: 'Period 3', card_number: '2', batch_expires_at: at}}),
+    matchRequest(rosters, {{class_label: 'Period 3', card_number: '1',
+      batch_expires_at: '2020-01-01T00:00:00+00:00'}}),
+  ]));
+}})();
+"""
+    assert json.loads(_run_node(js)) == ["Fred", None, None]
+
+
+def test_an_answer_carries_the_key_and_the_answer_never_a_name(
+    app_logic_script: str,
+) -> None:
+    js = f"""
+{NODE_STUB_DOCUMENT}
+{app_logic_script}
+const sent = [];
+global.fetch = async (url, init) => {{ sent.push({{url, body: JSON.parse(init.body)}}); return {{ok: true}}; }};
+(async () => {{
+  const ok = await sendAnswer('http://192.0.2.10:8000', 'the-key', 7, 'told');
+  process.stdout.write(JSON.stringify({{ok, sent}}));
+}})();
+"""
+    out = json.loads(_run_node(js))
+    assert out["ok"] is True
+    assert out["sent"] == [
+        {
+            "url": "http://192.0.2.10:8000/batches/identification-requests/7/answer",
+            "body": {"registration_key": "the-key", "answer": "told"},
+        }
+    ]
+
+
+def test_page_has_the_requests_panel(page_html: str) -> None:
+    assert 'id="requests-panel"' in page_html and 'id="request-list"' in page_html
