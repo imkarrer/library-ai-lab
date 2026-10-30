@@ -155,6 +155,9 @@
             </div>
             <p id="key-built-in" class="hint wide hidden"></p>
         </div>
+        <p id="loopback-warning" class="error hidden">This page points at this computer's own
+        address, so its Cards will not open on a phone or a Chromebook. Ask your librarian for a
+        Minting page downloaded from the assistant's network address.</p>
         <div id="make-status" class="hidden"></div>
         <div class="actions"><button id="generate-btn">Make Cards</button></div>
     </div>
@@ -2865,6 +2868,18 @@ ${sheetHtml}
             return date.toISOString().slice(0, 10);
         }
 
+        // An address only this computer can reach: 127.0.0.1, localhost, ::1. A Card's QR code
+        // carries it, and on a phone it names the phone itself.
+        function isLoopback(base) {
+            const host = String(base).replace(/^https?:\/\//i, '').replace(/[:/].*$/, '');
+            return /^(127\.|localhost$|\[?::1\]?$)/i.test(host) || base.includes('[::1]');
+        }
+
+        function warnIfLoopback() {
+            const base = normaliseBase(document.getElementById('assistant-url').value);
+            document.getElementById('loopback-warning').classList.toggle('hidden', !isLoopback(base));
+        }
+
         // Where one-at-a-time hand-out goes next: forward or back one Card, never off either end.
         function handoutIndex(index, total, step) {
             return Math.min(Math.max(index + step, 0), Math.max(total - 1, 0));
@@ -2912,6 +2927,8 @@ ${sheetHtml}
         document.addEventListener('DOMContentLoaded', function() {
             const config = parseInstallConfig(document.getElementById('install-config').textContent);
             document.getElementById('assistant-url').value = config.assistant_url || rememberedBase();
+            warnIfLoopback();
+            document.getElementById('assistant-url').addEventListener('input', warnIfLoopback);
             if (config.school_day_end) {
                 document.getElementById('until').value = config.school_day_end;
             }
