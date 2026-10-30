@@ -11,6 +11,7 @@ import html
 import sqlite3
 from datetime import datetime
 from typing import Annotated
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
@@ -24,6 +25,7 @@ from library_assistant.access import (
 )
 from library_assistant.alarms import (
     acknowledge_before_close,
+    acknowledge_escalation,
     acknowledge_flag,
     acknowledgement,
     announce_escalation,
@@ -45,6 +47,7 @@ from library_assistant.flags import (
     validate_close,
 )
 from library_assistant.holds import active_hold_count
+from library_assistant.identification import TOLD, ask, request_for_flag
 from library_assistant.purge import next_purge_at
 from library_assistant.routers.live import (
     LiveBus,
@@ -234,6 +237,79 @@ def flag_queue(
     return page("Flag queue", body, account=account, db=db, now=clock)
 
 
+def _when(iso: str | None, timezone: str) -> str:
+    if not iso:
+        return ""
+    return (
+        f"{datetime.fromisoformat(iso).astimezone(ZoneInfo(timezone)):%a %d %b, %H:%M}"
+    )
+
+
+def _who_held_html(
+    db: sqlite3.Connection,
+    flag: FlagRow,
+    teacher: str | None,
+    timezone: str,
+    action: str,
+) -> str:
+    """Who to ask about this Card, whether they have been asked, and what they said
+    (lib-axb). The Teacher's Minting page finds the name; the assistant never has it."""
+    batch = (
+        f"{html.escape(flag.class_label)} &middot; card {html.escape(flag.card_number)}"
+        f" &middot; Batch until {_when(flag.batch_expires_at, timezone)}"
+    )
+    if teacher is None:
+        return (
+            '<section class="who-held"><h2>Who held this Card</h2>'
+            f"<p>{batch}</p><p>No Teacher is on record for this Batch: ask whoever "
+            "taught the class, or open the office's sealed Roster.</p></section>"
+        )
+    request = request_for_flag(db, flag.id)
+    urgent = (
+        '<p class="urgent">High severity: don\'t wait for an answer here. Find '
+        f"{html.escape(teacher)} in person or by phone now.</p>"
+        if flag.severity == "high" and (request is None or request.answer != TOLD)
+        else ""
+    )
+    if request is None:
+        status = ""
+        button = (
+            f'<form method="post" action="{action}">'
+            f"<button>Ask {html.escape(teacher)} who held it</button></form>"
+            '<p class="hint">Their Minting page shows them the name from their Roster. '
+            "They tell you in person; the name never goes into the assistant.</p>"
+        )
+    elif request.answer is None:
+        status = (
+            f'<p class="waiting">Asked {html.escape(teacher)} '
+            f"{_when(request.requested_at, timezone)}. Waiting for them.</p>"
+        )
+        button = ""
+    elif request.answer == TOLD:
+        status = (
+            f'<p class="answered">{html.escape(teacher)} has the name and told '
+            f"{html.escape(request.requested_by)} "
+            f"({_when(request.answered_at, timezone)}).</p>"
+        )
+        button = ""
+    else:
+        status = (
+            f'<p class="urgent">{html.escape(teacher)} could not find card '
+            f"{html.escape(flag.card_number)} in their Rosters "
+            f"({_when(request.answered_at, timezone)}). Ask the office for the sealed "
+            "Roster, or ask the Teacher who sat where.</p>"
+        )
+        button = (
+            f'<form method="post" action="{action}">'
+            f"<button>Ask {html.escape(teacher)} again</button></form>"
+        )
+    return (
+        '<section class="who-held"><h2>Who held this Card</h2>'
+        f"<p>Ask <strong>{html.escape(teacher)}</strong>, who made these Cards.</p>"
+        f"<p>{batch}</p>{urgent}{status}{button}</section>"
+    )
+
+
 def _flag_layout(
     flag: FlagRow,
     stage: str,
@@ -384,7 +460,14 @@ def flag_page(
         details,
         question,
         answer,
-        acknowledge_form
+        _who_held_html(
+            db,
+            flag,
+            teacher,
+            settings.school_timezone,
+            f"/staff/flags/{flag.id}/identify",
+        )
+        + acknowledge_form
         + f'<p><a class="button-link" href="/staff/flags/{flag.id}/export">Export</a></p>'
         + form
         + escalation_form,
@@ -581,6 +664,47 @@ def acknowledge_flag_route(
     if acknowledge_flag(db, bus.publish, flag_id, account.id, clock) is None:
         raise HTTPException(status_code=404, detail="no open Flag to acknowledge")
     return RedirectResponse(f"/staff/flags/{flag_id}", status_code=303)
+
+
+@router.post("/flags/{flag_id}/identify", response_model=None)
+def identify_flag_route(
+    flag_id: int,
+    account: StandInDep,
+    db: sqlite3.Connection = Depends(get_db),
+    clock: datetime = Depends(get_clock),
+    bus: LiveBus = Depends(get_live_bus),
+) -> RedirectResponse:
+    """Ask the registering Teacher who held this Card (lib-axb). Asking is working the
+    Flag, so it records the asker's Acknowledgement if nobody gave one."""
+    if get_flag(db, flag_id) is None:
+        raise HTTPException(status_code=404, detail="no such flag")
+    if ask(db, flag_id, account.id, clock) is None:
+        raise HTTPException(
+            status_code=409, detail="no Teacher is on record for this Batch"
+        )
+    acknowledge_flag(db, bus.publish, flag_id, account.id, clock)
+    return RedirectResponse(f"/staff/flags/{flag_id}", status_code=303)
+
+
+@router.post("/counselor/flags/{flag_id}/identify", response_model=None)
+def counselor_identify_flag_route(
+    flag_id: int,
+    account: Annotated[StaffAccount, Depends(require_role("counselor"))],
+    db: sqlite3.Connection = Depends(get_db),
+    clock: datetime = Depends(get_clock),
+    bus: LiveBus = Depends(get_live_bus),
+) -> RedirectResponse:
+    """The Counselor, who owns an Escalated Flag, asks the Teacher who held it; asking
+    Acknowledges the Escalation's Alarm if the Counselor had not."""
+    flag = get_flag(db, flag_id)
+    if flag is None or flag.escalated_at is None:
+        raise HTTPException(status_code=404, detail="flag is not escalated")
+    if ask(db, flag_id, account.id, clock) is None:
+        raise HTTPException(
+            status_code=409, detail="no Teacher is on record for this Batch"
+        )
+    acknowledge_escalation(db, bus.publish, flag_id, account.id, clock)
+    return RedirectResponse(f"/staff/counselor/flags/{flag_id}", status_code=303)
 
 
 @router.post("/flags/{flag_id}/reopen", response_model=None)
@@ -793,7 +917,14 @@ def counselor_flag_page(
         details,
         question,
         answer,
-        f'<p><a class="button-link" href="/staff/flags/{flag.id}/export">Export</a></p>'
+        _who_held_html(
+            db,
+            flag,
+            teacher,
+            settings.school_timezone,
+            f"/staff/counselor/flags/{flag.id}/identify",
+        )
+        + f'<p><a class="button-link" href="/staff/flags/{flag.id}/export">Export</a></p>'
         + form
         + escalation_form,
         history_rows,
