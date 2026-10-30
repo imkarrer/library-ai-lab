@@ -14,7 +14,7 @@ school would. **Librarian** and **Teacher** steps are what school staff do, and 
 only in a browser: no Terminal, no script. Show those on stage exactly as written.
 
 **Shortcut:** `./stack up --lan` does the Presenter's part of Steps 2 and 5 in one command
-(accounts, settings, the Teacher's Minting page, the Oversight Ollama, warming both models,
+(accounts, settings, Make Cards prefilled for the Teacher, the Oversight Ollama, warming both models,
 the assistant on the LAN address), and `./stack down` stops it; see `README.md`, "Running
 it". The steps below are what it does, by hand, for when something needs doing differently.
 
@@ -22,9 +22,10 @@ it". The steps below are what it does, by hand, for when something needs doing d
 ([`handout/demo-deck.md`](handout/demo-deck.md)) introduces, so the names on screen match the
 slides. Sign in as `librarian.overdue` (Ms. Overdue) where the steps say `librarian`, use
 `teacher.popquiz` (Mr. Pop-Quiz) for `demo-teacher`, and `counselor.hugsworth` (Dr.
-Hugsworth) for the Counselor. His Minting page (`teacher.popquiz-minting-page.html` in the
-stack folder) opens with Class Label `Period 3` and a made-up class: Paige Turner, Justin
-Time, Dot Matrix, Moe Mentum, Anita Nap, Rhoda Book. Volunteer 1 plays Paige (card 1),
+Hugsworth) for the Counselor. His Make Cards (`./stack status` prints the address, ending
+`/staff/mint/`) opens with Class Label `Period 3` and a made-up class: Paige Turner, Justin
+Time, Dot Matrix, Moe Mentum, Anita Nap, Rhoda Book. So does his offline copy,
+`teacher.popquiz-minting-page.html` in the stack folder. Volunteer 1 plays Paige (card 1),
 volunteer 2 plays Justin (card 2).
 
 Follow it in order. Steps 1 to 3 happen at home, online, days before. Steps 4 to 7 happen at
@@ -314,8 +315,8 @@ echo "Assistant address: http://$LAN_IP:8000"
 LIBRARY_ASSISTANT_HOST="$LAN_IP" flox activate -- python3 -m library_assistant
 ```
 
-Write down the address it prints: the Teacher types it into the Minting page (Step 6) and you
-sign in there (Step 7). If macOS asks whether `python3` may accept incoming network
+Write down the address it prints: the Teacher signs in there to open Make Cards (Step 6), and
+so do you (Step 7). If macOS asks whether `python3` may accept incoming network
 connections, press **Allow**.
 
 Tab 3, check what is listening and what is connected:
@@ -334,26 +335,26 @@ the router's network (your browser, the phones). Re-run the last line during the
 anything leave the building?". Nothing in the assistant can reach the internet anyway: its one
 outbound client is scoped to the model endpoint (ADR-0006), and the room has no uplink.
 
-## Step 6. The Librarian hands the Teacher a Minting page; the Teacher makes 3 Cards
+## Step 6. The Teacher opens Make Cards and makes 3 Cards
 
-Making Cards (Minting) happens on the Teacher's own computer, in a page that works offline.
-The Librarian downloads it for the Teacher with this assistant's address and the Teacher's
-Registration key already built in, so nobody types or copies a key. Today the Teacher's
-computer is the same laptop. Three Cards: one per volunteer and a spare.
+Making Cards (Minting) happens in the Teacher's own browser, in **Make Cards**, a page the
+assistant serves at `/staff/mint/`. The Teacher signs in, so nobody types or copies a key:
+Cards made there are registered as the signed-in Teacher. Today the Teacher's computer is
+the same laptop. Three Cards: one per volunteer and a spare.
 
 This step is worth showing on stage: it is the whole of a Teacher's setup.
 
-1. **Librarian.** In the browser, open `http://<LAN_IP>:8000/staff/login` (the address from
-   Step 5; the assistant is not on `127.0.0.1` today) and sign in as `librarian`. Open
-   **Keys** and, on the `demo-teacher` row, press **Download Minting page (new key)**. The
-   browser saves `demo-teacher-minting-page.html` to Downloads. In a school the Librarian
-   emails or AirDrops this file to the Teacher; a Teacher can also download their own from
-   **Download my Minting page** on `/staff`. Each download issues a new key, so an earlier
-   copy stops working; download it here, at the venue, after any reset (Recovery).
-2. **Teacher.** Open the file: double-click `demo-teacher-minting-page.html` in Downloads. It
-   opens in the browser with **Library Assistant address** filled in and "The Registration
-   key for demo-teacher is built into this page."
-3. **Teacher.** Fill in the rest:
+1. **Teacher.** In the browser, open `http://<LAN_IP>:8000/staff/login` (the address from
+   Step 5; the assistant is not on `127.0.0.1` today) and sign in as `teacher.popquiz`
+   (password `popquiz`). On `/staff`, press **Open Make Cards**. Signed out, the sign-in
+   page brings you back to Make Cards afterwards. Served over HTTPS or from `localhost`,
+   Chrome and Edge show **Install** in the address bar, which puts Make Cards on a
+   Chromebook's shelf, the Mac's Dock, or the Windows Start menu. Over `http://` at the LAN
+   address there is no Install button; it works the same in a tab.
+2. **Teacher.** Make Cards has no address or key fields. It says "Cards you make here are
+   registered as teacher.popquiz." After `./stack up` it opens with Class Label `Period 3`
+   and Mr. Pop-Quiz's made-up class filled in; replace them for this step.
+3. **Teacher.** Fill it in:
    - **Class Label:** `Conference demo`
    - **Students:** paste one name per line, one Card each (for the demo: `Volunteer 1`,
      `Volunteer 2`, `Spare`), or leave it empty and set **Number of Cards** to `3`. Names stay
@@ -363,8 +364,8 @@ This step is worth showing on stage: it is the whole of a Teacher's setup.
 4. **Teacher.** Press **Make Cards**. The page registers the Cards with the assistant first,
    and shows them only once it has accepted them: "Registered 3 Cards for Conference demo.
    They stop working at ... today." If something is wrong it says what, and makes no Cards:
-   - "did not accept that Registration key": the page is from an earlier download, or from
-     before a reset. Download a new one (item 1).
+   - "You are signed out of the Library Assistant": the sign-in has lapsed, or the
+     database was reset. Sign in (item 1) and press **Make Cards** again.
    - "Could not reach the Library Assistant at ...": check the assistant is running and
      listening on that address (Step 5).
    - "A Batch must expire by the end of today's school day": pick an earlier stop time, or
@@ -387,9 +388,17 @@ This step is worth showing on stage: it is the whole of a Teacher's setup.
 
 Never put the Cards on the shared screen: anyone in the room could scan one.
 
+**Fallback: a downloaded Minting page.** If Make Cards will not open, the Teacher presses **Download my Minting page** under "Or download a
+Minting page to use offline" on `/staff` (the Librarian can download one for any Teacher
+from **Keys**). The file has the assistant's address and a new Registration key built in,
+so an earlier copy stops working; `./stack up` also writes one as
+`teacher.popquiz-minting-page.html` in the stack folder. Open it in the browser and carry
+on from item 3. If it says it "did not accept that Registration key", it is from an
+earlier download or from before a reset: download a new one.
+
 ## Step 7. Sign in, open the Live view, Start watch, and screen-share
 
-1. **Librarian.** You are signed in from Step 6; if not, sign in at
+1. **Librarian.** Sign out Mr. Pop-Quiz, then sign in at
    `http://<LAN_IP>:8000/staff/login` as `librarian`.
 2. On `/staff`, open **Live view**. It shows "No active Sessions." and **Start watch**.
 3. Press **Start watch**. The line reads "You are on Watch." and the button becomes **End
@@ -613,7 +622,7 @@ has expired. In order of likelihood:
   Cards belong to the database they were registered in.
 
 The fix for all of them is new Cards: redo Step 6 (the Class label can stay "Conference
-demo"). If the Minting page says "Registration is closed: today's school day has ended" or "A
+demo"). If Make Cards says "Registration is closed: today's school day has ended" or "A
 Batch must expire by the end of today's school day", `LIBRARY_ASSISTANT_SCHOOL_DAY_END` is
 earlier than the stop time: rewrite `today.env` with a later time, restart the assistant, then
 make the Cards again.
@@ -629,7 +638,8 @@ laptop slept: press Start watch again.
 
 Put the database back to the clean copy from Step 2. This keeps the accounts and the settings,
 and drops every Card, Session, transcript, and Flag. It also puts back the Teacher's key from
-before Step 6, so the downloaded Minting page stops working: download a new one.
+before Step 6, so a downloaded Minting page stops working: download a new one if you use one.
+Make Cards needs nothing: sign in again.
 
 1. Stop the assistant (Ctrl-C in tab 2). Never copy over the database while it runs.
 2. Tab 3:
@@ -638,11 +648,11 @@ before Step 6, so the downloaded Minting page stops working: download a new one.
    cp -f "$DEMO_DIR/clean.db" "$LIBRARY_ASSISTANT_DB"
    rm -f "$LIBRARY_ASSISTANT_DB-journal"
    rm -f ~/Downloads/Conference_demo-cards*.html ~/Downloads/Conference_demo-roster*.csv
-   rm -f ~/Downloads/demo-teacher-minting-page*.html
+   rm -f ~/Downloads/*-minting-page*.html   # if you downloaded one
    ```
 
-3. Start the assistant again (Step 5, tab 2), download a new Minting page, and have the
-   Teacher make new Cards (Step 6).
+3. Start the assistant again (Step 5, tab 2) and have the Teacher sign in and make new Cards
+   in Make Cards (Step 6).
    Old Cards will be refused, as they should be.
 
 If `clean.db` is lost, delete `demo.db` and redo Step 2 from item 2.
@@ -667,12 +677,12 @@ rm -f library_assistant.db    # only if an assistant ran without demo.env (GAP l
    exit
    ```
 
-2. Delete what could carry a Token or an exchange. The Cards and the Roster the Minting page
-   downloaded, and the Flag export:
+2. Delete what could carry a Token or an exchange. The Cards and the Roster Make Cards
+   downloaded, a downloaded Minting page if you used one, and the Flag export:
 
    ```bash
    rm -f ~/Downloads/Conference_demo-cards*.html ~/Downloads/Conference_demo-roster*.csv
-   rm -f ~/Downloads/demo-teacher-minting-page*.html ~/Downloads/flag-*-export.txt
+   rm -f ~/Downloads/*-minting-page*.html ~/Downloads/flag-*-export.txt
    ```
 
    Delete the Cards from your phone too, if you AirDropped them. The demo's transcripts go

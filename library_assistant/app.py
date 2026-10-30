@@ -10,6 +10,7 @@ from library_assistant.access import router as access_router
 from library_assistant.access_log import AccessLogMiddleware
 from library_assistant.dependencies import get_settings
 from library_assistant.install_settings import router as install_settings_router
+from library_assistant.mint_app import router as mint_app_router
 
 # Import here to avoid circular imports
 from library_assistant.oversight import acquire_oversight_lock
@@ -117,6 +118,7 @@ app.include_router(watch_router)
 app.include_router(alarms_router)
 app.include_router(theme_router)
 app.include_router(it_kit_router)
+app.include_router(mint_app_router)
 app.add_exception_handler(StaffSignInRequired, sign_in_required_handler)
 # The only access log: route template, status, duration (ADR-0003 addendum).
 access_log.configure()

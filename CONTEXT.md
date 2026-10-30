@@ -13,8 +13,8 @@ Flag queue. Owns the install.
 _Avoid_: admin, operator
 
 **Teacher**:
-A staff member who mints Batches for a class, registers them with their own Registration key,
-and keeps that class's Roster.
+A staff member who mints Batches for a class, registers them under their own account (Make
+Cards) or Registration key (a downloaded Minting page), and keeps that class's Roster.
 _Avoid_: issuer
 
 **Counselor**:
@@ -56,12 +56,13 @@ _Avoid_: class name, section ID
 
 **Minting**:
 Generating a Batch on the Teacher's own machine: Cards to print, a Roster to keep, Token
-hashes to register.
+hashes to register. Done in **Make Cards** (`/staff/mint/`), registered under the signed-in
+account, or in a downloaded Minting page, registered under its built-in Registration key.
 
 **Registration**:
 Sending a Batch's Token hashes with their Card numbers, the expiry, and the Class label to the
-assistant, under the minting Teacher's Registration key. Nothing about any Student ever
-reaches it.
+assistant, as the signed-in Teacher (Make Cards) or under their Registration key (a
+downloaded Minting page). Nothing about any Student ever reaches it.
 
 **Registration key**:
 A staff account's own secret for Registration, shown once and stored as a hash. It is how the
@@ -196,8 +197,8 @@ Acknowledgement if nobody had given one.
 **Identification**:
 An adult learning which Student held a Card number by asking the Teacher who holds the
 Roster. Always offline, between adults. The Flag page's **Ask the Teacher** sends the question
-through the assistant; the Teacher's Minting page shows the name from the Roster on their
-computer, and only "told them" or "not in my Rosters" comes back. Never the name.
+through the assistant; Make Cards (or the Teacher's Minting page) shows the name from the
+Roster on their computer, and only "told them" or "not in my Rosters" comes back. Never the name.
 _Avoid_: de-anonymization, lookup
 
 ## Rollout

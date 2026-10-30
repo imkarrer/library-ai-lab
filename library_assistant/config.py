@@ -47,6 +47,9 @@ class Settings:
     flags_history_days: int = 90  # ADR-0003 addendum: flags.history_days
     holds_review_days: int = 30  # ADR-0003 addendum: holds.review_days
     demo: bool = False
+    # The demo stack's fictional class, "Label|Name|Name", prefilled in the Make Cards
+    # app; read only when `demo` is on (library_assistant/mint_app.py).
+    demo_class: str | None = None
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> Settings:

@@ -121,7 +121,7 @@
 </head>
 <body>
     <h1>Make Cards</h1>
-    <p class="lede">Offline Minting Page. Each Card's code is made here, on this computer, and never
+    <p class="lede"><span id="page-kind">Offline Minting Page.</span> Each Card's code is made here, on this computer, and never
     leaves it: Registration sends the Library Assistant only a fingerprint (hash) of each code, so
     it can recognise a Card but never learns who holds it. Names you type stay on this page and in
     the Roster you keep.</p>
@@ -176,7 +176,7 @@
                 <label for="count">Number of Cards:</label>
                 <input type="number" id="count" min="1" max="100" value="24" required>
             </div>
-            <div class="form-group">
+            <div class="form-group" id="address-group">
                 <label for="assistant-url">Library Assistant address:</label>
                 <input type="text" id="assistant-url" placeholder="http://library-assistant.school.example:8000">
                 <p class="hint">From your librarian. This computer remembers it.</p>
@@ -2604,9 +2604,52 @@ var qrcode = function() {
         // hash_token() does (hashlib.sha256(token.encode("utf-8")).hexdigest()).
         async function sha256(message) {
             const msgBuffer = new TextEncoder().encode(message);
+            if (!(globalThis.crypto && crypto.subtle)) {
+                return sha256Plain(msgBuffer);
+            }
             const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
             const hashArray = Array.from(new Uint8Array(hashBuffer));
             return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        // SHA-256 in plain JavaScript (FIPS 180-4), for the app opened at the assistant's
+        // http:// address: browsers give crypto.subtle only to HTTPS, localhost, and files.
+        // The tests hold it to Python's hashlib.
+        function sha256Plain(bytes) {
+            const primes = [];
+            for (let n = 2; primes.length < 64; n++) {
+                if (primes.every(p => n % p)) primes.push(n);
+            }
+            const fraction = x => ((x - Math.floor(x)) * 4294967296) >>> 0;
+            const K = primes.map(p => fraction(Math.cbrt(p)));
+            const H = primes.slice(0, 8).map(p => fraction(Math.sqrt(p)));
+            const padded = new Uint8Array(((bytes.length + 72) >> 6) << 6);
+            padded.set(bytes);
+            padded[bytes.length] = 0x80;
+            const view = new DataView(padded.buffer);
+            view.setUint32(padded.length - 8, Math.floor(bytes.length / 0x20000000));
+            view.setUint32(padded.length - 4, (bytes.length * 8) >>> 0);
+            const rotr = (x, n) => (x >>> n) | (x << (32 - n));
+            const w = new Uint32Array(64);
+            for (let offset = 0; offset < padded.length; offset += 64) {
+                for (let i = 0; i < 16; i++) w[i] = view.getUint32(offset + 4 * i);
+                for (let i = 16; i < 64; i++) {
+                    const s0 = rotr(w[i - 15], 7) ^ rotr(w[i - 15], 18) ^ (w[i - 15] >>> 3);
+                    const s1 = rotr(w[i - 2], 17) ^ rotr(w[i - 2], 19) ^ (w[i - 2] >>> 10);
+                    w[i] = w[i - 16] + s0 + w[i - 7] + s1;
+                }
+                let [a, b, c, d, e, f, g, h] = H;
+                for (let i = 0; i < 64; i++) {
+                    const t1 = (h + (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) +
+                        ((e & f) ^ (~e & g)) + K[i] + w[i]) >>> 0;
+                    const t2 = ((rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)) +
+                        ((a & b) ^ (a & c) ^ (b & c))) >>> 0;
+                    h = g; g = f; f = e; e = (d + t1) >>> 0;
+                    d = c; c = b; b = a; a = (t1 + t2) >>> 0;
+                }
+                [a, b, c, d, e, f, g, h].forEach((v, i) => { H[i] = (H[i] + v) >>> 0; });
+            }
+            return H.map(x => x.toString(16).padStart(8, '0')).join('');
         }
 
         // QR Code SVG using the vendored qrcode-generator library.
@@ -2698,6 +2741,19 @@ var qrcode = function() {
 
         function registrationUrl(base) {
             return `${base}/batches`;
+        }
+
+        // Served as the Make Cards app (/staff/mint/, ADR-0002 addendum of 2026-10-30), the
+        // page sends its requests to the app's own routes, which know the Teacher by their
+        // sign-in, so it holds no key. From a file, they go to the assistant's /batches.
+        let appRoutes = null;
+
+        function apiBase(base) {
+            return appRoutes || base;
+        }
+
+        function withKey(key, body) {
+            return key ? { registration_key: key, ...body } : body;
         }
 
         // The print sheet. A name, if given, sits on a stub below a cut line, so the Card the
@@ -2835,10 +2891,7 @@ ${sheetHtml}
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({
-                        registration_key: key,
-                        ...payload
-                    })
+                    body: JSON.stringify(withKey(key, payload))
                 });
             } catch (error) {
                 return { error: `Could not reach the Library Assistant at ${base}. Check the address, and that this computer is on the school network.` };
@@ -2846,8 +2899,13 @@ ${sheetHtml}
             if (response.ok) {
                 return { ok: true };
             }
+            if (response.status === 401) {
+                return { error: 'You are signed out of the Library Assistant. Sign in again, then come back to Make Cards.' };
+            }
             if (response.status === 403) {
-                return { error: 'The Library Assistant did not accept that Registration key. Check it with your librarian.' };
+                return { error: key
+                    ? 'The Library Assistant did not accept that Registration key. Check it with your librarian.'
+                    : 'This account does not make Cards. Sign in as the Teacher.' };
             }
             let detail = '';
             try {
@@ -2883,6 +2941,27 @@ ${sheetHtml}
                 localStorage.setItem('assistant-url', base);
             } catch (error) {
                 // A browser that keeps nothing for file:// pages: the Teacher types it again.
+            }
+        }
+
+        // The app needs no address or key: it is the assistant's own page, signed in.
+        function startAsApp(config) {
+            appRoutes = location.origin + config.app;
+            document.title = 'Make Cards';
+            document.getElementById('page-kind').textContent = 'Signed in as ' +
+                (config.username || 'you') + '.';
+            document.getElementById('address-group').classList.add('hidden');
+            document.getElementById('key-group').classList.add('hidden');
+            const builtIn = document.getElementById('key-built-in');
+            builtIn.textContent = `Cards you make here are registered as ${config.username || 'yours'}. ` +
+                'To keep this on your shelf, Dock, or Start menu, choose Install in the address bar.';
+            builtIn.classList.remove('hidden');
+            document.getElementById('loopback-warning').textContent = 'The Library ' +
+                "Assistant is running at this computer's own address, so its Cards will not " +
+                'open on a phone or a Chromebook. Ask whoever set it up to start it on the ' +
+                'network address.';
+            if ('serviceWorker' in navigator && window.isSecureContext) {
+                navigator.serviceWorker.register('sw.js').catch(() => {});
             }
         }
 
@@ -2981,7 +3060,7 @@ ${sheetHtml}
                 const response = await fetch(`${base}/batches/identification-requests`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ registration_key: key }),
+                    body: JSON.stringify(withKey(key, {})),
                 });
                 return response.ok ? (await response.json()).requests : null;
             } catch (error) {
@@ -2994,7 +3073,7 @@ ${sheetHtml}
                 const response = await fetch(`${base}/batches/identification-requests/${requestId}/answer`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ registration_key: key, answer: answer }),
+                    body: JSON.stringify(withKey(key, { answer: answer })),
                 });
                 return response.ok;
             } catch (error) {
@@ -3025,8 +3104,8 @@ ${sheetHtml}
         async function refreshRequests() {
             const base = normaliseBase(document.getElementById('assistant-url').value);
             const key = document.getElementById('registration-key').value.trim();
-            if (!base || !key) return;
-            renderRequests(await fetchRequests(base, key));
+            if (!base || !(key || appRoutes)) return;
+            renderRequests(await fetchRequests(apiBase(base), key));
         }
 
         function keepThisRoster() {
@@ -3134,6 +3213,9 @@ ${sheetHtml}
                 builtIn.textContent = `The Registration key for ${config.username || 'your account'} is built into this page. Keep this file to yourself.`;
                 builtIn.classList.remove('hidden');
             }
+            if (config.app) {
+                startAsApp(config);
+            }
 
             // A pasted class list sets the number of Cards.
             const students = document.getElementById('students');
@@ -3173,7 +3255,7 @@ ${sheetHtml}
                     showStatus('Fill in the Class label, the Students or the number of Cards, and the time they stop working.');
                     return;
                 }
-                if (!base || !key) {
+                if (!base || !(key || appRoutes)) {
                     showStatus('Fill in the Library Assistant address and your Registration key.');
                     return;
                 }
@@ -3189,7 +3271,7 @@ ${sheetHtml}
                     }
 
                     // Register before showing a Card: a Card the assistant refused would not work.
-                    const registration = await submitRegistration(base, key, result.registrationPayload);
+                    const registration = await submitRegistration(apiBase(base), key, result.registrationPayload);
                     if (registration.error) {
                         showStatus(registration.error + ' No Cards were made.');
                         return;
@@ -3225,7 +3307,7 @@ ${sheetHtml}
                 button.disabled = true;
                 const base = normaliseBase(document.getElementById('assistant-url').value);
                 const key = document.getElementById('registration-key').value.trim();
-                await sendAnswer(base, key, button.dataset.request, button.dataset.answer);
+                await sendAnswer(apiBase(base), key, button.dataset.request, button.dataset.answer);
                 refreshRequests();
             });
             document.getElementById('find-class').addEventListener('change', showFindResult);

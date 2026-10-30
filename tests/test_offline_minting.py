@@ -662,3 +662,76 @@ def test_page_prefills_a_class_from_its_install_config(page_html: str) -> None:
     assert "config.class_list.join('\\n')" in page_html
     # Filling the list must update the count the way pasting does.
     assert "students.dispatchEvent(new Event('input'))" in page_html
+
+
+@pytest.mark.parametrize("length", [0, 1, 3, 55, 56, 63, 64, 65, 119, 120, 1000])
+def test_the_plain_sha256_matches_hashlib(app_logic_script: str, length: int) -> None:
+    """Served over http://, the app has no crypto.subtle; its own SHA-256 must agree with
+    the server's, or no Card it makes would sign in."""
+    message = "".join(chr(0x61 + (n * 7) % 26) for n in range(length)) + "é"
+    js = f"""
+{NODE_STUB_DOCUMENT}
+{app_logic_script}
+global.crypto = {{ getRandomValues: global.crypto.getRandomValues.bind(global.crypto) }};
+(async () => {{
+  const token = await generateToken();
+  process.stdout.write(JSON.stringify({{
+    message: await sha256({json.dumps(message)}),
+    token, tokenHash: await sha256(token),
+  }}));
+}})();
+"""
+    out = json.loads(_run_node(js))
+    assert out["message"] == hash_token(message)
+    assert out["tokenHash"] == hash_token(out["token"])
+
+
+def test_as_the_app_requests_go_to_its_own_routes_without_a_key(
+    app_logic_script: str,
+) -> None:
+    """The Make Cards app (ADR-0002 addendum of 2026-10-30) knows the Teacher by their
+    sign-in: its requests go to /staff/mint/... and carry no registration_key."""
+    js = f"""
+{NODE_STUB_DOCUMENT}
+{app_logic_script}
+const sent = [];
+global.fetch = async (url, init) => {{
+  sent.push({{url, body: JSON.parse(init.body)}});
+  return {{ok: true, status: 201, json: async () => ({{requests: []}})}};
+}};
+appRoutes = 'http://127.0.0.1:8000/staff/mint';
+(async () => {{
+  const base = 'http://192.0.2.10:8000';
+  const registered = await submitRegistration(apiBase(base), '', {{cards: []}});
+  await fetchRequests(apiBase(base), '');
+  await sendAnswer(apiBase(base), '', 7, 'told');
+  process.stdout.write(JSON.stringify({{registered, sent}}));
+}})();
+"""
+    out = json.loads(_run_node(js))
+    assert out["registered"] == {"ok": True}
+    assert out["sent"] == [
+        {"url": "http://127.0.0.1:8000/staff/mint/batches", "body": {"cards": []}},
+        {
+            "url": "http://127.0.0.1:8000/staff/mint/batches/identification-requests",
+            "body": {},
+        },
+        {
+            "url": "http://127.0.0.1:8000/staff/mint/batches/identification-requests/7/answer",
+            "body": {"answer": "told"},
+        },
+    ]
+
+
+def test_a_signed_out_app_says_to_sign_in_again(app_logic_script: str) -> None:
+    out = _submit(
+        app_logic_script,
+        "async () => ({ok: false, status: 401, json: async () => ({detail: 'x'})})",
+    )
+    assert "signed out" in out["outcome"]["error"]
+
+
+def test_as_the_app_the_page_hides_the_address_and_key(page_html: str) -> None:
+    assert 'id="address-group"' in page_html and 'id="key-group"' in page_html
+    assert "startAsApp(config)" in page_html
+    assert "navigator.serviceWorker.register('sw.js')" in page_html

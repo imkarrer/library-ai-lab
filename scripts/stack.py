@@ -88,8 +88,8 @@ DEMO_CAST = (
         "owns every Flag that is escalated",
     ),
 )
-# Mr. Pop-Quiz's class, prefilled in his Minting page. Fictional, and only ever in that
-# page on the presenter's own disk: the assistant never holds a name (ADR-0002).
+# Mr. Pop-Quiz's class, prefilled in Make Cards and his downloaded Minting page. Fictional:
+# a school's assistant never holds a name (ADR-0002), and only a demo one reads this.
 DEMO_CLASS = "Period 3"
 DEMO_STUDENTS = (
     "Paige Turner",
@@ -250,6 +250,7 @@ def assistant_env(state: Path, config: dict) -> dict[str, str]:
         "LIBRARY_ASSISTANT_HOST": config["host"],
         "LIBRARY_ASSISTANT_PORT": str(config["port"]),
         "LIBRARY_ASSISTANT_DEMO": "1",
+        "LIBRARY_ASSISTANT_DEMO_CLASS": "|".join((DEMO_CLASS, *DEMO_STUDENTS)),
         "LIBRARY_ASSISTANT_SCHOOL_TIMEZONE": config["timezone"],
         "LIBRARY_ASSISTANT_SCHOOL_DAY_END": config["day_end"],
         "LIBRARY_ASSISTANT_OPENAI_ENDPOINT": answer,
@@ -559,9 +560,14 @@ def status(state: Path) -> None:
         _say(f"  Passwords:     {credentials}")
     from library_assistant.minting_page import download_filename
 
+    if config and _read_pid(state, "assistant"):
+        _say(
+            f"  Make Cards:    {base_url(config)}/staff/mint/  "
+            f"(as {DEMO_CAST[1].name}; Install it from the address bar)"
+        )
     page = state / download_filename(DEMO_CAST[1].username)
     if page.exists():
-        _say(f"  Make Cards:    open {page}")
+        _say(f"  Offline copy:  {page}")
     if (state / "demo.db").exists():
         _say("  The cast (username / password):")
         for persona in DEMO_CAST:
