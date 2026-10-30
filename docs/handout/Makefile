@@ -1,7 +1,8 @@
-# Builds the librarian handout and the demo deck. Run inside this directory's Flox
+# Builds the librarian handout, the demo deck, and the two sheets for district IT (the
+# network request and the HTTPS rollout, in ../templates). Run inside this directory's Flox
 # environment:
 #
-#   flox activate -- make          # build/ librarian-handout and demo-deck, .pdf and .html
+#   flox activate -- make          # every document into build/, as .pdf and .html
 #   flox activate -- make serve    # live preview at http://localhost:8080
 #   flox activate -- make check    # fails if a page or slide's content runs off it
 #
@@ -13,6 +14,10 @@
 MARP    := marp --no-stdin
 DOC     := librarian-handout.md
 DECK    := demo-deck.md
+# The IT sheets live with the other school templates; they use the handout's look.
+IT_DOCS := ../templates/it-network-request.md ../templates/it-https-rollout.md
+IT_HTML  = $(patsubst ../templates/%.md,$(BUILD)/%.html,$(IT_DOCS))
+IT_PDF   = $(patsubst ../templates/%.md,$(BUILD)/%.pdf,$(IT_DOCS))
 BUILD   := build
 PALETTE := ../../library_assistant/static/palette.css
 COMPONENTS := ../../library_assistant/static/components.css
@@ -28,8 +33,8 @@ endif
 
 all: check-marp html pdf
 
-html: check-marp $(BUILD)/librarian-handout.html $(BUILD)/demo-deck.html
-pdf: check-marp $(BUILD)/librarian-handout.pdf $(BUILD)/demo-deck.pdf
+html: check-marp $(BUILD)/librarian-handout.html $(BUILD)/demo-deck.html $(IT_HTML)
+pdf: check-marp $(BUILD)/librarian-handout.pdf $(BUILD)/demo-deck.pdf $(IT_PDF)
 
 DEPS := $(DOC) handout.css $(PALETTE) $(COMPONENTS) .marprc.yml
 DECK_DEPS := $(DECK) deck.css $(PALETTE) $(COMPONENTS) .marprc.yml
@@ -58,6 +63,14 @@ $(BUILD)/demo-deck.html: $(DECK_DEPS)
 $(BUILD)/demo-deck.pdf: $(DECK_DEPS)
 	$(MARP) --config-file .marprc.yml $(DECK) --pdf -o $@
 
+IT_DEPS := handout.css $(PALETTE) $(COMPONENTS) .marprc.yml
+
+$(BUILD)/%.html: ../templates/%.md $(IT_DEPS)
+	$(MARP) --config-file .marprc.yml $< -o $@
+
+$(BUILD)/%.pdf: ../templates/%.md $(IT_DEPS)
+	$(MARP) --config-file .marprc.yml $< --pdf -o $@
+
 # Live preview at http://localhost:8080 with reload on save.
 #
 # Do not pass `.` to --watch. After `flox activate`, `.flox/run` is a symlink into the Nix
@@ -69,6 +82,7 @@ serve: check-marp
 	@mkdir -p $(SERVE_ROOT)
 	@ln -sfn ../$(DOC) $(SERVE_ROOT)/$(DOC)
 	@ln -sfn ../$(DECK) $(SERVE_ROOT)/$(DECK)
+	@for doc in $(IT_DOCS); do ln -sfn ../$$doc $(SERVE_ROOT)/$$(basename $$doc); done
 	$(MARP) --config-file .marprc.yml --server --watch $(SERVE_ROOT)
 
 watch: check-marp
@@ -79,6 +93,7 @@ watch: check-marp
 check: check-marp
 	@./check-overflow.sh $(DOC)
 	@./check-overflow.sh $(DECK)
+	@for doc in $(IT_DOCS); do ./check-overflow.sh $$doc || exit 1; done
 
 clean:
 	rm -rf $(BUILD) $(SERVE_ROOT)

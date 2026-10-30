@@ -9,6 +9,10 @@ The one start command, so the flags that matter are in code rather than remember
 
 `LIBRARY_ASSISTANT_HOST` (default 127.0.0.1) and `LIBRARY_ASSISTANT_PORT` (default 8000)
 say where it listens; at the venue the host is the laptop's LAN address (ADR-0006).
+
+With `LIBRARY_ASSISTANT_TLS_DIR` and `LIBRARY_ASSISTANT_TLS_NAMES` (this computer's
+addresses, comma-separated) it serves HTTPS, making or renewing its certificates at each
+start (library_assistant/tls.py; docs/templates/it-https-rollout.md).
 """
 
 from __future__ import annotations
@@ -18,17 +22,24 @@ from collections.abc import Mapping
 
 import uvicorn
 
+from library_assistant.tls import configured_tls
+
 GRACEFUL_SHUTDOWN_SECONDS = 2
 
 
 def server_options(environ: Mapping[str, str] | None = None) -> dict[str, object]:
     environ = os.environ if environ is None else environ
-    return {
+    options: dict[str, object] = {
         "host": environ.get("LIBRARY_ASSISTANT_HOST", "127.0.0.1"),
         "port": int(environ.get("LIBRARY_ASSISTANT_PORT", "8000")),
         "access_log": False,
         "timeout_graceful_shutdown": GRACEFUL_SHUTDOWN_SECONDS,
     }
+    tls = configured_tls(environ)
+    if tls is not None:
+        options["ssl_certfile"] = str(tls.server_cert)
+        options["ssl_keyfile"] = str(tls.server_key)
+    return options
 
 
 def main() -> None:

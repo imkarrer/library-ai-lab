@@ -1,4 +1,4 @@
-# Librarian handout and demo deck
+# Librarian handout, demo deck, and IT sheets
 
 Two documents in one look:
 
@@ -6,6 +6,12 @@ Two documents in one look:
   [`deck.css`](deck.css). Its "Meet the cast" slide introduces the people `./stack up` seeds
   (`DEMO_CAST` and `DEMO_STUDENTS` in [`scripts/stack.py`](../../scripts/stack.py)); a test
   fails if the two drift apart.
+- The two sheets for district IT, kept with the other school templates and built here in
+  the handout's look: [`it-network-request.md`](../templates/it-network-request.md) (let
+  student devices reach the Mac when client isolation blocks them) and
+  [`it-https-rollout.md`](../templates/it-https-rollout.md) (optional HTTPS, one
+  certificate upload in Google Admin). The assistant's IT kit page fills in the HTTPS one
+  for a given Mac.
 - The handout, below.
 
 The handout is a four-page, US Letter take-home summary for school librarians at a talk or
@@ -23,7 +29,7 @@ repo root's, which a librarian installs and which should not carry a browser. Fr
 directory:
 
 ```bash
-flox activate -- make          # build/ librarian-handout and demo-deck, each .pdf and .html
+flox activate -- make          # every document into build/, each .pdf and .html
 flox activate -- make serve    # live preview at http://localhost:8080, reloads on save
 flox activate -- make check    # fails if any page or slide runs off its bottom edge
 flox activate -- make clean

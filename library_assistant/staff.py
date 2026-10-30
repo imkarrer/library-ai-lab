@@ -126,6 +126,7 @@ _SECTION_OF_TITLE = {
     "New registration key": "/staff/keys",
     "Holds": "/staff/holds",
     "Install settings": "/staff/settings",
+    "IT kit": "/staff/settings",
     "Staff": "/staff",
 }
 
@@ -158,6 +159,7 @@ _HOME_CARD_TEXT = {
     "/staff/holds": "Keep an exchange past the Purge for a records request.",
     "/staff/settings": "Supervision mode, Watch grace, the Alarm chime.",
     "/staff/supportive-replies-preview": "What a Student sees instead of an answer.",
+    "/staff/it-kit": "HTTPS for Chromebooks: what district IT needs, filled in.",
 }
 
 
@@ -495,6 +497,7 @@ def staff_home(
         for label, href in [
             *nav_links(account),
             ("Supportive reply preview", "/staff/supportive-replies-preview"),
+            *([("IT kit", "/staff/it-kit")] if account.role == "librarian" else []),
         ]
     )
     links_html = f'<div class="home-grid">{links_html}</div>'

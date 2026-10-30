@@ -1,7 +1,14 @@
+---
+marp: true
+theme: handout
+paginate: true
+footer: 'Library Assistant · network request for district IT'
+---
+
 # Network request: let student devices reach the Library Assistant (template)
 
-> **This is a template.** The Librarian fills every `[BLANK: …]` and hands pages 1 and 2 to
-> the district's network staff. Page 3 is for whoever talks to them: the questions they
+> **This is a template.** The Librarian fills every `[BLANK: …]` and hands pages 1 to 3 to
+> the district's network staff. Page 4 is for whoever talks to them: the questions they
 > will ask, and true answers. Settle every `[VERIFY]` before you rely on it. Keep the
 > filled-in copy, which holds your network's real addresses, in a district-controlled
 > place, never in this public repository.
@@ -12,8 +19,6 @@ model, the catalog, blocking its own internet access) the computer does by itsel
 
 You need this page only if the installer's reachability test said "Chromebooks can't reach
 this computer on this network". That message almost always means **client isolation**.
-
----
 
 ## Page 1. The request
 
@@ -88,6 +93,10 @@ names to look for, not instructions. `[VERIFY]` against your controller's docume
 - **Putting the Mac on the guest network.** Guest networks are usually the most isolated,
   and student devices usually aren't on them.
 
+---
+
+## Page 3. Check it, and undo it
+
 ### How to check it worked
 
 1. On a student Chromebook, open `http://[BLANK: reserved IP]:[BLANK: 8000]/health`. It
@@ -104,18 +113,19 @@ the Mac depends on the district's configuration beyond those.
 
 ---
 
-## Page 3. For whoever talks to IT: the questions they'll ask
+## Page 4. For whoever talks to IT: the questions they'll ask
 
 **"Why does it need this at all?"** Students reach it from their own devices. On most
 student Wi-Fi, isolation stops one device from opening a page on another, which is right
 for student devices and wrong for this one server.
 
-**"Is the traffic encrypted?"** Not today, and say so plainly. The page is plain HTTP on
-the school network. Wi-Fi encryption (WPA2 or WPA3) protects the radio hop; a wired hop is
-unencrypted. What travels is students' research questions with a card number, never a
-name. HTTPS is possible, but Chromebooks trust a local certificate only if IT pushes it
-through Google Admin. Offer it as optional hardening, not a requirement. `[VERIFY]` that
-this is still the case before the conversation; it is a known gap.
+**"Is the traffic encrypted?"** By default, no, and say so plainly: the page is plain
+HTTP on the school network. Wi-Fi encryption (WPA2 or WPA3) protects the radio hop; a wired
+hop is unencrypted. What travels is students' research questions with a card number, never
+a name. HTTPS is optional hardening: one certificate upload in Google Admin, about 15
+minutes, once, from IT's desk. The certificate can vouch only for this Mac, so trusting it
+lets nobody impersonate another site. Hand them `it-https-rollout.md`, which the
+assistant's IT kit page fills in.
 
 **"Can it reach the internet?"** No. The Mac's own firewall blocks outbound traffic. Every
 few minutes the app checks it can't reach outside addresses, and if it can, it pauses

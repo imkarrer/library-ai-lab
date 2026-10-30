@@ -26,6 +26,7 @@ One command runs the whole stack on this machine (`scripts/stack.py`):
 ./stack up --mock    # the fake model (scripts/fake_model.py): no Ollama, answers in a second
 ./stack up           # both Lanes on this Mac's Ollama: gpt-oss:20b answers, qwen3.5:4b screens
 ./stack up --lan     # listening on the Wi-Fi address, so phones can reach it
+./stack up --https   # HTTPS from the stack's own CA; /staff/it-kit has what IT needs
 ./stack status       # what is running, the sign-in URL, the passwords file, the Minting page
 ./stack down         # stop everything `up` started (Ctrl-C-safe: it is all in the background)
 ./stack seed         # the demo cast, settings, and the Teacher's Minting page (idempotent)

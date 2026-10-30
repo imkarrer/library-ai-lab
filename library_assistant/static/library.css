@@ -1024,6 +1024,16 @@ main.chat {
   }
 }
 
+/* The IT kit (/staff/it-kit) and the certificate check page (/it-check) */
+
+.it-kit .card-panel, .it-check {
+  margin: 1em 0;
+}
+
+.it-kit code, .it-check code {
+  overflow-wrap: anywhere;
+}
+
 /* Printed pages: Card sheets, Rosters, the replies preview. White paper, dark ink. */
 
 @media print {
