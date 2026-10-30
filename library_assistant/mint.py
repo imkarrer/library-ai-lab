@@ -95,8 +95,11 @@ def qr_sheet_html(
     import qrcode
     import qrcode.image.svg
 
+    # SvgPathFillImage, not SvgImage: SvgImage draws its modules as prefixed <svg:rect>
+    # elements, which an HTML page does not render, so the Cards showed no QR code. The
+    # fill gives the code a white quiet zone on the tinted Card.
     def qr_svg(payload: str) -> str:
-        img = qrcode.make(payload, image_factory=qrcode.image.svg.SvgImage)
+        img = qrcode.make(payload, image_factory=qrcode.image.svg.SvgPathFillImage)
         buf = io.BytesIO()
         img.save(buf)
         return buf.getvalue().decode("utf-8")
