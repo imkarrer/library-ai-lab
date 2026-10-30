@@ -18,6 +18,15 @@ only in a browser: no Terminal, no script. Show those on stage exactly as writte
 the assistant on the LAN address), and `./stack down` stops it; see `README.md`, "Running
 it". The steps below are what it does, by hand, for when something needs doing differently.
 
+**The cast.** `./stack up` seeds the people the deck
+([`handout/demo-deck.md`](handout/demo-deck.md)) introduces, so the names on screen match the
+slides. Sign in as `librarian.overdue` (Ms. Overdue) where the steps say `librarian`, use
+`teacher.popquiz` (Mr. Pop-Quiz) for `demo-teacher`, and `counselor.hugsworth` (Dr.
+Hugsworth) for the Counselor. His Minting page (`teacher.popquiz-minting-page.html` in the
+stack folder) opens with Class Label `Period 3` and a made-up class: Paige Turner, Justin
+Time, Dot Matrix, Moe Mentum, Anita Nap, Rhoda Book. Volunteer 1 plays Paige (card 1),
+volunteer 2 plays Justin (card 2).
+
 Follow it in order. Steps 1 to 3 happen at home, online, days before. Steps 4 to 7 happen at
 the venue, offline, before the audience arrives. Steps 8 to 14 are the demo itself. Commands
 are for macOS's Terminal (zsh) and are run from the repo root unless a step says otherwise.

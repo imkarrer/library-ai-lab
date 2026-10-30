@@ -1,7 +1,15 @@
-# Librarian handout
+# Librarian handout and demo deck
 
-A four-page, US Letter take-home summary for school librarians at a talk or conference. It
-assumes no GitHub and no technical background. The source is
+Two documents in one look:
+
+- [`demo-deck.md`](demo-deck.md), nine 16:9 slides that lead into the live demo, styled by
+  [`deck.css`](deck.css). Its "Meet the cast" slide introduces the people `./stack up` seeds
+  (`DEMO_CAST` and `DEMO_STUDENTS` in [`scripts/stack.py`](../../scripts/stack.py)); a test
+  fails if the two drift apart.
+- The handout, below.
+
+The handout is a four-page, US Letter take-home summary for school librarians at a talk or
+conference. It assumes no GitHub and no technical background. The source is
 [`librarian-handout.md`](librarian-handout.md), a [Marp](https://marp.app/) document styled by
 [`handout.css`](handout.css) and configured by `.marprc.yml`.
 
@@ -15,9 +23,9 @@ repo root's, which a librarian installs and which should not carry a browser. Fr
 directory:
 
 ```bash
-flox activate -- make          # build/librarian-handout.pdf and .html
+flox activate -- make          # build/ librarian-handout and demo-deck, each .pdf and .html
 flox activate -- make serve    # live preview at http://localhost:8080, reloads on save
-flox activate -- make check    # fails if any page's content runs off the bottom of the page
+flox activate -- make check    # fails if any page or slide runs off its bottom edge
 flox activate -- make clean
 ```
 

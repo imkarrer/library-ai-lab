@@ -28,13 +28,17 @@ One command runs the whole stack on this machine (`scripts/stack.py`):
 ./stack up --lan     # listening on the Wi-Fi address, so phones can reach it
 ./stack status       # what is running, the sign-in URL, the passwords file, the Minting page
 ./stack down         # stop everything `up` started (Ctrl-C-safe: it is all in the background)
-./stack seed         # accounts, settings, and a Teacher's filled Minting page (idempotent)
+./stack seed         # the demo cast, settings, and the Teacher's Minting page (idempotent)
 ./stack clear        # down, then delete the stack's database and files
 ```
 
-An empty stack is seeded on its first `up`: a `librarian`, a `teacher`, and a `counselor`
-account with generated passwords in `credentials.txt`, Live supervision, and
-`teacher-minting-page.html` for making Cards. All of it lives in one folder outside the repo,
+Every `up` makes sure the demo cast exists, each username starting with its role: Ms.
+Overdue (`librarian.overdue`), Mr. Pop-Quiz (`teacher.popquiz`), and Dr. Hugsworth
+(`counselor.hugsworth`). Passwords are generated once, into `credentials.txt`. It also sets
+Live supervision and writes `teacher.popquiz-minting-page.html`, with Period 3's fictional
+class list (Paige Turner, Justin Time, ...) filled in. `./stack status` lists the cast. The
+deck that leads into the demo introduces the same people ([`docs/handout/`](docs/handout/)).
+All of it lives in one folder outside the repo,
 readable only by you (`--state`, default `~/library-assistant-demo`). The stack leaves alone
 anything already answering on its ports, such as an Oversight Ollama started by hand.
 

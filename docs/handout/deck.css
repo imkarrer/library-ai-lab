@@ -1,0 +1,240 @@
+/* @theme deck */
+
+/*
+ * The slides that lead into the live demo (demo-deck.md): 16:9, type sized for the back of
+ * a room. The same palette and shared look as the handout and the app's pages, so the deck,
+ * the sheet people take home, and the screen they're about to see all look the same.
+ */
+
+@import 'default';
+/* the shared palette: library_assistant/static/palette.css, registered in .marprc.yml */
+@import 'library-palette';
+/* the shared look: library_assistant/static/components.css (headings, tables, callouts) */
+@import 'library-components';
+
+section {
+  width: 1280px;
+  height: 720px;
+  padding: 56px 72px 48px;
+  font-family: var(--font-body);
+  font-size: 28px;
+  line-height: 1.4;
+  color: var(--ink);
+  background: var(--paper);
+  justify-content: flex-start !important;
+  align-content: flex-start !important;
+}
+
+h1 {
+  font-size: 54px;
+  margin: 0 0 0.3em;
+}
+
+h2 {
+  font-size: 44px;
+  margin: 0 0 0.5em;
+  padding-bottom: 0.15em;
+  border-bottom: 3px solid var(--brass);
+}
+
+h3 {
+  font-size: 30px;
+  margin: 0.2em 0;
+}
+
+p, li {
+  margin: 0.25em 0;
+}
+
+ul, ol {
+  padding-left: 1.2em;
+}
+
+strong {
+  color: var(--green-dark);
+}
+
+.lede {
+  font-size: 32px;
+}
+
+.box {
+  padding: 0.5em 0.8em;
+  margin: 0.6em 0;
+}
+
+.quote {
+  font-size: 30px;
+  padding: 0.4em 0.8em;
+  margin: 0.5em 0;
+}
+
+.box p, .quote p {
+  margin: 0;
+}
+
+.muted {
+  color: var(--ink-muted);
+  font-size: 22px;
+}
+
+/* tables: Marp's default borders and stripes off, as in the handout */
+
+table {
+  font-size: 22px;
+  display: table;
+  margin: 0.4em 0;
+}
+
+section table th, section table td {
+  padding: 0.4em 0.6em;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+section table tr, section table tr:nth-child(2n) {
+  background: transparent;
+}
+
+section table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+section table th {
+  background: var(--green-tint);
+}
+
+/* a row of cards: three promises, the cast, the demo's beats */
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  margin-top: 0.4em;
+}
+
+.cards > div {
+  padding: 18px 22px;
+  font-size: 23px;
+}
+
+.cards h3 {
+  margin-top: 0;
+}
+
+.cards p {
+  margin: 0.3em 0;
+}
+
+.cards code {
+  font-size: 19px;
+  background: var(--green-tint);
+  color: var(--green-dark);
+  padding: 0.1em 0.4em;
+  border-radius: 6px;
+}
+
+.chip {
+  font-size: 18px;
+  letter-spacing: 0.02em;
+}
+
+/* the class list: a strip of name tags */
+
+.roster {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0.4em 0;
+}
+
+.roster span {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-left: 4px solid var(--brass);
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 22px;
+}
+
+.roster b {
+  color: var(--green-dark);
+  margin-right: 0.35em;
+}
+
+/* a numbered path: what happens next, left to right */
+
+.steps {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 16px;
+  counter-reset: step;
+  margin-top: 0.5em;
+}
+
+.steps > div {
+  position: relative;
+  padding: 52px 18px 18px;
+  font-size: 21px;
+}
+
+.steps > div::before {
+  counter-increment: step;
+  content: counter(step);
+  position: absolute;
+  top: 12px;
+  left: 18px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--green);
+  color: #fff;
+  font-weight: 700;
+  font-size: 18px;
+  line-height: 32px;
+  text-align: center;
+}
+
+.steps p {
+  margin: 0.25em 0 0;
+}
+
+/* title and hand-off slides: library green, paper text */
+
+section.lead {
+  background: var(--green-dark);
+  color: var(--paper);
+  justify-content: center !important;
+}
+
+section.lead h1, section.lead h2, section.lead strong {
+  color: var(--paper);
+  border: 0;
+}
+
+section.lead h1 {
+  font-size: 72px;
+}
+
+section.lead .lede {
+  color: var(--brass-tint);
+  max-width: 900px;
+}
+
+section.lead .muted {
+  color: var(--green-tint);
+}
+
+section::after, footer {
+  font-size: 16px;
+  color: var(--ink-muted);
+}
+
+section.lead::after, section.lead footer {
+  color: var(--green-tint);
+}
+
+section.lead {
+  padding-top: 170px;
+}

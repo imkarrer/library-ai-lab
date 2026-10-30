@@ -4,7 +4,7 @@
     ./stack up              assistant on 127.0.0.1:8000, both Lanes on this Mac's Ollama
     ./stack up --lan        listening on the Wi-Fi address, for phones (the venue)
     ./stack up --mock       the fake model (scripts/fake_model.py) instead of Ollama
-    ./stack seed            accounts, settings, and the Teacher's filled Minting page
+    ./stack seed            the demo cast, settings, and the Teacher's filled Minting page
     ./stack down            stop everything `up` started
     ./stack clear           down, then delete the stack's database and files
     ./stack status          what is running, and where
@@ -12,7 +12,7 @@
 Every setting the assistant needs is given to its process here, so nothing is sourced by
 hand and nothing depends on a shell's exports (lib-f9o). State lives in one folder outside
 the repo, only you can read it (`--state`, default ~/library-assistant-demo): the database,
-each process's pid and log, and `credentials.txt` with the seeded accounts' passwords.
+each process's pid and log, and `credentials.txt` with the demo cast's passwords.
 Nothing here leaves the machine (ADR-0006): every process listens on 127.0.0.1 or, with
 --lan, the laptop's own address.
 """
@@ -46,11 +46,50 @@ ANSWER_MODEL, ANSWER_EFFORT = "gpt-oss:20b", "low"
 OVERSIGHT_MODEL, OVERSIGHT_EFFORT = "qwen3.5:4b", "none"
 FIXTURE_MARC = REPO / "tests" / "fixtures" / "catalog" / "loc-books-2016-sample.xml"
 
-# (username, role): what `seed` creates if missing. A Counselor so Escalate is offered.
-SEED_ACCOUNTS = (
-    ("librarian", "librarian"),
-    ("teacher", "teacher"),
-    ("counselor", "counselor"),
+
+@dataclass(frozen=True)
+class Persona:
+    """A staff account in the demo cast. The username starts with the role, so whoever is
+    watching knows who is who from any page that names an account."""
+
+    username: str
+    role: str
+    name: str
+    part: str
+
+
+# Who `seed` makes sure exists, on every `up`. The deck (docs/handout/demo-deck.md)
+# introduces the same cast: change one, change both.
+DEMO_CAST = (
+    Persona(
+        "librarian.overdue",
+        "librarian",
+        "Ms. Overdue",
+        "runs the library and keeps Watch on the Live view",
+    ),
+    Persona(
+        "teacher.popquiz",
+        "teacher",
+        "Mr. Pop-Quiz",
+        "makes Period 3's Cards and keeps the Roster",
+    ),
+    Persona(
+        "counselor.hugsworth",
+        "counselor",
+        "Dr. Hugsworth",
+        "owns every Flag that is escalated",
+    ),
+)
+# Mr. Pop-Quiz's class, prefilled in his Minting page. Fictional, and only ever in that
+# page on the presenter's own disk: the assistant never holds a name (ADR-0002).
+DEMO_CLASS = "Period 3"
+DEMO_STUDENTS = (
+    "Paige Turner",
+    "Justin Time",
+    "Dot Matrix",
+    "Moe Mentum",
+    "Anita Nap",
+    "Rhoda Book",
 )
 
 
@@ -307,8 +346,8 @@ def up(state: Path, args: argparse.Namespace) -> None:
             OVERSIGHT_EFFORT,
         )
 
-    if not (state / "demo.db").exists():
-        seed(state, quiet=True)
+    # Every `up`, not only the first: an older stack gains the cast it is missing.
+    seed(state, quiet=True)
     _start(
         state,
         "assistant",
@@ -328,10 +367,12 @@ def down(state: Path) -> None:
 
 
 def seed(state: Path, quiet: bool = False) -> None:
-    """Accounts (only those missing), settings, and the Teacher's filled Minting page.
+    """The demo cast (only those missing), settings not yet set, and the Teacher's filled
+    Minting page.
 
     Re-running changes nothing that exists: a seeded password is written once, to
-    credentials.txt, and an existing account keeps its own.
+    credentials.txt, an existing account keeps its own, and a setting someone changed on
+    the settings page stays changed.
     """
     from library_assistant.access import connect, issue_registration_key
     from library_assistant.install_settings import (
@@ -339,26 +380,35 @@ def seed(state: Path, quiet: bool = False) -> None:
         WATCH_GRACE_SECONDS,
         set_setting,
     )
-    from library_assistant.minting_page import filled_minting_page
+    from library_assistant.minting_page import download_filename, filled_minting_page
     from library_assistant.staff import create_account
 
     state.mkdir(mode=0o700, parents=True, exist_ok=True)
     db = connect(str(state / "demo.db"))
     now = datetime.now(UTC)
     created: list[tuple[str, str, str]] = []
-    for username, role in SEED_ACCOUNTS:
+    for persona in DEMO_CAST:
         if db.execute(
-            "SELECT 1 FROM staff_accounts WHERE username = ?", (username,)
+            "SELECT 1 FROM staff_accounts WHERE username = ?", (persona.username,)
         ).fetchone():
             continue
         password = secrets.token_urlsafe(9)
-        create_account(db, username, password, role)
-        created.append((username, role, password))
+        create_account(db, persona.username, password, persona.role)
+        created.append((persona.username, persona.role, password))
+    librarian, teacher, counselor = DEMO_CAST
     librarian_id = db.execute(
-        "SELECT id FROM staff_accounts WHERE role = 'librarian' ORDER BY id"
+        "SELECT id FROM staff_accounts WHERE username = ?", (librarian.username,)
     ).fetchone()[0]
-    set_setting(db, SUPERVISION_MODE, "live", librarian_id, now)
-    set_setting(db, WATCH_GRACE_SECONDS, "300", librarian_id, now)
+    for key, value in (
+        (SUPERVISION_MODE, "live"),
+        (WATCH_GRACE_SECONDS, "300"),
+        # Who the supportive reply sends a Student to.
+        ("counselor_name", counselor.name),
+    ):
+        if not db.execute(
+            "SELECT 1 FROM install_settings WHERE key = ?", (key,)
+        ).fetchone():
+            set_setting(db, key, value, librarian_id, now)
 
     if created:
         credentials = state / "credentials.txt"
@@ -372,15 +422,20 @@ def seed(state: Path, quiet: bool = False) -> None:
         if _config_path(state).exists()
         else {"host": "127.0.0.1", "port": 8000}
     )
-    teacher = db.execute(
-        "SELECT id, username FROM staff_accounts WHERE role = 'teacher' ORDER BY id"
-    ).fetchone()
-    page = state / "teacher-minting-page.html"
-    if teacher and not page.exists():
-        key = issue_registration_key(db, teacher[0], now)
+    teacher_id = db.execute(
+        "SELECT id FROM staff_accounts WHERE username = ?", (teacher.username,)
+    ).fetchone()[0]
+    page = state / download_filename(teacher.username)
+    if not page.exists():
+        key = issue_registration_key(db, teacher_id, now)
         page.write_text(
             filled_minting_page(
-                base_url(config), teacher[1], key, config.get("day_end", "23:59")
+                base_url(config),
+                teacher.username,
+                key,
+                config.get("day_end", "23:59"),
+                class_label=DEMO_CLASS,
+                class_list=DEMO_STUDENTS,
             )
         )
         page.chmod(0o600)
@@ -388,8 +443,8 @@ def seed(state: Path, quiet: bool = False) -> None:
         _say("Seeded:")
     for username, role, _ in created:
         _say(f"  {role} account `{username}` (password in {state / 'credentials.txt'})")
-    if page.exists():
-        _say(f"  Teacher's Minting page: {page}")
+    if not quiet:
+        _say(f"  {teacher.name}'s Minting page: {page}")
 
 
 def clear(state: Path) -> None:
@@ -402,7 +457,6 @@ def clear(state: Path) -> None:
         "demo.db-journal",
         "oversight.lock",
         "credentials.txt",
-        "teacher-minting-page.html",
         "catalog-fixture.db",
         "stack.json",
         "assistant.log",
@@ -410,6 +464,7 @@ def clear(state: Path) -> None:
         "fake-model.log",
     ]
     removed = [name for name in names if (state / name).exists()]
+    removed += sorted(page.name for page in state.glob("*-minting-page.html"))
     for name in removed:
         (state / name).unlink()
     cards = state / "cards"
@@ -459,9 +514,16 @@ def status(state: Path) -> None:
     credentials = state / "credentials.txt"
     if credentials.exists():
         _say(f"  Passwords:     {credentials}")
-    page = state / "teacher-minting-page.html"
+    from library_assistant.minting_page import download_filename
+
+    page = state / download_filename(DEMO_CAST[1].username)
     if page.exists():
         _say(f"  Make Cards:    open {page}")
+    if (state / "demo.db").exists():
+        _say("  The cast:")
+        for persona in DEMO_CAST:
+            _say(f"    {persona.name:<14} {persona.username:<20} {persona.part}")
+        _say(f"    {DEMO_CLASS}: {', '.join(DEMO_STUDENTS)}")
     if not any(_read_pid(state, c.name) for c in components):
         _say("  Nothing running. `./stack up` starts it.")
 

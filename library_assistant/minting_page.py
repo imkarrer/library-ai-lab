@@ -18,7 +18,7 @@ PAGE_PATH = Path(__file__).resolve().parent.parent / "offline-minting.html"
 CONFIG_PLACEHOLDER = '<script type="application/json" id="install-config">{}</script>'
 
 
-def _script_safe_json(value: dict[str, str]) -> str:
+def _script_safe_json(value: dict[str, object]) -> str:
     """JSON that cannot close its <script> element or open a comment inside it."""
     return (
         json.dumps(value)
@@ -33,9 +33,16 @@ def filled_minting_page(
     username: str,
     registration_key: str,
     school_day_end: str | None = None,
+    class_label: str | None = None,
+    class_list: tuple[str, ...] = (),
 ) -> str:
     """The page with this Install's address, the account's key, and the school day's end
-    (the default "Cards stop working at" time, so a Teacher rarely changes it)."""
+    (the default "Cards stop working at" time, so a Teacher rarely changes it).
+
+    `class_label` and `class_list` prefill the form, for the demo stack only (`./stack
+    seed`): its class is fictional, and the page is written to the presenter's own disk.
+    The assistant's download route never passes them, since it holds no names (ADR-0002).
+    """
     page = PAGE_PATH.read_text(encoding="utf-8")
     if page.count(CONFIG_PLACEHOLDER) != 1:
         raise RuntimeError(f"{PAGE_PATH.name} has lost its install-config block")
@@ -45,6 +52,8 @@ def filled_minting_page(
             "username": username,
             "registration_key": registration_key,
             **({"school_day_end": school_day_end} if school_day_end else {}),
+            **({"class_label": class_label} if class_label else {}),
+            **({"class_list": list(class_list)} if class_list else {}),
         }
     )
     return page.replace(

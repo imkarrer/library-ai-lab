@@ -53,17 +53,21 @@ def test_up_seed_down_clear(tmp_path):
             assert r.status == 200
 
         credentials = (state / "credentials.txt").read_text()
+        # The demo cast: each username says the role it plays.
         assert [line.split(" ")[0] for line in credentials.splitlines()] == [
-            "librarian",
-            "teacher",
-            "counselor",
+            "librarian.overdue",
+            "teacher.popquiz",
+            "counselor.hugsworth",
         ]
         assert oct((state / "credentials.txt").stat().st_mode & 0o777) == "0o600"
-        page = (state / "teacher-minting-page.html").read_text()
+        page = (state / "teacher.popquiz-minting-page.html").read_text()
         config = json.loads(
             re.search(r'id="install-config">(.*?)</script>', page, re.DOTALL).group(1)
         )
         assert config["assistant_url"] == f"http://127.0.0.1:{port}"
+        assert config["username"] == "teacher.popquiz"
+        assert config["class_label"] == "Period 3"
+        assert config["class_list"][0] == "Paige Turner"
 
         # Seeding again creates nothing and keeps every password.
         _stack(state, "seed")
@@ -74,6 +78,7 @@ def test_up_seed_down_clear(tmp_path):
         assert "healthy" in status
         # Bound to 127.0.0.1: the stack says phones cannot reach it.
         assert "only this computer can reach it" in status
+        assert "Dr. Hugsworth" in status and "counselor.hugsworth" in status
     finally:
         pids = _pids(state)
         _stack(state, "down")
@@ -86,6 +91,7 @@ def test_up_seed_down_clear(tmp_path):
     _stack(state, "clear")
     assert not (state / "demo.db").exists()
     assert not (state / "credentials.txt").exists()
+    assert not list(state.glob("*-minting-page.html"))
 
 
 def test_up_uses_a_fake_model_already_running_and_leaves_it(tmp_path):
