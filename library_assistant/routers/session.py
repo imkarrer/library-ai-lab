@@ -139,7 +139,7 @@ CHAT_PAGE_HTML = """<!DOCTYPE html>
       books.className = "books";
       const heading = document.createElement("p");
       heading.className = "books-title";
-      heading.textContent = "Books in our library";
+      heading.textContent = {books_title};
       books.append(heading);
       for (const [, title, callNumber] of citations) {{
         const book = document.createElement("div");
@@ -512,11 +512,22 @@ class _ReleasingStream(StreamingResponse):
 router = APIRouter()
 
 
+# The demo's Catalog is the Library of Congress's juvenile titles, not a school's own
+# shelves (scripts/build_demo_catalog.py), so the demo says so where the books are listed.
+BOOKS_TITLE = "Books in our library"
+DEMO_BOOKS_TITLE = (
+    "Books in our library (for this demo, our library is the Library of Congress)"
+)
+
+
 @router.get("/chat")
-def chat_page(session: SessionDep) -> HTMLResponse:
+def chat_page(
+    session: SessionDep, settings: Settings = Depends(get_settings)
+) -> HTMLResponse:
     """The Student's page: the banner, a question box, and the streamed answer."""
     return HTMLResponse(
         CHAT_PAGE_HTML.format(
+            books_title=json.dumps(DEMO_BOOKS_TITLE if settings.demo else BOOKS_TITLE),
             banner=BANNER_TEXT,
             class_label=html.escape(session.class_label),
             card_number=html.escape(session.card_number),

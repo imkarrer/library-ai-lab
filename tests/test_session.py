@@ -253,6 +253,19 @@ def test_chat_page_shows_the_banner_and_needs_a_session(client):
     assert "End session" in page.text
 
 
+def test_the_demo_says_its_library_is_the_library_of_congress(client, settings):
+    """The demo Catalog is LoC's juvenile titles, not a school's shelves."""
+    test_client, _ = client
+    _sign_in(test_client)
+    assert "Library of Congress" not in test_client.get("/chat").text
+    app.dependency_overrides[get_settings] = lambda: dataclasses.replace(
+        settings, demo=True
+    )
+    page = test_client.get("/chat").text
+    assert "for this demo, our library is the Library of Congress" in page
+    assert_scripts_parse(page)
+
+
 def test_question_is_recorded_on_arrival(client, monkeypatch):
     """The row exists, with its Class label and Card number, before the model replies."""
     test_client, db = client
