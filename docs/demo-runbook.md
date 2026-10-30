@@ -89,7 +89,7 @@ Do this at home, online, on the M5 Pro. Everything here downloads; nothing after
 
 6. Check the disk again: `du -sh .flox/cache/models catalog.db` and `df -h "$HOME"`.
 
-## Step 2. Online setup: the Librarian, accounts, Registration key, supervision mode
+## Step 2. Online setup: the Librarian, accounts, supervision mode
 
 Set up the demo's database once, at home, and keep a clean copy of it to reset to between
 runs (Recovery, "Reset between runs"). The database lives outside the repo, in a folder only
@@ -148,13 +148,7 @@ volunteers' questions.
    Do not use a real person's name for either. The Librarian account cannot be removed (it is
    the Install's only way back in); to start over, see Recovery, "Start setup over".
 
-5. **Librarian.** Open **Keys**. On the `demo-teacher` row press **Rotate key**. The new
-   Registration key is shown once. In a school the Librarian hands it to the Teacher, who
-   keeps it in a password manager; do the same: save it in your password manager or a private
-   note, as `demo-teacher` Registration key. The Teacher pastes it into the Minting page in
-   Step 6. Never show it on the shared screen.
-
-6. **Librarian.** Open **Install settings** and set:
+5. **Librarian.** Open **Install settings** and set:
    - **Supervision mode: Live.** It is the default and the one the demo shows: Students chat
      only while someone is on Watch, so End watch visibly pauses them (Step 13).
    - **Watch grace seconds: 300.** The default 90 is right for a library; on stage, 300 gives
@@ -165,10 +159,10 @@ volunteers' questions.
 
    Press **Save**. The page lists the change under "Recent changes".
 
-7. **Librarian.** Open **Supportive reply preview** and read the four replies, so you know
+6. **Librarian.** Open **Supportive reply preview** and read the four replies, so you know
    what the volunteer will see in Step 9.
 
-8. **Presenter.** Stop the assistant (Ctrl-C in its tab), then keep the clean copy:
+7. **Presenter.** Stop the assistant (Ctrl-C in its tab), then keep the clean copy:
 
    ```bash
    cp -f ~/library-assistant-demo/demo.db ~/library-assistant-demo/clean.db
@@ -290,40 +284,47 @@ phones). Re-run the last two lines during the demo if anyone asks: that is the a
 anything leave the building?". Nothing in the assistant can reach the internet anyway: its one
 outbound client is scoped to the model endpoint (ADR-0006), and the room has no uplink.
 
-## Step 6. The Teacher makes 3 Cards on the Minting page
+## Step 6. The Librarian hands the Teacher a Minting page; the Teacher makes 3 Cards
 
-**Teacher.** Making Cards (Minting) happens on the Teacher's own computer, in a page that
-works offline: `offline-minting.html`, a single file the Librarian gives each Teacher once.
-Today the Teacher's computer is the same laptop. Three Cards: one per volunteer and a spare.
+Making Cards (Minting) happens on the Teacher's own computer, in a page that works offline.
+The Librarian downloads it for the Teacher with this assistant's address and the Teacher's
+Registration key already built in, so nobody types or copies a key. Today the Teacher's
+computer is the same laptop. Three Cards: one per volunteer and a spare.
 
-This step is worth showing on stage: it is the whole of a Teacher's setup. Keep the
-Registration key field off the shared screen while you paste it.
+This step is worth showing on stage: it is the whole of a Teacher's setup.
 
-1. Open the Minting page: double-click `offline-minting.html` in the repo folder in Finder
-   (it opens in your browser).
-2. Fill in the form:
+1. **Librarian.** In the browser, open `http://<LAN_IP>:8000/staff/login` (the address from
+   Step 5; the assistant is not on `127.0.0.1` today) and sign in as `librarian`. Open
+   **Keys** and, on the `demo-teacher` row, press **Download Minting page (new key)**. The
+   browser saves `demo-teacher-minting-page.html` to Downloads. In a school the Librarian
+   emails or AirDrops this file to the Teacher; a Teacher can also download their own from
+   **Download my Minting page** on `/staff`. Each download issues a new key, so an earlier
+   copy stops working; download it here, at the venue, after any reset (Recovery).
+2. **Teacher.** Open the file: double-click `demo-teacher-minting-page.html` in Downloads. It
+   opens in the browser with **Library Assistant address** filled in and "The Registration
+   key for demo-teacher is built into this page."
+3. **Teacher.** Fill in the rest:
    - **Class Label:** `Conference demo`
    - **Number of Cards:** `3`
    - **Cards stop working at (today):** the end of your slot (`TALK_END` in Step 4). It must
      be later than now and no later than the assistant's end of school day.
-   - **Library Assistant address:** the address from Step 5, for example
-     `http://192.0.2.10:8000`. The page remembers it next time.
-   - **Your Registration key:** paste the `demo-teacher` key from Step 2. It is never saved.
-3. Press **Make Cards**. The page registers the Cards with the assistant first, and shows
-   them only once it has accepted them: "Registered 3 Cards for Conference demo. They stop
-   working at ... today." If something is wrong it says what, and makes no Cards:
-   - "did not accept that Registration key": re-copy the key from your password manager.
-   - "Could not reach the Library Assistant at ...": check the address and that the
-     assistant is running (Step 5).
+4. **Teacher.** Press **Make Cards**. The page registers the Cards with the assistant first,
+   and shows them only once it has accepted them: "Registered 3 Cards for Conference demo.
+   They stop working at ... today." If something is wrong it says what, and makes no Cards:
+   - "did not accept that Registration key": the page is from an earlier download, or from
+     before a reset. Download a new one (item 1).
+   - "Could not reach the Library Assistant at ...": check the assistant is running and
+     listening on that address (Step 5).
    - "A Batch must expire by the end of today's school day": pick an earlier stop time, or
      see Recovery, "A Card is refused".
-4. Press **Download Cards**. Your browser saves `Conference_demo-cards.html`: the Cards, one
-   QR code and Card number each. The QR codes carry `http://<LAN_IP>:8000/card#t=<Token>`.
-   The page keeps nothing once you leave it, so download (or **Print Cards**) before you do.
-5. The Roster: **Download Roster CSV** or **Print Sealed Roster Sheet**. In a school it records
-   which Student holds which Card number and never reaches the assistant; for the demo leave
-   it blank. Say: *"The assistant got a fingerprint of each Card and the class name. It never
-   saw a Card itself, and it will never see this list."*
+5. **Teacher.** Press **Download Cards**. Your browser saves `Conference_demo-cards.html`: the
+   Cards, one QR code and Card number each. The QR codes carry
+   `http://<LAN_IP>:8000/card#t=<Token>`. The page keeps nothing once you leave it, so
+   download (or **Print Cards**) before you do.
+6. **Teacher.** The Roster: **Download Roster CSV** or **Print Sealed Roster Sheet**. In a
+   school it records which Student holds which Card number and never reaches the assistant;
+   for the demo leave it blank. Say: *"The assistant got a fingerprint of each Card and the
+   class name. It never saw a Card itself, and it will never see this list."*
 
 Getting the Cards to the volunteers, best first:
 
@@ -337,8 +338,8 @@ Never put the Cards on the shared screen: anyone in the room could scan one.
 
 ## Step 7. Sign in, open the Live view, Start watch, and screen-share
 
-1. **Librarian.** In the browser, open `http://<LAN_IP>:8000/staff/login` (the address from
-   Step 5; the assistant is not on `127.0.0.1` today) and sign in as `librarian`.
+1. **Librarian.** You are signed in from Step 6; if not, sign in at
+   `http://<LAN_IP>:8000/staff/login` as `librarian`.
 2. On `/staff`, open **Live view**. It shows "No active Sessions." and **Start watch**.
 3. Press **Start watch**. The line reads "You are on Watch." and the button becomes **End
    watch**. Until you press it, a volunteer who scans a Card gets the paused message ("The
@@ -551,8 +552,9 @@ make the Cards again.
 
 ### Reset between runs
 
-Put the database back to the clean copy from Step 2. This keeps the accounts, the settings,
-and the Teacher's Registration key, and drops every Card, Session, transcript, and Flag.
+Put the database back to the clean copy from Step 2. This keeps the accounts and the settings,
+and drops every Card, Session, transcript, and Flag. It also puts back the Teacher's key from
+before Step 6, so the downloaded Minting page stops working: download a new one.
 
 1. Stop the assistant (Ctrl-C in tab 2). Never copy over the database while it runs.
 2. Tab 3:
@@ -561,13 +563,14 @@ and the Teacher's Registration key, and drops every Card, Session, transcript, a
    cp -f "$DEMO_DIR/clean.db" "$LIBRARY_ASSISTANT_DB"
    rm -f "$LIBRARY_ASSISTANT_DB-journal"
    rm -f ~/Downloads/Conference_demo-cards*.html ~/Downloads/Conference_demo-roster*.csv
+   rm -f ~/Downloads/demo-teacher-minting-page*.html
    ```
 
-3. Start the assistant again (Step 5, tab 2) and have the Teacher make new Cards (Step 6).
+3. Start the assistant again (Step 5, tab 2), download a new Minting page, and have the
+   Teacher make new Cards (Step 6).
    Old Cards will be refused, as they should be.
 
-If `clean.db` is lost, delete `demo.db` and redo Step 2 from item 2 (the Teacher gets a new
-Registration key).
+If `clean.db` is lost, delete `demo.db` and redo Step 2 from item 2.
 
 ### Start setup over
 
@@ -594,7 +597,7 @@ rm -f library_assistant.db    # only if an assistant ran without demo.env (GAP l
 
    ```bash
    rm -f ~/Downloads/Conference_demo-cards*.html ~/Downloads/Conference_demo-roster*.csv
-   rm -f ~/Downloads/flag-*-export.txt
+   rm -f ~/Downloads/demo-teacher-minting-page*.html ~/Downloads/flag-*-export.txt
    ```
 
    Delete the Cards from your phone too, if you AirDropped them. The demo's transcripts go
@@ -608,9 +611,7 @@ rm -f library_assistant.db    # only if an assistant ran without demo.env (GAP l
    Shred any printed Cards. The volunteers' phones hold only a cookie that expired with the
    Batch.
 
-3. If the Registration key was ever on the shared screen, rotate it (**Keys**, **Rotate key**
-   on `demo-teacher`), save the new one as in Step 2.5, and take a fresh `clean.db`.
-4. Note on lib-f24.9 what worked and what broke, with the gaps below that you hit.
+3. Note on lib-f24.9 what worked and what broke, with the gaps below that you hit.
 
 Nothing from the demo goes into this repo: not the database, the Cards, the Roster, an
 export, or the travel router's details.
@@ -624,5 +625,3 @@ As of this runbook; re-check before the trip.
   export, so Steps 2 and 5 start it with `uvicorn` in its own tab instead.
 - **The Live view's Flag badge is not live**: "Flag: high" on a tile appears only on refresh.
 - **No staff page shows Purge runs**; the after-the-talk check uses `sqlite3` (Step 14).
-- **The Minting page is a file the Librarian hands out**; the assistant does not offer it for
-  download, and a Teacher's own `/staff` page has no link to it or to their key.

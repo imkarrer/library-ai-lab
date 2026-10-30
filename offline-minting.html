@@ -3,6 +3,9 @@
 <head>
     <meta charset="utf-8">
     <title>Offline Minting Page</title>
+    <!-- Filled in by the assistant when a Librarian or Teacher downloads this page from it
+         (library_assistant/minting_page.py): its address and the account's Registration key. -->
+    <script type="application/json" id="install-config">{}</script>
     <style>
         body {
             font-family: sans-serif;
@@ -133,11 +136,12 @@
             <input type="text" id="assistant-url" placeholder="http://library-assistant.school.example:8000">
             <p class="hint">From your librarian. This computer remembers it.</p>
         </div>
-        <div class="form-group">
+        <div class="form-group" id="key-group">
             <label for="registration-key">Your Registration key:</label>
             <input type="password" id="registration-key" autocomplete="off">
             <p class="hint">From your librarian. Never saved on this computer.</p>
         </div>
+        <p id="key-built-in" class="hint hidden"></p>
         <div id="make-status" class="hidden"></div>
         <button id="generate-btn">Make Cards</button>
     </div>
@@ -2747,6 +2751,17 @@ ${sheetHtml}
             return { error: detail || `The Library Assistant refused the Cards (status ${response.status}).` };
         }
 
+        // The address and key a downloaded copy of this page carries (minting_page.py);
+        // the shipped page's block is empty, and a damaged one counts as empty.
+        function parseInstallConfig(text) {
+            try {
+                const config = JSON.parse(text || '{}');
+                return config && typeof config === 'object' ? config : {};
+            } catch (error) {
+                return {};
+            }
+        }
+
         function rememberedBase() {
             try {
                 return localStorage.getItem('assistant-url') || '';
@@ -2781,7 +2796,15 @@ ${sheetHtml}
         }
 
         document.addEventListener('DOMContentLoaded', function() {
-            document.getElementById('assistant-url').value = rememberedBase();
+            const config = parseInstallConfig(document.getElementById('install-config').textContent);
+            document.getElementById('assistant-url').value = config.assistant_url || rememberedBase();
+            if (config.registration_key) {
+                document.getElementById('registration-key').value = config.registration_key;
+                document.getElementById('key-group').classList.add('hidden');
+                const builtIn = document.getElementById('key-built-in');
+                builtIn.textContent = `The Registration key for ${config.username || 'your account'} is built into this page. Keep this file to yourself.`;
+                builtIn.classList.remove('hidden');
+            }
 
             document.getElementById('generate-btn').addEventListener('click', async function() {
                 const classLabel = document.getElementById('class-label').value.trim();
