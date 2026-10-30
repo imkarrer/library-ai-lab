@@ -2,9 +2,12 @@
 Batch, sign in with a Card, then ask with the cookie sign-in set."""
 
 import asyncio
+import dataclasses
+import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import anyio
 import httpx
@@ -23,6 +26,8 @@ from library_assistant.access import (
 )
 from library_assistant.app import app
 from library_assistant.catalog import Catalog, Record
+from library_assistant.catalog.marc import parse_marcxml, to_record
+from library_assistant.catalog.sqlite_backend import SqliteCatalog
 from library_assistant.config import Settings
 from library_assistant.dependencies import get_catalog, get_settings
 from library_assistant.install_settings import SUPERVISION_MODE, set_setting
@@ -382,6 +387,81 @@ def test_model_error_still_finishes_the_exchange_with_what_was_shown(
     assert db.execute(
         "SELECT question, answer, citations FROM transcripts"
     ).fetchall() == [("a book about bulls?", "", "")]
+
+
+def _model_request_body(test_client, monkeypatch) -> dict:
+    """The JSON the assistant sent the model for one question."""
+    sent: list[dict] = []
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        sent.append(json.loads(request.content))
+        return httpx.Response(
+            200,
+            content=b'data: {"choices":[{"delta":{"content":"Ferdinand"}}]}\n\n'
+            b"data: [DONE]\n\n",
+            headers={"content-type": "text/event-stream"},
+        )
+
+    monkeypatch.setattr(
+        httpx.AsyncHTTPTransport, "handle_async_request", handle_async_request
+    )
+    _sign_in(test_client)
+    assert test_client.post("/ask", json={"question": "bulls?"}).status_code == 200
+    [body] = sent
+    return body
+
+
+def test_reasoning_effort_is_sent_when_set(client, settings, monkeypatch):
+    test_client, _ = client
+    app.dependency_overrides[get_settings] = lambda: dataclasses.replace(
+        settings, openai_reasoning_effort="none"
+    )
+    assert _model_request_body(test_client, monkeypatch)["reasoning_effort"] == "none"
+
+
+def test_reasoning_effort_is_left_out_by_default(client, monkeypatch):
+    test_client, _ = client
+    assert "reasoning_effort" not in _model_request_body(test_client, monkeypatch)
+
+
+def test_answer_cites_books_from_a_real_sqlite_catalog(
+    client, settings, monkeypatch, tmp_path
+):
+    """The streamed answer searches the Catalog on another thread than the one that
+    opened it: a real SqliteCatalog, not the fake, must answer there (lib-30v)."""
+    catalog_path = tmp_path / "catalog.db"
+    loader = SqliteCatalog.open(str(catalog_path))
+    loader.load_records(
+        to_record(marc_record)
+        for marc_record in parse_marcxml(
+            str(Path(__file__).parent / "fixtures/catalog/loc-books-2016-sample.xml")
+        )
+    )
+    app.dependency_overrides.pop(get_catalog)
+    app.dependency_overrides[get_settings] = lambda: dataclasses.replace(
+        settings, catalog_path=str(catalog_path)
+    )
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            content=b'data: {"choices":[{"delta":{"content":"Dogs help people."}}]}\n\n'
+            b'data: {"choices":[{"delta":{"content":"\\nSEARCH: Clifford; dog"}}]}\n\n'
+            b"data: [DONE]\n\n",
+            headers={"content-type": "text/event-stream"},
+        )
+
+    monkeypatch.setattr(
+        httpx.AsyncHTTPTransport, "handle_async_request", handle_async_request
+    )
+    test_client, _ = client
+    _sign_in(test_client)
+    response = test_client.post("/ask", json={"question": "books about dogs?"})
+
+    assert response.status_code == 200
+    assert "Books in our library:" in response.text
+    assert "Clifford the big red dog" in response.text
+    assert "SEARCH" not in response.text
 
 
 def test_model_error_inside_the_stream_tells_the_student(client, monkeypatch):

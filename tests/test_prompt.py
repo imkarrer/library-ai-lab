@@ -96,3 +96,37 @@ def test_filter_handles_partial_lines():
     remaining_text, search_terms = filter_instance.finish()
     assert remaining_text == ""
     assert search_terms == ["books"]
+
+
+def test_prompt_asks_for_the_search_line_the_filter_reads():
+    """The prompt once ended with a bare "SEARCH: " and no instruction, so no model wrote
+    the line and the Catalog was searched with the raw question (lib-f24.59)."""
+    assert "end with one last line in exactly this form" in RESEARCH_PROMPT
+    example = [
+        line for line in RESEARCH_PROMPT.splitlines() if line.startswith("SEARCH:")
+    ]
+    assert example, "the prompt shows the SEARCH: line's form"
+    for line in example:
+        terms = SearchLineFilter()
+        terms.feed(line + "\n")
+        assert 2 <= len(terms.finish()[1]) <= 4
+
+
+def test_search_line_without_a_final_newline_is_held_back():
+    """A model's last line has no newline; it is still the SEARCH line, not answer text."""
+    f = SearchLineFilter()
+    assert f.feed("Wolves eat deer.\nSEARCH: wolves; predators") == "Wolves eat deer.\n"
+    assert f.finish() == ("", ["wolves", "predators"])
+
+
+def test_search_line_with_a_semicolon_slip_is_held_back():
+    f = SearchLineFilter()
+    assert f.feed("Overview.\nSEARCH; wolves; diet\n") == "Overview.\n"
+    assert f.finish() == ("", ["wolves", "diet"])
+
+
+def test_a_line_that_only_mentions_search_is_answer_text():
+    f = SearchLineFilter()
+    text = "Search the shelves for more.\n"
+    assert f.feed(text) == text
+    assert f.finish() == ("", [])

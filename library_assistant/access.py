@@ -672,7 +672,8 @@ def post_sign_in(
         value=session_id,
         httponly=True,
         samesite="strict",
-        expires=expires_at_dt,
+        # A cookie's expires= must be GMT; a Batch registered by the CLI carries an offset.
+        expires=expires_at_dt.astimezone(UTC),
     )
     return sign_in_response
 

@@ -7,11 +7,15 @@ honest when unsure, never naming a book as if the library has it. The reply ends
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 RESEARCH_PROMPT = """You are a helpful librarian. Answer the student's question using only your own knowledge, not the records. For 11-to-13-year-olds, use plain words. If you're not sure, say so. Never mention a book as if it's in our library.
 
-SEARCH: """
+After your answer, end with one last line in exactly this form, and nothing after it:
+SEARCH: term; term; term
+Use 2 to 4 short library subject terms for books on the topic. For example, for a question about what sharks eat:
+SEARCH: sharks; marine animals; food chains"""
 
 
 def build_messages(question: str) -> list[dict]:
@@ -20,6 +24,10 @@ def build_messages(question: str) -> list[dict]:
         {"role": "system", "content": RESEARCH_PROMPT},
         {"role": "user", "content": question},
     ]
+
+
+# "SEARCH:" as asked, and "SEARCH;", a slip a small model makes (qwen3.5:4b, lib-30v).
+_SEARCH_LINE = re.compile(r"\s*SEARCH\s*[:;]")
 
 
 @dataclass
@@ -48,19 +56,19 @@ class SearchLineFilter:
         else:
             self._buffer = ""
 
-        output = ""
-        for line in lines:
-            if line.startswith("SEARCH:"):
-                if self._search_terms is None:
-                    self._search_terms = []
-                self._search_terms.extend(
-                    term.strip()
-                    for term in line.removeprefix("SEARCH:").split(";")
-                    if term.strip()
-                )
-            else:
-                output += line
-        return output
+        return "".join(line for line in lines if not self._take_search_line(line))
+
+    def _take_search_line(self, line: str) -> bool:
+        """Record `line`'s terms and return True if it is a SEARCH line."""
+        match = _SEARCH_LINE.match(line)
+        if match is None:
+            return False
+        if self._search_terms is None:
+            self._search_terms = []
+        self._search_terms.extend(
+            term.strip() for term in line[match.end() :].split(";") if term.strip()
+        )
+        return True
 
     def finish(self) -> tuple[str, list[str]]:
         """Finish the filter and return the remaining text and search terms.
@@ -70,11 +78,10 @@ class SearchLineFilter:
             text that was not prefixed with 'SEARCH:' and search_terms is the list
             of search terms found in the response.
         """
-        # Handle any remaining text that was not a complete line
-        if self._buffer:
-            output = self._buffer
-            self._buffer = ""
-        else:
+        # The last line, which a model usually ends without a newline, may be the SEARCH
+        # line itself: it is held back like any other.
+        output, self._buffer = self._buffer, ""
+        if output and self._take_search_line(output):
             output = ""
 
         # If we didn't find any search terms, return empty list

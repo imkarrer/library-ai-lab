@@ -63,7 +63,10 @@ class SqliteCatalog:
 
     @classmethod
     def open(cls, path: str) -> SqliteCatalog:
-        return cls(sqlite3.connect(path))
+        # FastAPI builds a request's Catalog in a worker thread and the streamed answer
+        # searches it on the event loop's: one request at a time uses each connection,
+        # so SQLite's same-thread guard only stood in the way (lib-30v).
+        return cls(sqlite3.connect(path, check_same_thread=False))
 
     def load_records(self, records: Iterable[Record]) -> None:
         self._connection.executemany(

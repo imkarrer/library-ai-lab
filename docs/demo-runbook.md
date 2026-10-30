@@ -29,7 +29,7 @@ key or password, belongs in this file or anywhere in this repo.
 
 Do this at home, online, on the M5 Pro. Everything here downloads; nothing after Step 3 may.
 
-1. Check free disk. The model is about 19 GB, the Catalog about 150 MB (its build needs about
+1. Check free disk. The model is about 14 GB, the Catalog about 150 MB (its build needs about
    400 MB while running), and the flox environment a few GB. Want at least 30 GB free:
 
    ```bash
@@ -53,19 +53,27 @@ Do this at home, online, on the M5 Pro. Everything here downloads; nothing after
 
    ```bash
    flox activate -- python3 -c "import fastapi, uvicorn, qrcode, httpx; print('env ok')"
-   flox activate -- llama-server --version
    ```
 
-4. Fetch the demo model (Qwen3-30B-A3B-Instruct-2507, Q4_K_M GGUF, Apache-2.0) into
-   `.flox/cache/models/`. It checks the file's sha256 and resumes a partial download if
-   re-run.
+4. Get the demo model. The M5 Pro runs it in **Ollama.app** (the `ollama-app` cask, served
+   by a LaunchAgent; see the `local-ai` layer in the workstation repo), which uses the GPU.
+   The flox `llama-cpp` cannot: its Metal backend fails every request on this Mac (lib-30v).
+   Pull the model once, online (about 14 GB):
 
    ```bash
-   flox activate -- bash scripts/fetch_demo_model.sh
+   ollama pull gpt-oss:20b
+   curl -s http://127.0.0.1:11434/api/version
    ```
 
-   It ends with `Verified: ...gguf`. A dropped connection leaves a `.gguf.part` file; re-run
-   the same command and it carries on from there.
+   `gpt-oss:20b` (Apache-2.0) answers in 3 to 8 seconds here and writes the `SEARCH:` line
+   the Catalog search reads. Measured on this Mac and rejected: `qwen3.6:27b` (18 GB, does
+   not fit in 24 GB beside everything else) and `qwen3.5:4b` (faster, but slips on the
+   `SEARCH:` line). Ollama listens on `127.0.0.1` only and keeps no log or copy of a
+   question (its LaunchAgent writes no log; `~/.ollama/cache` holds only its model list).
+
+   Without Ollama, the flox model server is the fallback, on the CPU: fetch its model with
+   `flox activate -- bash scripts/fetch_demo_model.sh` (about 19 GB; it ends with
+   `Verified: ...gguf`) and see Step 5, "Without Ollama".
 
 5. Build the demo Catalog from Library of Congress records (ADR-0006's one demo exception:
    about 3 GB of downloads, one part at a time, around 20 minutes on a fast line). It writes
@@ -87,7 +95,7 @@ Do this at home, online, on the M5 Pro. Everything here downloads; nothing after
    for r in c.search('wolves', 5): print(r.id, r.title)"
    ```
 
-6. Check the disk again: `du -sh .flox/cache/models catalog.db` and `df -h "$HOME"`.
+6. Check the disk again: `du -sh catalog.db ~/.ollama/models` and `df -h "$HOME"`.
 
 ## Step 2. Online setup: the Librarian, accounts, supervision mode
 
@@ -106,8 +114,14 @@ volunteers' questions.
    export LIBRARY_ASSISTANT_DB="$HOME/library-assistant-demo/demo.db"
    export LIBRARY_ASSISTANT_CATALOG_PATH="$PWD/catalog.db"
    export LIBRARY_ASSISTANT_DEMO=1
+   export LIBRARY_ASSISTANT_OPENAI_ENDPOINT=http://127.0.0.1:11434/v1
+   export LIBRARY_ASSISTANT_OPENAI_MODEL=gpt-oss:20b
+   export LIBRARY_ASSISTANT_OPENAI_REASONING_EFFORT=low
    EOF
    ```
+
+   The last three point the assistant at Ollama's `gpt-oss:20b`. `REASONING_EFFORT=low`
+   matters: without it the model thinks silently for most of a minute before its first word.
 
    `LIBRARY_ASSISTANT_DEMO=1` adds the demo Watchlist entry
    (`library_assistant/watchlist-demo.toml`): the phrase **library demo flag**, Rubric category
@@ -226,38 +240,32 @@ in Step 5, once the services are up.
 
 ## Step 5. Start the services
 
-**Presenter.** Three Terminal tabs, all at the repo root: tab 1 runs the model, tab 2 the
-assistant, tab 3 is for checks.
+**Presenter.** Ollama runs the model already (its LaunchAgent starts it at login). Three
+Terminal tabs, all at the repo root: tab 1 warms the model, tab 2 runs the assistant, tab 3 is
+for checks.
 
-Tab 1, the model:
+Tab 1, check Ollama answers and load the model so the first question is quick:
+
+```bash
+curl -s http://127.0.0.1:11434/api/version
+curl -s http://127.0.0.1:11434/v1/chat/completions -H 'content-type: application/json' \
+  -d '{"model":"gpt-oss:20b","messages":[{"role":"user","content":"Say ready."}],"reasoning_effort":"low"}' \
+  | grep -o '"content":"[^"]*"'
+```
+
+The first call takes 10 to 15 seconds while the model loads; Ollama keeps it loaded for 30
+minutes after the last question (`OLLAMA_KEEP_ALIVE`), so warm it again if the demo starts
+later than that. Quit memory-hungry apps first: the model takes about 14 GB of the 24.
+
+**Without Ollama** (fallback): run the flox model server on the CPU instead. It is slower
+(first words about 6 seconds after Ask), and `demo.env`'s three `OPENAI` lines must be
+removed so the assistant uses it:
 
 ```bash
 flox activate
 flox services start model
-flox services status
-```
-
-`model` should be `Running`. The model takes a minute or two to load; wait until this prints
-`model ready`:
-
-```bash
 until curl -s http://127.0.0.1:8080/health | grep -q ok; do sleep 5; done; echo model ready
 ```
-
-Warm it up with one throwaway request straight to the model server (it records nothing; the
-assistant is not involved):
-
-```bash
-curl -s http://127.0.0.1:8080/v1/chat/completions -H 'content-type: application/json' \
-  -d '{"model":"demo","messages":[{"role":"user","content":"Say ready."}],"max_tokens":5}'
-```
-
-Leave tab 1 open: services started inside an activation stop when its last shell exits.
-
-The model runs on the CPU (`--n-gpu-layers 0` in the manifest, lib-30v): on the M5 Pro,
-llama.cpp's GPU backend fails every request. Expect the first words of an answer about 6
-seconds after Ask and about 12 words a second after that; the very first request after a
-start is slower while the model loads from disk, which is what the warm-up is for.
 
 Tab 2, the assistant, bound to the LAN address, with the demo Watchlist on (as in Step 2, not
 as a flox service; GAP lib-f9o):
@@ -277,15 +285,14 @@ Tab 3, check what is listening and what is connected:
 ```bash
 source ~/library-assistant-demo/demo.env && source ~/library-assistant-demo/today.env
 curl -s "http://$LAN_IP:8000/health"
-lsof -nP -iTCP -sTCP:LISTEN | grep -E 'llama|python'
+lsof -nP -iTCP -sTCP:LISTEN | grep -E 'ollama|python'
 lsof -nP -a -p "$(pgrep -d, -f 'uvicorn library_assistant')" -iTCP
-lsof -nP -a -p "$(pgrep -d, llama-server)" -iTCP
 ```
 
-Expect `{"status":"ok"}`; `llama-server` listening on `127.0.0.1:8080` only; the assistant
+Expect `{"status":"ok"}`; `ollama` listening on `127.0.0.1:11434` only; the assistant
 (`python`) listening on `$LAN_IP:8000` only. Every connection the assistant has should be to
-`127.0.0.1:8080` (the model) or from an address on the router's network (your browser, the
-phones). Re-run the last two lines during the demo if anyone asks: that is the answer to "does
+`127.0.0.1:11434` (the model) or from an address on the router's network (your browser, the
+phones). Re-run the last line during the demo if anyone asks: that is the answer to "does
 anything leave the building?". Nothing in the assistant can reach the internet anyway: its one
 outbound client is scoped to the model endpoint (ADR-0006), and the room has no uplink.
 
@@ -491,18 +498,21 @@ Symptom: answers never start, or the phone shows "Something went wrong. Ask the 
 The Watchlist, the Supportive reply, and Flags do not need the model, so Step 9 still works.
 
 ```bash
-curl -s http://127.0.0.1:8080/health        # tab 3
-flox services status                        # tab 1 (inside the activation)
-flox services logs model -n 50
-flox services restart model
+curl -s http://127.0.0.1:11434/api/version              # tab 3: is Ollama up?
+curl -s http://127.0.0.1:11434/api/ps                   # is gpt-oss:20b loaded?
+launchctl kickstart -k gui/$(id -u)/org.nixos.ollama    # restart Ollama
 ```
 
-`Compute error` or `kIOGPUCommandBufferCallbackErrorOutOfMemory` in the log means the model
-server is running on the GPU, which fails on the M5 Pro: check the manifest's model command
-still has `--n-gpu-layers 0`, then leave the activation and start it again (Step 5), since a
-running activation does not pick up manifest changes. "Demo model not found" in the log means Step 1.4 did not finish, or ran in another
-checkout. The model takes a minute or
-two to load after a restart; re-run the warm-up from Step 5.
+Then warm it again (Step 5, tab 1). If `api/ps` lists another model, another app is using
+Ollama and has pushed the demo model out (`OLLAMA_MAX_LOADED_MODELS=1`): quit it and warm
+again.
+
+On the flox fallback instead: `flox services status`, `flox services logs model -n 50`, and
+`flox services restart model`. `Compute error` or `kIOGPUCommandBufferCallbackErrorOutOfMemory`
+in its log means it is running on the GPU, which fails on the M5 Pro: check the manifest's
+model command still has `--n-gpu-layers 0`, then leave the activation and start it again.
+"Demo model not found" means `scripts/fetch_demo_model.sh` did not finish, or ran in another
+checkout.
 
 ### Oversight is down: carry on or pause
 
@@ -631,9 +641,9 @@ As of this runbook; re-check before the trip.
 - **The assistant cannot run as a flox service for the demo** (lib-f9o).
   `flox services start assistant` does not see the variables `demo.env` and `today.env`
   export, so Steps 2 and 5 start it with `uvicorn` in its own tab instead.
-- **The model runs on the CPU, not the GPU** (lib-30v). llama.cpp 0.6.0's Metal backend fails
-  every request on the M5 Pro with an out-of-memory error, whatever is offloaded (full,
-  `--fit on`, `--cpu-moe`, flash attention off). Answers are usable but slower than on the
-  GPU; try a newer llama.cpp before the trip.
+- **The model comes from Ollama.app, which flox does not install** (lib-30v). The flox
+  `llama-cpp` (0.6.0) fails every request on the M5 Pro's GPU, so the demo uses this Mac's
+  Ollama and the flox model server is a slower CPU fallback. A school's flox Install still
+  needs a llama.cpp whose GPU backend works here.
 - **The Live view's Flag badge is not live**: "Flag: high" on a tile appears only on refresh.
 - **No staff page shows Purge runs**; the after-the-talk check uses `sqlite3` (Step 14).

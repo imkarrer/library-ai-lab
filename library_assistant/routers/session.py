@@ -643,15 +643,16 @@ def _answer(
             # The response's 200 is already sent, so a model server that is down or
             # drops the stream cannot become an error status: the Student is told in
             # the answer instead, and the log names the error class, never the question.
+            body: dict[str, object] = {
+                "model": settings.openai_model,
+                "messages": messages,
+                "stream": True,
+            }
+            if settings.openai_reasoning_effort:
+                body["reasoning_effort"] = settings.openai_reasoning_effort
             try:
                 async with http_client.stream(
-                    "POST",
-                    "/chat/completions",
-                    json={
-                        "model": settings.openai_model,
-                        "messages": messages,
-                        "stream": True,
-                    },
+                    "POST", "/chat/completions", json=body
                 ) as response:
                     async for line in response.aiter_lines():
                         if not line.startswith("data: "):
