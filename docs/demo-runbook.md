@@ -102,16 +102,28 @@ Do this at home, online, on the M5 Pro. Everything here downloads; nothing after
    flox activate -- python3 scripts/build_demo_catalog.py --dest catalog.db
    ```
 
-   If loc.gov drops the connection mid-part, it stops with `EOFError: Compressed file ended
-   before the end-of-stream marker was reached`. Re-run the same command: it skips the parts
-   already loaded (`marc-dist-download/done.txt`) and resumes. When it finishes, check it
-   answers a search:
+   It keeps only books with a call number a school librarian would recognize (a Dewey
+   number, E, FIC, or B, then three letters of the author: `599.74 LEP`), and swaps the new
+   `catalog.db` in only when it finishes. If loc.gov drops the connection mid-part, it stops
+   with `EOFError: Compressed file ended before the end-of-stream marker was reached`.
+   Re-run the same command: it skips the parts already loaded (`marc-dist-download/done.txt`)
+   and resumes.
+
+   **Already have a `catalog.db` from an older build** (call numbers like `QL737.C22 W45`)?
+   Clean it and seed it again; the old one keeps working until the new one is done, then
+   restart the stack (`./stack down && ./stack up --lan`):
+
+   ```bash
+   flox activate -- python3 scripts/build_demo_catalog.py --dest catalog.db --fresh
+   ```
+
+   When it finishes, check it answers a search:
 
    ```bash
    flox activate -- python3 -c "
    from library_assistant.catalog.sqlite_backend import SqliteCatalog
    c = SqliteCatalog.open('catalog.db')
-   for r in c.search('wolves', 5): print(r.id, r.title)"
+   for r in c.search('wolves', 5): print(r.call_number, r.title)"
    ```
 
 6. Check the disk again: `du -sh catalog.db ~/.ollama/models` and `df -h "$HOME"`.

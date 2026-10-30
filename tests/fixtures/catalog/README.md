@@ -19,7 +19,8 @@ From that one part, using `library_assistant/catalog/marc.py` to read each recor
 
 - **Juvenile and adolescent (250).** Records whose 008/22 is `a`, `b`, `c`, `d`, or `j`
   and which have a title (245 $a), an author (100 $a or 700 $a), a subject (650 $a), a
-  summary (520 $a), and a call number (050 $a or 090 $a). For each of the five codes,
+  summary (520 $a), and a call number (050 $a or 090 $a). (The demo Catalog's rule is narrower:
+  `is_shelf_ready` also wants a school call number from 082, which 242 of the 250 have.) For each of the five codes,
   50 records were taken at an even stride through that code's eligible records in file
   order (eligible: a 454, b 1,685, c 1,288, d 87, j 788).
 - **Not juvenile (20).** Four records each for 008/22 blank, `e`, `f`, `g`, and `|`,
