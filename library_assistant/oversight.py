@@ -143,18 +143,21 @@ async def _request(client: httpx.AsyncClient, settings, question: str) -> str | 
     # The full URL, not a path, so the call reaches the configured Oversight endpoint
     # whatever base_url the caller's client carries (the shared client points at the
     # Answer lane).
+    body: dict[str, object] = {
+        "model": settings.oversight_model,
+        "stream": False,
+        "temperature": 0,
+        "max_tokens": 256,
+        "messages": [
+            {"role": "system", "content": _SYSTEM_PROMPT},
+            {"role": "user", "content": question},
+        ],
+    }
+    if settings.oversight_reasoning_effort:
+        body["reasoning_effort"] = settings.oversight_reasoning_effort
     response = await client.post(
         f"{settings.oversight_endpoint.rstrip('/')}/chat/completions",
-        json={
-            "model": settings.oversight_model,
-            "stream": False,
-            "temperature": 0,
-            "max_tokens": 256,
-            "messages": [
-                {"role": "system", "content": _SYSTEM_PROMPT},
-                {"role": "user", "content": question},
-            ],
-        },
+        json=body,
         timeout=settings.oversight_timeout_seconds,
     )
     response.raise_for_status()
