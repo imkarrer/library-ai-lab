@@ -575,7 +575,12 @@ def _minting_page_form(account_id: int, role: str) -> str:
 
 
 def _minting_page_download(
-    request: Request, db: sqlite3.Connection, account_id: int, username: str, clock
+    request: Request,
+    db: sqlite3.Connection,
+    account_id: int,
+    username: str,
+    clock,
+    settings: Settings,
 ) -> Response:
     """Rotate `account_id`'s key and send its filled Minting page as a download.
 
@@ -584,7 +589,9 @@ def _minting_page_download(
     """
     key = issue_registration_key(db, account_id, clock)
     return Response(
-        filled_minting_page(str(request.base_url), username, key),
+        filled_minting_page(
+            str(request.base_url), username, key, settings.school_day_end
+        ),
         media_type="text/html; charset=utf-8",
         headers={
             "Content-Disposition": (
@@ -654,6 +661,7 @@ def account_minting_page_route(
     account: LibrarianDep,
     db: sqlite3.Connection = Depends(get_db),
     clock: datetime = Depends(get_clock),
+    settings: Settings = Depends(get_settings),
 ) -> Response:
     """Librarian-only: a Teacher's Minting page with a new key, to hand to them."""
     row = db.execute(
@@ -664,7 +672,7 @@ def account_minting_page_route(
         raise HTTPException(status_code=404, detail="no such account")
     if row[1] not in MINTING_ROLES:
         raise HTTPException(status_code=400, detail="a Counselor does not make Cards")
-    return _minting_page_download(request, db, account_id, row[0], clock)
+    return _minting_page_download(request, db, account_id, row[0], clock, settings)
 
 
 @router.post("/minting-page", response_model=None)
@@ -673,11 +681,14 @@ def own_minting_page_route(
     account: StaffDep,
     db: sqlite3.Connection = Depends(get_db),
     clock: datetime = Depends(get_clock),
+    settings: Settings = Depends(get_settings),
 ) -> Response:
     """A Teacher's (or the Librarian's) own Minting page, with a new key."""
     if account.role not in MINTING_ROLES:
         raise HTTPException(status_code=403, detail="a Counselor does not make Cards")
-    return _minting_page_download(request, db, account.id, account.username, clock)
+    return _minting_page_download(
+        request, db, account.id, account.username, clock, settings
+    )
 
 
 @router.post("/key/rotate", response_model=None)

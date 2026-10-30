@@ -346,9 +346,11 @@ This step is worth showing on stage: it is the whole of a Teacher's setup.
    key for demo-teacher is built into this page."
 3. **Teacher.** Fill in the rest:
    - **Class Label:** `Conference demo`
-   - **Number of Cards:** `3`
-   - **Cards stop working at (today):** the end of your slot (`TALK_END` in Step 4). It must
-     be later than now and no later than the assistant's end of school day.
+   - **Students:** paste one name per line, one Card each (for the demo: `Volunteer 1`,
+     `Volunteer 2`, `Spare`), or leave it empty and set **Number of Cards** to `3`. Names stay
+     on this page and in the Roster; they never reach the assistant.
+   - **Cards stop working at (today):** filled in with the assistant's end of school day.
+     For the demo, set it to the end of your slot (`TALK_END` in Step 4).
 4. **Teacher.** Press **Make Cards**. The page registers the Cards with the assistant first,
    and shows them only once it has accepted them: "Registered 3 Cards for Conference demo.
    They stop working at ... today." If something is wrong it says what, and makes no Cards:
@@ -358,22 +360,21 @@ This step is worth showing on stage: it is the whole of a Teacher's setup.
      listening on that address (Step 5).
    - "A Batch must expire by the end of today's school day": pick an earlier stop time, or
      see Recovery, "A Card is refused".
-5. **Teacher.** Press **Download Cards**. Your browser saves `Conference_demo-cards.html`: the
-   Cards, one QR code and Card number each. The QR codes carry
-   `http://<LAN_IP>:8000/card#t=<Token>`. The page keeps nothing once you leave it, so
-   download (or **Print Cards**) before you do.
-6. **Teacher.** The Roster: **Download Roster CSV** or **Print Sealed Roster Sheet**. In a
-   school it records which Student holds which Card number and never reaches the assistant;
-   for the demo leave it blank. Say: *"The assistant got a fingerprint of each Card and the
-   class name. It never saw a Card itself, and it will never see this list."*
+5. **Teacher.** Hand the Cards out, one of two ways:
+   - **One at a time** (the page opens on it): one large QR code with its Card number and
+     Student's name. Invite that Student up to scan it with their device's camera, press
+     **Handed out, next Card**, and the next one appears. A name typed there joins the
+     Roster. On stage, do this in a browser window you are **not** sharing.
+   - **Print**: every Card laid out to cut, each name on a tear-off stub below the cut line
+     so the Card itself does not say whose it is. **Print Cards**, or **Download Cards** to
+     print later. The QR codes carry `http://<LAN_IP>:8000/card#t=<Token>`.
 
-Getting the Cards to the volunteers, best first:
-
-- **Print** them (**Print Cards**) if the venue has a printer you can reach offline, and cut
-  out Cards 1, 2, and 3.
-- **Show them on your own phone**, not the projector: AirDrop `Conference_demo-cards.html`
-  from Downloads to your phone (AirDrop works without internet), open it, and let each
-  volunteer scan their Card from it.
+   The page keeps nothing once you leave it (it warns you first), so hand out or save the
+   Cards before you close it.
+6. **Teacher.** The Roster: **Download Roster CSV** or **Print Sealed Roster Sheet**, with the
+   names. It records which Student holds which Card number and never reaches the assistant.
+   Say: *"The assistant got a fingerprint of each Card and the class name. It never saw a
+   Card itself, and it will never see this list."*
 
 Never put the Cards on the shared screen: anyone in the room could scan one.
 
