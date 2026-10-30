@@ -447,6 +447,13 @@ def status(state: Path) -> None:
         _say(f"  {component.name}: pid {pid}, {health}")
     if config and _read_pid(state, "assistant"):
         url = base_url(config)
+        if config["host"] == "127.0.0.1":
+            # Cards carry the address their Minting page was made with: 127.0.0.1 on a
+            # phone is the phone itself.
+            _say(
+                "  Note: only this computer can reach it. For phones and other devices, "
+                "`./stack down && ./stack up --lan`."
+            )
         _say(f"  Staff sign-in: {url}/staff/login")
         _say(f"  Live view:     {url}/staff/live  (press Start watch)")
     credentials = state / "credentials.txt"

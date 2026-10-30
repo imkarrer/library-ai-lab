@@ -485,3 +485,22 @@ def test_page_has_the_class_list_and_both_hand_out_views(page_html: str) -> None
         'id="roster-list"',
     ):
         assert element in page_html
+
+
+def test_a_loopback_address_is_recognised_so_the_page_can_warn(
+    app_logic_script: str,
+) -> None:
+    """Cards made against 127.0.0.1 open nothing on a phone: the page says so."""
+    js = f"""
+{NODE_STUB_DOCUMENT}
+{app_logic_script}
+process.stdout.write(JSON.stringify([
+  'http://127.0.0.1:8000', 'http://localhost:8000', 'http://[::1]:8000',
+  'http://192.0.2.10:8000', 'http://library-assistant.school.example:8000',
+].map(isLoopback)));
+"""
+    assert json.loads(_run_node(js)) == [True, True, True, False, False]
+
+
+def test_page_carries_the_loopback_warning(page_html: str) -> None:
+    assert 'id="loopback-warning"' in page_html

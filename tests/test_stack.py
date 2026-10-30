@@ -70,7 +70,10 @@ def test_up_seed_down_clear(tmp_path):
         assert (state / "credentials.txt").read_text() == credentials
 
         assert len(_pids(state)) == 2
-        assert "healthy" in _stack(state, "status")
+        status = _stack(state, "status")
+        assert "healthy" in status
+        # Bound to 127.0.0.1: the stack says phones cannot reach it.
+        assert "only this computer can reach it" in status
     finally:
         pids = _pids(state)
         _stack(state, "down")
