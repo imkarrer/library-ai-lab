@@ -192,7 +192,7 @@ CHAT_PAGE_HTML = """<!DOCTYPE html>
         }}
       }} catch (error) {{
         // The connection dropped mid-answer: say so, and let the Student ask again.
-        answer.textContent += (answer.textContent ? "\n\n" : "") + ERROR_TEXT;
+        answer.textContent += (answer.textContent ? "\\n\\n" : "") + ERROR_TEXT;
       }}
       // Re-enable Ask button after successful stream
       questionInput.disabled = false;

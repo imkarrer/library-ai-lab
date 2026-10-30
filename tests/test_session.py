@@ -10,6 +10,7 @@ import anyio
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+from page_scripts import assert_scripts_parse
 from registration_helpers import batch_cards
 
 from library_assistant.access import (
@@ -381,6 +382,13 @@ def test_model_error_still_finishes_the_exchange_with_what_was_shown(
     assert db.execute(
         "SELECT question, answer, citations FROM transcripts"
     ).fetchall() == [("a book about bulls?", "", "")]
+
+
+def test_chat_page_script_parses(client):
+    """A syntax error anywhere in the chat script leaves Ask doing nothing (lib-y4j)."""
+    test_client, _ = client
+    _sign_in(test_client)
+    assert_scripts_parse(test_client.get("/chat").text)
 
 
 def test_chat_page_shows_the_error_text_when_the_stream_breaks(client):
