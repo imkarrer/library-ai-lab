@@ -11,6 +11,7 @@ import urllib.request
 from pathlib import Path
 
 import httpx
+import pytest
 
 REPO = Path(__file__).resolve().parent.parent
 
@@ -208,3 +209,22 @@ def test_ollama_env_is_local_only_with_no_cloud_and_no_prompt_logging(monkeypatc
     assert "OLLAMA_DEBUG" not in env  # ADR-0003 addendum
     assert "OLLAMA_DEBUG_LOG_REQUESTS" not in env
     assert env["OLLAMA_CONTEXT_LENGTH"] == "4096"
+
+
+@pytest.mark.parametrize(
+    ("config", "installable"),
+    [
+        ({"host": "127.0.0.1", "port": 8000}, True),
+        ({"host": "192.0.2.10", "port": 8000, "https": True}, True),
+        ({"host": "192.0.2.10", "port": 8000}, False),
+    ],
+)
+def test_status_offers_install_only_where_a_browser_will(config, installable):
+    """Chrome offers Install only in a secure context: HTTPS, or the computer's own address."""
+    sys.path.insert(0, str(REPO / "scripts"))
+    import stack
+
+    hint = stack.install_hint(config)
+    assert hint.startswith("Install") is installable
+    if not installable:
+        assert "--https" in hint

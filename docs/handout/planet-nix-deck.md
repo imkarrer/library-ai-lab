@@ -14,10 +14,47 @@ footer: 'Library Assistant · Planet Nix'
 <p class="lede">A school library's research helper: two local LLMs, no names, no cloud, on one
 Mac Studio that sits on the library shelf.</p>
 
-<p class="muted">Isaac Karrer · I work at Flox · open source: github.com/imkarrer/library-ai-lab</p>
+<p class="muted">Isaac Karrer · I work at Flox · source available: github.com/imkarrer/library-ai-lab</p>
 
 <!--
 Say up front that I work at Flox. This is a personal project, not a product.
+-->
+
+---
+
+## Why a library, and why Wisconsin
+
+<div class="cards">
+<div class="card-panel">
+<h3>It started at home</h3>
+<p>My wife is a middle school librarian in Wisconsin. This is built for her library
+first, and for the way she already teaches research.</p>
+</div>
+<div class="card-panel">
+<h3>Libraries teach checking</h3>
+<p>A librarian, a catalog of real sources, and an adult whose job is teaching students to
+check what they read. That's where an AI for kids belongs.</p>
+</div>
+<div class="card-panel">
+<h3>Wisconsin has the money</h3>
+<p>The Common School Fund, a land-grant endowment in the state constitution, made a record
+$73.5M distribution to school libraries: books, software, and computers.</p>
+</div>
+</div>
+
+<div class="box">
+
+The catch: the computer must be **housed in the library** (Wis. Stat. 43.70(3)). So the
+whole product is one Mac on a shelf, never a server in the district datacenter.
+
+</div>
+
+<!--
+Wisconsin is unusual: about 35 states give school libraries no direct aid. Texas's Permanent
+School Fund pays for technology and instructional materials; New York pays $6.25 a pupil for
+library materials. Wisconsin is the only one I found where library money buys the computer.
+Eligibility is each district's call with DPI's School Library Education Consultant; we
+designed to the statute, we don't certify it.
 -->
 
 ---
@@ -32,23 +69,13 @@ Say up front that I work at Flox. This is a personal project, not a product.
 <div class="box">
 
 **Purpose-built for one Mac Studio on a library shelf.** We write for Apple silicon only:
-its unified memory runs a real model on a quiet box with no GPU card. In Wisconsin, a school
-library's Common School Fund aid can buy "school library computers and related software", if
-the computer is housed in the library (Wis. Stat. 43.70(3)). A Mac on a shelf is built to
-fit that; a server in the district datacenter never could.
+its unified memory runs a real model on a quiet box with no GPU card, no rack, and no IT.
 
 </div>
 
 The person who installs it is the **school librarian**. They will never type `nix` and
 won't call IT, so whatever we ship has to keep running with nobody who built it in the
 room.
-
-<!--
-The funding is the design constraint: the money is the library's, not IT's, and it comes
-with the machine having to live in the library. That's why everything is one Mac, one
-environment, and no infrastructure. Eligibility is the district's call with DPI's School
-Library Education Consultant; we designed to the statute, we don't certify it.
--->
 
 ---
 
@@ -113,8 +140,8 @@ command = 'exec "$FLOX_ENV_CACHE/venv/bin/python" -m library_assistant'
 command = 'exec llama-server --host 127.0.0.1 --no-slots ...'
 ```
 
-<p class="muted">Abridged from <code>.flox/env/manifest.toml</code>. A librarian runs
-<code>flox activate --start-services</code> and that's it.</p>
+<p class="muted">Abridged. <code>./stack up</code> starts the assistant and both Ollamas from
+this environment.</p>
 
 ---
 
@@ -142,32 +169,14 @@ Chrome), kept apart on purpose so a school's Install never pulls in a browser.
 
 ---
 
-## Where Nix fought back: the GPU
+## The models come from the manifest too
 
-- Catalog `llama-cpp` 0.6.0 on an M5 Pro: **every request failed on Metal** with
-  `kIOGPUCommandBufferCallbackErrorOutOfMemory`, at every offload setting.
-- Fix #1: `--n-gpu-layers 0`. Correct answers, at **~12 tokens/s on the CPU**. Too slow for a
-  room of kids.
-- Fix #2: Ollama, **from a Homebrew cask**, outside the environment. Fast, two models side by
-  side, and the one part of the stack Nix doesn't describe.
-
-<div class="box">
-
-That's the gap this talk is about closing: the models have to come from the same manifest
-as everything else, or "one environment" isn't true.
-
-</div>
-
----
-
-## Closing the gap
-
-- **What was wrong:** not the Nix build. llama.cpp 0.6.0 itself mapped the CPU's share of
-  the weights into the GPU's memory. Catalog **0.7.0 runs all 49 layers on Metal**.
-- **What we use:** catalog `ollama`, built with Metal: **~59 tokens/s, same as the app.** Two
-  instances, one per model, both from the environment.
-- **What we found on the way:** `ollama serve` calls ollama.com at startup. One variable
-  turns it off, and a test makes sure it stays off.
+- Catalog **`ollama`**, built with Metal: both models on the GPU, ~59 tokens/s, the same
+  as the Mac app.
+- **Two instances**, one per model, so screening never waits on answering. Both on
+  127.0.0.1.
+- `ollama serve` **calls ollama.com at startup** unless told not to. One variable turns it
+  off, and a test makes sure it stays off.
 
 ```toml
 [install.ollama]
@@ -182,10 +191,9 @@ systems = ["aarch64-darwin"]
 ```
 
 <!--
-Nothing needed fixing upstream: the nixpkgs recipe was the same for 0.6.0 and 0.7.0, Metal on,
-embedded shader library. The catalog trails nixpkgs a few point releases; that's fine here.
-The Homebrew app runs the same code, so it very likely called home too (inferred, not
-observed): moving into the environment is what made us look. OLLAMA_DEBUG_LOG_REQUESTS would write prompts to disk; the stack strips it.
+If asked about llama.cpp: it's still in the environment as a fallback server. If asked how we
+found the startup call: by reading what the package does once it was in the manifest. A
+package that phones home by default is the reason to want egress declared, next slide but one.
 -->
 
 ---
@@ -213,8 +221,9 @@ allows; that's what decides which models it can run.
 
 <div class="cards">
 <div class="card-panel">
-<h3>GPU on macOS</h3>
-<p>Metal builds that work on the newest Apple GPUs on day one, tested on real hardware.</p>
+<h3>Declared egress</h3>
+<p>Which hosts a package may reach, stated with the package, so "phones home at startup" is
+found by a check, not by reading source.</p>
 </div>
 <div class="card-panel">
 <h3>Models as inputs</h3>
