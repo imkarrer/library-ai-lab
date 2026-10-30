@@ -19,8 +19,8 @@ from library_assistant.access import get_clock, get_db
 from library_assistant.alarms import (
     ESCALATED,
     SILENCED,
-    acknowledge_alarm,
     acknowledge_escalation,
+    acknowledge_flag,
 )
 from library_assistant.chime import chime_wav
 from library_assistant.routers.live import (
@@ -52,10 +52,11 @@ def acknowledge_route(
     clock: datetime = Depends(get_clock),
     bus: LiveBus = Depends(get_live_bus),
 ) -> JSONResponse:
-    """I'm on it: silences this Flag's Alarm everywhere. The Flag stays open."""
-    silenced = acknowledge_alarm(db, bus.publish, flag_id, account.id, clock)
+    """I'm on it: records the Acknowledgement and silences any Alarm everywhere. The
+    Flag stays open until it is closed."""
+    silenced = acknowledge_flag(db, bus.publish, flag_id, account.id, clock)
     if silenced is None:
-        raise HTTPException(status_code=404, detail="no Alarm for this Flag")
+        raise HTTPException(status_code=404, detail="no open Flag to acknowledge")
     return JSONResponse(silenced, headers=NO_STORE)
 
 

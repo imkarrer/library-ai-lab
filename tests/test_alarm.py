@@ -475,11 +475,144 @@ def test_others_may_not_acknowledge(setup, role):
     )
 
 
-def test_low_flag_has_no_alarm_to_acknowledge(librarian, setup):
+def test_any_severity_may_be_acknowledged_but_not_a_closed_flag(librarian, setup):
+    """Every Flag moves raised -> acknowledged -> closed; severity only sorts (lib-msq)."""
+    low = _high_flag(setup, severity="low")
+    closed = _high_flag(setup, severity="low")
+    close_flag(setup, closed, NOW.isoformat(), "the-librarian", "handled", "done")
+
+    assert librarian.post(f"/staff/alarms/{low}/acknowledge").status_code == 200
+    assert librarian.post(f"/staff/alarms/{closed}/acknowledge").status_code == 404
+    assert librarian.post("/staff/alarms/999/acknowledge").status_code == 404
+
+
+# --- The lifecycle: raised -> acknowledged -> closed (ADR-0010 amendment, lib-msq).
+
+
+def _history(db, flag_id) -> list[tuple[str, str | None]]:
+    return db.execute(
+        "SELECT event, account FROM flag_history WHERE flag_id = ? ORDER BY id",
+        (flag_id,),
+    ).fetchall()
+
+
+def _close(client, flag_id):
+    return client.post(
+        f"/staff/flags/{flag_id}/close",
+        data={"outcome": "handled", "reason": "spoke with them", "confirm": "true"},
+        follow_redirects=False,
+    )
+
+
+def test_closing_an_unacknowledged_flag_acknowledges_it_first(librarian, setup, bus):
+    flag_id = _high_flag(setup)
+    queue = bus.subscribe()
+
+    assert _close(librarian, flag_id).status_code == 303
+
+    acknowledged_at, by = setup.execute(
+        "SELECT acknowledged_at, acknowledged_by FROM flags WHERE id = ?", (flag_id,)
+    ).fetchone()
+    assert acknowledged_at == NOW.isoformat()
+    assert (
+        by
+        == setup.execute(
+            "SELECT id FROM staff_accounts WHERE username = 'the-librarian'"
+        ).fetchone()[0]
+    )
+    events = [event for event, _ in _history(setup, flag_id)]
+    assert events[-2:] == ["acknowledged", "closed"]
+    # A closed Flag never keeps ringing: its Alarm is silenced on every page.
+    [silenced] = _of(_drain(queue), "silenced")
+    assert silenced["flag_id"] == flag_id and silenced["escalation"] is False
+
+
+def test_closing_keeps_an_earlier_acknowledgement(librarian, setup, clock):
+    flag_id = _high_flag(setup)
+    librarian.post(f"/staff/alarms/{flag_id}/acknowledge")
+    first = setup.execute(
+        "SELECT acknowledged_at FROM flags WHERE id = ?", (flag_id,)
+    ).fetchone()[0]
+    clock["now"] = NOW + timedelta(minutes=10)
+
+    _close(librarian, flag_id)
+
+    assert (
+        setup.execute(
+            "SELECT acknowledged_at FROM flags WHERE id = ?", (flag_id,)
+        ).fetchone()[0]
+        == first
+    )
+    assert [event for event, _ in _history(setup, flag_id)].count("acknowledged") == 1
+
+
+def test_closing_an_escalated_flag_silences_the_counselors_alarm_too(
+    librarian, setup, bus
+):
+    flag_id = _high_flag(setup)
+    setup.execute(
+        "UPDATE flags SET escalated_at = ? WHERE id = ?", (NOW.isoformat(), flag_id)
+    )
+    setup.commit()
+    queue = bus.subscribe()
+
+    _close(librarian, flag_id)
+
+    silenced = _of(_drain(queue), "silenced")
+    assert sorted(item["escalation"] for item in silenced) == [False, True]
+    assert (
+        setup.execute(
+            "SELECT escalation_acknowledged_at FROM flags WHERE id = ?", (flag_id,)
+        ).fetchone()[0]
+        is not None
+    )
+
+
+def test_a_refused_close_acknowledges_nothing(librarian, setup):
+    flag_id = _high_flag(setup)
+
+    response = librarian.post(
+        f"/staff/flags/{flag_id}/close",
+        data={"outcome": "handled", "reason": " ", "confirm": "true"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 422
+    assert (
+        setup.execute(
+            "SELECT acknowledged_at FROM flags WHERE id = ?", (flag_id,)
+        ).fetchone()[0]
+        is None
+    )
+
+
+def test_flag_page_shows_the_stage_and_acknowledges_a_low_flag(librarian, setup):
     flag_id = _high_flag(setup, severity="low")
 
-    assert librarian.post(f"/staff/alarms/{flag_id}/acknowledge").status_code == 404
-    assert librarian.post("/staff/alarms/999/acknowledge").status_code == 404
+    page = librarian.get(f"/staff/flags/{flag_id}").text
+    assert "<tr><th>Stage</th><td>New</td></tr>" in page
+    assert f'action="/staff/flags/{flag_id}/acknowledge"' in page
+
+    response = librarian.post(
+        f"/staff/flags/{flag_id}/acknowledge", follow_redirects=False
+    )
+    assert response.status_code == 303
+
+    page = librarian.get(f"/staff/flags/{flag_id}").text
+    assert "<tr><th>Stage</th><td>Acknowledged</td></tr>" in page
+    assert f'action="/staff/flags/{flag_id}/acknowledge"' not in page
+    assert ("acknowledged", "the-librarian") in _history(setup, flag_id)
+
+
+def test_panel_row_shows_its_stage(librarian, setup, bus):
+    flag_id = _high_flag(setup, severity="low")
+    assert '<span class="stage">New</span>' in librarian.get("/staff/live").text
+
+    librarian.post(f"/staff/alarms/{flag_id}/acknowledge")
+
+    assert (
+        '<span class="stage">Acknowledged</span>' in librarian.get("/staff/live").text
+    )
 
 
 # --- Replay: at Start watch, and on the next staff page in periodic or off mode.

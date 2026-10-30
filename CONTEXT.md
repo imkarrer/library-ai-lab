@@ -176,8 +176,10 @@ until an adult Acknowledges it. It shows no Student words and never leaves the p
 _Avoid_: alert (a Flag is not an alert), notification, page
 
 **Acknowledge**:
-An adult saying "I'm on it" to an Alarm: it records who and when and silences the Alarm. It
-does not close the Flag.
+An adult saying "I see it and I'm reviewing it" to a Flag of any severity: it records who and
+when, silences the Flag's Alarm if it has one, and moves the Flag from New to Acknowledged. It
+does not close the Flag. Closing a Flag nobody Acknowledged records the closer's
+Acknowledgement first, so every Flag goes New, Acknowledged, Closed.
 _Avoid_: dismiss, resolve
 
 **Supportive reply**:
