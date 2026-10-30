@@ -272,9 +272,13 @@ print it for the office.
    show them under "Registered by". Each Teacher registers Cards with their own Registration
    key, so the assistant knows which Teacher's class a Card was for, never which Student held
    it.
-2. Ask in person or by phone: "Who had card `N` in `Class label` today?"
-3. The Teacher looks it up: **Find a Card** at the top of their Minting page (pick the Class,
-   type the Card number), or their downloaded or printed Roster. Then they tell you.
+2. On the Flag's page, press **Ask `Teacher` who held it**. The Teacher sees the question on
+   their staff page, and their Minting page shows them the name from their Roster. For anything
+   high-severity, also go or phone at once: "Who had card `N` in `Class label` today?" The
+   Flag page says so, and shows the Teacher's answer when it comes.
+3. The Teacher looks it up: their Minting page already shows it, or **Find a Card** at the
+   top of the page (pick the Class, type the Card number), or their printed Roster. They tell
+   you in person and press **I've told them** (or **Not in my Rosters**).
 4. **Never type the name into the assistant.** Not in the Flag, not in a close note, not in a
    chat to test something. Never email or message "card 14 is [name]". The link between a
    Card number and a name exists only in the Teacher's Roster and in the adults' heads, and in
