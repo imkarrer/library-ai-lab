@@ -36,6 +36,7 @@ from library_assistant.access import (
 from library_assistant.catalog import Catalog
 from library_assistant.config import Settings
 from library_assistant.dependencies import get_catalog, get_settings
+from library_assistant.flags_panel import flags_panel
 from library_assistant.models import Citation
 from library_assistant.oversight import ScreeningState, get_screening_state
 from library_assistant.staff import LibrarianDep, StandInDep, page
@@ -607,10 +608,11 @@ def live_view(
     )
     watch_control = _watch_control(is_watching(db, account.id, clock))
     screening = _screening_html(state, settings.school_timezone)
+    panel = flags_panel(db, settings.school_timezone)
     response = page(
         "Live view",
         f"<h1>Live view</h1>{watch_control}"
-        f'{screening}<div id="tiles">{body}</div>{OVERVIEW_SCRIPT}',
+        f'{screening}{panel}<div id="tiles">{body}</div>{OVERVIEW_SCRIPT}',
         account=account,
         db=db,
         now=clock,
@@ -658,6 +660,7 @@ def session_detail_view(
     db: sqlite3.Connection = Depends(get_db),
     catalog=Depends(get_catalog),
     clock: datetime = Depends(get_clock),
+    settings: Settings = Depends(get_settings),
 ) -> HTMLResponse:
     """The Session detail view: questions, answers, and Citations."""
     class_label, card_number, exchanges = session_detail(session_no, db, catalog, clock)
@@ -671,6 +674,7 @@ def session_detail_view(
         f"<p><strong>Class:</strong> {html.escape(class_label)}</p>"
         f"<p><strong>Card:</strong> {html.escape(card_number)}</p>"
         f'<p><a href="/staff/live">← Back to Live view</a></p>'
+        f"{flags_panel(db, settings.school_timezone)}"
         f'<div class="exchanges" id="exchanges">{exchange_html}</div>'
         f"{DETAIL_SCRIPT.replace('__SESSION_NO__', str(session_no))}"
         f'<form method="post" action="/staff/live/sessions/{session_no}/revoke-card">'

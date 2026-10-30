@@ -64,12 +64,22 @@ sequenceDiagram
     end
     A->>Bus: answer {session n, final answer, Citations}
     Bus-->>LV: event: answer, replaces the streamed text
-    Note over A,LV: a `ping` event every 20 s keeps the stream open,<br/>and the page answers each with a Watch heartbeat (lib-793.2).<br/>The Alarm rides this stream too: alarm, silenced, flag_count (lib-ppv.1)
+    Note over A,LV: a `ping` event every 20 s keeps the stream open,<br/>and the page answers each with a Watch heartbeat (lib-793.2).<br/>The Alarm rides this stream too: alarm, silenced, flag_count (lib-ppv.1),<br/>and the Open Flags panel: flag, flag_closed (lib-4m7)
 ```
 
 A high-severity Flag on a watching page raises the Alarm banner without any words
 (ADR-0010), and the Session's tile gets a Flag marker by severity only. The words are one
 click away, on the Session detail page or the Flag's own page.
+
+Every open Flag, low-severity included, is also a row in the **Open Flags** panel at the
+top of the overview and the Session detail (ADR-0010 amendment, lib-4m7): severity, Class
+label, Card number, time, and source, high-severity first, each a link to the Flag. Rows
+arrive and leave over the same stream (`flag`, `flag_closed`), and the tile marker follows
+them, so nothing waits for a refresh. Like the tiles, a row never shows the category.
+
+One exception to "never shows a Flag's category": the Alarm banner names it ("Alarm: high
+self-harm (watchlist)"), as ADR-0010's "What it shows" says. The banner appears only for a
+high-severity Flag and only until it is Acknowledged; Acknowledge before sharing the screen.
 
 ## The conference demo
 
@@ -114,5 +124,6 @@ assumes, an ADR-0009 addendum records the real number.
 | Answers stream token by token | lib-f24.72 | frontier |
 | Revoke from the Session detail | lib-f24.49 | local |
 | Flag marker on tiles | lib-f24.73 | local |
+| Open Flags panel, live tile markers | lib-4m7 | frontier |
 | Conference runbook | lib-f24.63 | frontier |
 | Capacity: probe, then measure on the M5 | lib-f24.74, lib-f24.75 | local, human |
