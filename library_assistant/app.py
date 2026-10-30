@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from library_assistant import access_log
+from library_assistant import access, access_log
 from library_assistant.access import connect, get_clock
 from library_assistant.access import router as access_router
 from library_assistant.access_log import AccessLogMiddleware
@@ -68,7 +68,9 @@ async def lifespan(app: FastAPI):
     # Acquire the Oversight lock if enabled; otherwise Oversight is not configured.
     global _oversight_lock_file, _purge_task
     if settings.oversight_enabled:
-        _oversight_lock_file = acquire_oversight_lock(settings.catalog_path)
+        # Beside the database, the Install's own state: the Catalog may be shared, and
+        # beside it the lock once landed in the repo checkout.
+        _oversight_lock_file = acquire_oversight_lock(access.DB_PATH)
 
     _purge_task = asyncio.create_task(purge_loop(db, settings, clock, asyncio.sleep))
 
