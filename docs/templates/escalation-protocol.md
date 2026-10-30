@@ -262,8 +262,8 @@ The assistant cannot tell you who a Student is. It never had that information, b
 Student uses a **Card**: a printed QR code with a **Card number** on it, handed out by a Teacher
 for one class (a **Batch**, labelled with a **Class label** such as "Period 3"). Only the
 **Teacher** who minted that Batch has the **Roster**: the list of which Student got which Card
-number. The Roster lives on the Teacher's own computer: the Minting page keeps each Batch's Roster
-in that computer's browser for 7 days, then deletes it, and the Teacher can also download it or
+number. The Roster lives on the Teacher's own computer: Make Cards (or their Minting page) keeps
+each Batch's Roster in that computer's browser for 7 days, then deletes it, and the Teacher can also download it or
 print it for the office.
 
 **Identification** is one adult asking another:
@@ -273,10 +273,10 @@ print it for the office.
    key, so the assistant knows which Teacher's class a Card was for, never which Student held
    it.
 2. On the Flag's page, press **Ask `Teacher` who held it**. The Teacher sees the question on
-   their staff page, and their Minting page shows them the name from their Roster. For anything
+   their staff page, and Make Cards (or their Minting page) shows them the name from their Roster. For anything
    high-severity, also go or phone at once: "Who had card `N` in `Class label` today?" The
    Flag page says so, and shows the Teacher's answer when it comes.
-3. The Teacher looks it up: their Minting page already shows it, or **Find a Card** at the
+3. The Teacher looks it up: Make Cards (or their Minting page) already shows it, or **Find a Card** at the
    top of the page (pick the Class, type the Card number), or their printed Roster. They tell
    you in person and press **I've told them** (or **Not in my Rosters**).
 4. **Never type the name into the assistant.** Not in the Flag, not in a close note, not in a

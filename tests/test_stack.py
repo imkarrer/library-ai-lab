@@ -87,6 +87,17 @@ def test_up_seed_down_clear(tmp_path):
             data={"username": "counselor.hugsworth", "password": "hugsworth"},
         )
         assert login.status_code == 303
+        # Make Cards, the app: Mr. Pop-Quiz's fictional class comes prefilled.
+        teacher = httpx.Client(base_url=f"http://127.0.0.1:{port}")
+        teacher.post(
+            "/staff/login", data={"username": "teacher.popquiz", "password": "popquiz"}
+        )
+        app_page = teacher.get("/staff/mint/").text
+        app_config = json.loads(
+            re.search(r'id="install-config">(.*?)</script>', app_page, re.DOTALL)[1]
+        )
+        assert app_config["class_list"][0] == "Paige Turner"
+        assert "registration_key" not in app_config
 
         assert len(_pids(state)) == 2
         status = _stack(state, "status")
@@ -94,6 +105,7 @@ def test_up_seed_down_clear(tmp_path):
         # Bound to 127.0.0.1: the stack says phones cannot reach it.
         assert "only this computer can reach it" in status
         assert "Dr. Hugsworth" in status and "counselor.hugsworth" in status
+        assert f"http://127.0.0.1:{port}/staff/mint/" in status
     finally:
         pids = _pids(state)
         _stack(state, "down")

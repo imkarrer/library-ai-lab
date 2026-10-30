@@ -114,3 +114,57 @@ with it the only other record of who registered the Batch. This adds staff data 
 which the ADR-0002 addendum on Registration keys already showed on it, and nothing about a
 Student.
 
+
+## Addendum: Make Cards, an app the assistant serves
+
+Decided 2026-10-30 by the owner. A downloaded Minting page is a file with a live key in it:
+it can be forwarded, left in Downloads, or opened by anyone at that computer, and a Teacher
+opening an HTML file from Downloads has no sign that it is genuine. So the assistant now
+serves the Minting page itself, as **Make Cards** at `/staff/mint/`, to a signed-in Teacher
+or Librarian (`library_assistant/mint_app.py`). It is the same page with no key in it: it
+registers Batches and reads and answers Identification requests through the app's own
+routes, as the signed-in account. Chrome and Edge offer to install it (a manifest, an icon,
+and a service worker), so it opens from the Chromebook shelf, the Dock, or the Start menu,
+with nothing downloaded and nothing for IT to approve. Not a native app: Chromebooks cannot
+run one, signing one costs money every year, and managed computers often block installing
+one, which would need IT.
+
+What does not change: Tokens are made in the Teacher's browser and only their hashes are
+registered, the Roster stays in that browser for 7 days, and names never reach the
+assistant. "The server never had it" still holds for Tokens and for the Card-to-Student
+link.
+
+What changes is that the Minting code is trusted on every load, not once per download.
+A compromised assistant could serve a page that leaks Tokens, as the earlier addendum
+accepted for the download. Three things bound it:
+
+- **A Content-Security-Policy** on the page lets it run only its own two inline scripts,
+  named by their SHA-256 hashes, and send requests only to the assistant
+  (`connect-src 'self'`). An injected script does not run, and the page cannot send a
+  Token or a name to any other address.
+- **The page is the repo's `offline-minting.html`** except its install-config block and four
+  `<head>` lines (manifest, icons, theme colour); a test holds it to that. The script
+  hashes in the policy can be compared with the repo's copy.
+- **The downloaded page stays** as the fallback, for a school that wants the code fixed at
+  download time, and for a computer that is offline from the assistant.
+
+Consequences:
+
+- Rosters kept by the app live in the browser's storage for the assistant's address, not the
+  downloaded file's, so Rosters made with a downloaded page do not appear in the app. They
+  expire within 7 days; a Teacher switching keeps the file for a week. If the assistant's
+  address changes (HTTP to HTTPS, or a new address), Rosters kept under the old one do not
+  appear under the new one either; the printed sealed Roster covers that.
+- Installing needs a secure context: HTTPS (ADR-0013, or ADR-0012's local CA where IT pushed
+  it) or `localhost`. Over plain HTTP at a network address the app works the same in a tab,
+  without Install and without its kept copy. Browsers give `crypto.subtle` only to secure
+  contexts, so the page carries its own SHA-256 for that case, held to Python's `hashlib` by
+  the tests.
+- The service worker keeps one copy of the page, fetched network-first, so the app opens
+  without the assistant for **Find a Card**. It never keeps a sign-in page or an error in
+  its place. Making Cards still needs the assistant, since a Card is registered before it is
+  shown.
+- A staff session lasts 12 hours, so the app asks the Teacher to sign in again most days;
+  signing in returns them to Make Cards.
+- In the demo stack alone, `LIBRARY_ASSISTANT_DEMO_CLASS` prefills Mr. Pop-Quiz's fictional
+  class. It is read only when `LIBRARY_ASSISTANT_DEMO` is on.

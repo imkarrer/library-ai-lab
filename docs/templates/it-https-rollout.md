@@ -23,6 +23,7 @@ Nobody needs to visit the school.</p>
 | Address | `http://[BLANK: address]:8000` | `https://[BLANK: address]:8000` |
 | Questions on the wire | readable on a wired hop | encrypted end to end |
 | What students see | the same pages | the same pages, with a padlock |
+| What staff see | Make Cards in a tab | Chrome offers to **Install** Make Cards as an app |
 | What IT does | nothing | upload one certificate to Google Admin, once |
 
 ## What it costs IT
@@ -160,11 +161,12 @@ signed in, opened **IT kit**, and has one student Chromebook at hand.
 | 3–5 | Read the fingerprint aloud together (step 2). |
 | 5–12 | IT adds it in Google Admin (steps 3 to 5), sharing their screen if they like. |
 | 12–17 | On the student Chromebook: Reload policies, then the check page (step 6). |
-| 17–20 | Staff computers, if any; the Librarian downloads the Minting pages again. |
+| 17–20 | Staff computers, if any; the Librarian downloads any Minting pages again. |
 
-**After:** the Librarian downloads each Teacher's Minting page again from **Keys**, because
-the page carries the address and that now starts with `https://`. Cards are made fresh
-every day, so nothing else needs reprinting.
+**After:** Teachers using **Make Cards** need nothing: they open the `https://` address.
+Rosters kept under the old `http://` address don't show there, and expire within 7 days.
+Only a downloaded Minting page carries the address, so the Librarian downloads those again
+from **Keys**. Cards are made fresh every day, so nothing needs reprinting.
 
-**To undo:** turn HTTPS off, and delete the certificate from Google Admin. Download the
+**To undo:** turn HTTPS off, and delete the certificate from Google Admin. Download any
 Minting pages again.

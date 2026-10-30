@@ -15,6 +15,7 @@ import hmac
 import html
 import secrets
 import sqlite3
+import urllib.parse
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -84,6 +85,7 @@ LOGIN_FORM = _auth_card(
     "Sign in to watch Sessions, work Flags, and make Cards.",
     '<div class="auth-message" role="alert">{message}</div>'
     '<form class="auth-form" method="post" action="/staff/login">'
+    '<input type="hidden" name="next" value="{next}">'
     '<label>Username <input name="username" autocomplete="username" required autofocus>'
     "</label>"
     '<label>Password <input name="password" type="password"'
@@ -110,8 +112,15 @@ SETUP_FORM = _auth_card(
 SIGN_IN_FIRST = _auth_card(
     "Please sign in",
     "This page is for staff. Sign in first, then come back.",
-    '<p><a class="auth-button" href="/staff/login">Go to sign-in</a></p>',
+    '<p><a class="auth-button" href="/staff/login{query}">Go to sign-in</a></p>',
 )
+
+
+def _safe_next(path: str | None) -> str:
+    """Where to go after signing in: a staff page of this assistant, never another site."""
+    if path and path.startswith("/staff/") and "\\" not in path:
+        return path
+    return "/staff"
 
 
 # Which top-bar link a page belongs to, by its title.
@@ -267,7 +276,12 @@ def sign_in_required_handler(
 ) -> HTMLResponse:
     return page(
         "Sign in",
-        SIGN_IN_FIRST,
+        SIGN_IN_FIRST.format(
+            # Back to the page that asked, such as the Make Cards app.
+            query="?next=" + urllib.parse.quote(request.url.path)
+            if request.method == "GET" and _safe_next(request.url.path) != "/staff"
+            else ""
+        ),
         status_code=401,
     )
 
@@ -374,9 +388,9 @@ def _any_staff_account_exists(db: sqlite3.Connection) -> bool:
 
 
 def _sign_in(
-    db: sqlite3.Connection, account_id: int, clock: datetime
+    db: sqlite3.Connection, account_id: int, clock: datetime, next_path: str = "/staff"
 ) -> RedirectResponse:
-    """Open a staff session for the account and send them to /staff."""
+    """Open a staff session for the account and send them to `next_path`."""
     session_id = secrets.token_urlsafe(32)
     db.execute(
         "INSERT INTO staff_sessions (session_hash, account_id, expires_at) "
@@ -388,7 +402,7 @@ def _sign_in(
         ),
     )
     db.commit()
-    response = RedirectResponse("/staff", status_code=303)
+    response = RedirectResponse(_safe_next(next_path), status_code=303)
     response.set_cookie(
         key=STAFF_SESSION_COOKIE, value=session_id, httponly=True, samesite="strict"
     )
@@ -398,10 +412,13 @@ def _sign_in(
 @router.get("/login", response_model=None)
 def login_page(
     db: sqlite3.Connection = Depends(get_db),
+    next: str | None = None,
 ) -> HTMLResponse | RedirectResponse:
     if not _any_staff_account_exists(db):
         return RedirectResponse("/staff/setup", status_code=303)
-    return page("Sign in", LOGIN_FORM.format(message=""))
+    return page(
+        "Sign in", LOGIN_FORM.format(message="", next=html.escape(_safe_next(next)))
+    )
 
 
 @router.get("/setup", response_model=None)
@@ -435,6 +452,7 @@ def setup(
 def login(
     username: Annotated[str, Form()],
     password: Annotated[str, Form()],
+    next: Annotated[str | None, Form()] = None,
     db: sqlite3.Connection = Depends(get_db),
     clock: datetime = Depends(get_clock),
 ) -> HTMLResponse | RedirectResponse:
@@ -447,10 +465,13 @@ def login(
     if not verify_password(password, stored) or row is None or not row[2]:
         return page(
             "Sign in",
-            LOGIN_FORM.format(message="<p>Wrong username or password.</p>"),
+            LOGIN_FORM.format(
+                message="<p>Wrong username or password.</p>",
+                next=html.escape(_safe_next(next)),
+            ),
             status_code=401,
         )
-    return _sign_in(db, row[0], clock)
+    return _sign_in(db, row[0], clock, _safe_next(next))
 
 
 @router.post("/logout")
@@ -507,11 +528,17 @@ def staff_home(
     if account.role in MINTING_ROLES:
         minting_html = (
             '<section class="card-panel"><h2>Make Cards</h2>'
-            "<p>Download your Minting page, open it on your own computer, and make your "
-            "class's Cards there. It has this assistant's address and a new Registration "
-            "key built in; a Minting page you downloaded before stops working.</p>"
+            "<p>Make your class's Cards on your own computer. The names you type stay "
+            "on it: the assistant only learns each Card's fingerprint. Chrome or Edge "
+            "can install Make Cards as an app, so it opens from your shelf, Dock, or "
+            "Start menu.</p>"
+            '<p><a class="button-link" href="/staff/mint/">Open Make Cards</a></p>'
+            "<details><summary>Or download a Minting page to use offline</summary>"
+            "<p>A file with this assistant's address and a new Registration key built "
+            "in. Keep it to yourself; one you downloaded before stops working.</p>"
             '<form method="post" action="/staff/minting-page">'
-            "<button>Download my Minting page</button></form></section>"
+            '<button class="secondary">Download my Minting page</button></form>'
+            "</details></section>"
         )
 
     requests_html = _identification_requests_html(db, account)
