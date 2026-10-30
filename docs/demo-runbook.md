@@ -604,7 +604,11 @@ earlier than the stop time: rewrite `today.env` with a later time, restart the a
 make the Cards again.
 
 "The Library Assistant is taking a break..." is not a refused Card: nobody is on Watch. Press
-**Start watch** on the Live view.
+**Start watch** on the Live view. A phone that scanned while nobody was watching keeps that
+message up and signs in by itself within a few seconds of Start watch, with no rescan. A Watch
+lapses when no open Live view, Session detail, or Flag queue has answered the server for the
+**Watch grace seconds** (300), for example while the assistant was stopped for a while or the
+laptop slept: press Start watch again.
 
 ### Reset between runs
 
