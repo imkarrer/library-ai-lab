@@ -102,3 +102,9 @@ def test_from_env_parses_bool_int_and_optional():
     assert (probe.flag, probe.count, probe.endpoint) == (True, 7, None)
     with pytest.raises(ValueError):
         Probe.from_env({"LIBRARY_ASSISTANT_FLAG": "maybe"})
+
+
+def test_from_env_reads_reasoning_effort():
+    env = {"LIBRARY_ASSISTANT_OPENAI_REASONING_EFFORT": "none"}
+    assert Settings.from_env(env).openai_reasoning_effort == "none"
+    assert Settings.from_env({}).openai_reasoning_effort is None

@@ -1,4 +1,5 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
+from email.utils import format_datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -184,6 +185,18 @@ def test_session_cookie_is_httponly_strict_with_no_max_age(client):
     assert "HttpOnly" in set_cookie
     assert "samesite=strict" in set_cookie.lower()
     assert "Max-Age" not in set_cookie
+
+
+def test_card_registered_with_a_utc_offset_signs_in(client):
+    """The CLI registers expires_at with the school's offset (-05:00); the cookie's
+    expires= must still be written in GMT, not crash the sign-in with a 500."""
+    tc, _db = client
+    chicago = timezone(timedelta(hours=-5))
+    _register(tc, DAY_END.astimezone(chicago))
+    response = tc.post("/card", json={"token": "token-1"})
+    assert response.status_code == 200
+    expected = format_datetime(DAY_END.astimezone(UTC), usegmt=True)
+    assert f"expires={expected}" in response.headers["set-cookie"]
 
 
 def test_token_in_path_refused(client):

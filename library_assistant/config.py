@@ -32,6 +32,9 @@ class Settings:
     openai_endpoint: str = "http://localhost:11434"  # Default to local Ollama
     openai_api_key: str = "no-key-needed"  # For compatibility with OpenAI client
     openai_model: str = "llama3"  # Default model
+    # Sent as the request's reasoning_effort when set: a thinking model (qwen3.5,
+    # gpt-oss) otherwise reasons silently for most of a minute before its first word.
+    openai_reasoning_effort: str | None = None
     school_timezone: str = "America/Chicago"  # IANA name
     school_day_end: str = "15:30"  # HH:MM, local to school_timezone
     oversight_endpoint: str | None = None
