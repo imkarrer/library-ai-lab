@@ -27,9 +27,9 @@ One command runs the whole stack on this machine (`scripts/stack.py`):
 ./stack up           # both Lanes on this Mac's Ollama: gpt-oss:20b answers, qwen3.5:4b screens
 ./stack up --lan     # listening on the Wi-Fi address, so phones can reach it
 ./stack up --https   # HTTPS from the stack's own CA; /staff/it-kit has what IT needs
-./stack status       # what is running, the sign-in URL, the passwords file, the Minting page
+./stack status       # what is running, the sign-in URL, Make Cards, the passwords file
 ./stack down         # stop everything `up` started (Ctrl-C-safe: it is all in the background)
-./stack seed         # the demo cast, settings, and the Teacher's Minting page (idempotent)
+./stack seed         # the demo cast, settings, and the Teacher's offline Minting page (idempotent)
 ./stack clear        # down, then delete the stack's database and files
 ```
 
@@ -37,8 +37,11 @@ Every `up` makes sure the demo cast exists, each username starting with its role
 Overdue (`librarian.overdue`), Mr. Pop-Quiz (`teacher.popquiz`), and Dr. Hugsworth
 (`counselor.hugsworth`). Each password is the word after the dot (`overdue`, `popquiz`,
 `hugsworth`), put back on every `up` and listed in `credentials.txt`. It also sets
-Live supervision and writes `teacher.popquiz-minting-page.html`, with Period 3's fictional
-class list (Paige Turner, Justin Time, ...) filled in. `./stack status` lists the cast. The
+Live supervision and fills in Period 3's fictional class list (Paige Turner, Justin Time,
+...) for Mr. Pop-Quiz in **Make Cards**, the app the assistant serves at `/staff/mint/`:
+sign in as him and press **Open Make Cards**. `./stack status` prints its address
+(`Make Cards: <url>/staff/mint/`) and lists the cast. The same class goes into
+`teacher.popquiz-minting-page.html`, the offline copy with his Registration key built in. The
 deck that leads into the demo introduces the same people ([`docs/handout/`](docs/handout/)).
 All of it lives in one folder outside the repo,
 readable only by you (`--state`, default `~/library-assistant-demo`). The stack leaves alone

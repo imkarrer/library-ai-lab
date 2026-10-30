@@ -467,11 +467,16 @@ class CardSpec(BaseModel):
     card_number: str
 
 
-class BatchRegistration(BaseModel):
-    registration_key: str
+class BatchCards(BaseModel):
+    """A Batch as Registration sends it: Token hashes, Card numbers, expiry, Class label."""
+
     cards: list[CardSpec]
     expires_at: datetime
     class_label: str
+
+
+class BatchRegistration(BatchCards):
+    registration_key: str
 
 
 class RevokeCard(BaseModel):
@@ -570,6 +575,18 @@ def register_batch(
     settings: Settings = Depends(get_settings),
 ) -> dict[str, int]:
     account_id = _account_for_key_or_403(db, batch.registration_key)
+    return register_cards(db, account_id, batch, clock, settings)
+
+
+def register_cards(
+    db: sqlite3.Connection,
+    account_id: int,
+    batch: BatchCards,
+    clock: datetime,
+    settings: Settings,
+) -> dict[str, int]:
+    """Registration itself, for `account_id` however it proved who it is: the Registration
+    key (the downloaded Minting page) or a staff sign-in (the Make Cards app)."""
     end = school_day_end_for(clock, settings)
     if clock >= end:
         raise HTTPException(

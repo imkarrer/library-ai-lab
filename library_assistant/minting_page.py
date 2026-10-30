@@ -43,10 +43,7 @@ def filled_minting_page(
     seed`): its class is fictional, and the page is written to the presenter's own disk.
     The assistant's download route never passes them, since it holds no names (ADR-0002).
     """
-    page = PAGE_PATH.read_text(encoding="utf-8")
-    if page.count(CONFIG_PLACEHOLDER) != 1:
-        raise RuntimeError(f"{PAGE_PATH.name} has lost its install-config block")
-    config = _script_safe_json(
+    return with_install_config(
         {
             "assistant_url": assistant_url.rstrip("/"),
             "username": username,
@@ -56,9 +53,18 @@ def filled_minting_page(
             **({"class_list": list(class_list)} if class_list else {}),
         }
     )
+
+
+def with_install_config(config: dict[str, object]) -> str:
+    """The shipped page with `config` in its install-config block, and nothing else
+    changed."""
+    page = PAGE_PATH.read_text(encoding="utf-8")
+    if page.count(CONFIG_PLACEHOLDER) != 1:
+        raise RuntimeError(f"{PAGE_PATH.name} has lost its install-config block")
     return page.replace(
         CONFIG_PLACEHOLDER,
-        f'<script type="application/json" id="install-config">{config}</script>',
+        '<script type="application/json" id="install-config">'
+        f"{_script_safe_json(config)}</script>",
     )
 
 
