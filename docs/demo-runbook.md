@@ -473,8 +473,10 @@ front of whoever is watching."*
    step: if nobody had Acknowledged it, closing records that I did."* A low-severity Flag
    has no banner; its Flag page has its own **Acknowledge** button.
 
-Optional: before closing, with the Counselor account from Step 2, the Flag page also offers
-**Escalate** (a reason is required). Say how Identification works: the Librarian asks the
+Optional: instead of closing it yourself, press **Escalate** (a reason is required). The
+Counselor now owns the Flag: your Flag page says so in place of Close, and the panel row reads
+"Escalated". Sign in as `demo-counselor` in a private window to close it from the
+Counselor's Flag page. Say how Identification works: the Librarian asks the
 Teacher who holds card 1, offline, between adults.
 
 ## Step 11. Revoke card 2

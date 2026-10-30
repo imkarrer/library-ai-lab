@@ -222,3 +222,21 @@ Counselor's), then `closed`. The Open Flags panel shows each row's stage and upd
 live. Reopening a Flag returns it to the panel at the stage it had; it does not sound a
 second Alarm.
 
+## Amendment: an Escalated Flag belongs to the Counselor
+
+Decided 2026-10-29 by the owner (lib-6n9): "if it gets escalated that person now owns the
+flag and its resolution." Escalating a Flag hands it to the Counselor for good.
+
+- Escalate records the Librarian's Acknowledgement if nobody had given one: escalating is an
+  interaction, so the Flag's History shows `acknowledged` before `escalated`, and its Alarm
+  stops replaying for the Librarian.
+- Only the Counselor closes or reopens an Escalated Flag, from the Counselor's Flag page.
+  Closing records the Counselor's own Acknowledgement first if they had not given one, as
+  for any close. The Librarian's or a Stand-in's close or reopen of an Escalated Flag is
+  refused, and their Flag page says the Counselor owns it in place of the Close form.
+- The Flag stays on the Open Flags panel, marked Escalated, until the Counselor closes it,
+  so whoever is on Watch still sees that it is open and whose it is.
+
+Escalation is still only the Librarian's to start (ADR-0004), and still needs a word in
+person for anything urgent: the Counselor hears the Alarm only on an open Counselor page.
+

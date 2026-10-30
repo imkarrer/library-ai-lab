@@ -189,7 +189,9 @@ entry: written for its Rubric category, naming an adult in the building, and for
 _Avoid_: refusal, canned response
 
 **Escalation**:
-An adult handing a Flag to the Counselor.
+An adult handing a Flag to the Counselor, who from then on owns it and its resolution: only
+the Counselor closes or reopens an Escalated Flag. Escalating records the escalating adult's
+Acknowledgement if nobody had given one.
 
 **Identification**:
 An adult learning which Student held a Card number by asking the Teacher who holds the
