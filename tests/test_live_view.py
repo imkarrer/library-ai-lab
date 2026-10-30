@@ -203,6 +203,11 @@ def test_latest_question_truncated(client, db):
     assert long_question[:80] + "..." in response.text
 
 
+def _main_html(page: str) -> str:
+    """The page's own content, inside the shared staff top bar."""
+    return page[page.index("<main") : page.index("</main>")]
+
+
 def test_overview_has_no_forms(client, db):
     _sign_in_as(client, db, "librarian")
     _card(db, "token-14", "14")
@@ -210,11 +215,13 @@ def test_overview_has_no_forms(client, db):
     _ask(db, session_hash, "Period 3", "14", "a question")
 
     response = client.get("/staff/live")
+    main = _main_html(response.text)
 
-    # The one control is Start watch (ADR-0010); nothing that changes a Session.
-    assert "<form" not in response.text
-    assert response.text.count("<button") == 1
-    assert '<button id="watch-toggle"' in response.text
+    # The one control is Start watch (ADR-0010); nothing that changes a Session. The top
+    # bar around it (navigation, Sign out) changes no Session either.
+    assert "<form" not in main
+    assert main.count("<button") == 1
+    assert '<button id="watch-toggle"' in main
     assert "Revoke" not in response.text
 
 
@@ -301,7 +308,7 @@ def test_tile_shows_low_when_only_low(client, db):
 
 def _tiles_html(page: str) -> str:
     """The Session tiles alone: the Open Flags panel's markup and script also say "flag-"."""
-    start = page.index('<div id="tiles">')
+    start = page.index('<div id="tiles"')
     return page[start : page.index("<script>", start)]
 
 
@@ -679,7 +686,7 @@ def test_overview_still_has_no_forms(client, db):
     response = client.get("/staff/live")
 
     assert response.status_code == 200
-    assert "<form" not in response.text
+    assert "<form" not in _main_html(response.text)
 
 
 # --- Live updates over SSE (lib-f24.48). No test sleeps on the wall clock: the ping wait
