@@ -22,7 +22,12 @@ from library_assistant.access import (
     registering_teacher,
     review_due_at,
 )
-from library_assistant.alarms import acknowledgement, announce_escalation
+from library_assistant.alarms import (
+    acknowledgement,
+    announce_escalation,
+    announce_flag_closed,
+    announce_flag_reopened,
+)
 from library_assistant.config import Settings, get_settings
 from library_assistant.flag_history import append_event, get_history
 from library_assistant.flags import (
@@ -343,6 +348,7 @@ def close_flag_route(
     db: sqlite3.Connection = Depends(get_db),
     clock: datetime = Depends(get_clock),
     settings: Settings = Depends(get_settings),
+    bus: LiveBus = Depends(get_live_bus),
 ) -> RedirectResponse:
     flag = get_flag(db, flag_id)
     if flag is None:
@@ -364,6 +370,7 @@ def close_flag_route(
         close_flag(db, flag_id, clock.isoformat(), account.username, outcome, reason)
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
+    announce_flag_closed(db, bus.publish, flag_id)
     return RedirectResponse("/staff/flags", status_code=303)
 
 
@@ -443,6 +450,7 @@ def reopen_flag_route(
     reason: Annotated[str, Form()],
     db: sqlite3.Connection = Depends(get_db),
     clock: datetime = Depends(get_clock),
+    bus: LiveBus = Depends(get_live_bus),
 ) -> RedirectResponse:
     flag = get_flag(db, flag_id)
     if flag is None:
@@ -451,6 +459,7 @@ def reopen_flag_route(
         reopen_flag(db, flag_id, clock.isoformat(), account.username, reason)
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
+    announce_flag_reopened(db, bus.publish, flag_id)
     return RedirectResponse(f"/staff/flags/{flag_id}", status_code=303)
 
 

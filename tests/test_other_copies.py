@@ -15,6 +15,7 @@ import pytest
 from fastapi.testclient import TestClient
 from registration_helpers import batch_cards
 
+from library_assistant.__main__ import server_options
 from library_assistant.access import (
     NO_STORE,
     SESSION_COOKIE,
@@ -273,24 +274,26 @@ def test_access_log_names_no_raw_path_for_an_unmatched_request(access_client, ca
 
 
 def test_uvicorn_access_log_off_in_the_shipped_start_command():
+    """The service runs `python -m library_assistant`, whose uvicorn keeps no access log
+    (it would write raw paths and queries)."""
     manifest = tomllib.loads((REPO / ".flox/env/manifest.toml").read_text())
     command = manifest["services"]["assistant"]["command"]
     start = next(
-        line for line in command.splitlines() if "library_assistant.app:app" in line
+        line for line in command.splitlines() if "-m library_assistant" in line
     )
-    assert "uvicorn" in start
-    assert "--no-access-log" in start
+    assert not start.lstrip().startswith("#")
+    assert server_options({})["access_log"] is False
 
 
 def test_assistant_command_uses_host_and_port_variables():
-    manifest = tomllib.loads((REPO / ".flox/env/manifest.toml").read_text())
-    command = manifest["services"]["assistant"]["command"]
-    start_line = next(
-        l for l in command.splitlines() if "library_assistant.app:app" in l
+    options = server_options(
+        {"LIBRARY_ASSISTANT_HOST": "192.0.2.10", "LIBRARY_ASSISTANT_PORT": "8123"}
     )
-    assert "${LIBRARY_ASSISTANT_HOST:-127.0.0.1}" in start_line
-    assert "${LIBRARY_ASSISTANT_PORT:-8000}" in start_line
-    assert "--no-access-log" in start_line
+    assert (options["host"], options["port"]) == ("192.0.2.10", 8123)
+    assert (server_options({})["host"], server_options({})["port"]) == (
+        "127.0.0.1",
+        8000,
+    )
 
 
 @pytest.mark.parametrize(

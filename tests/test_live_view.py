@@ -299,6 +299,12 @@ def test_tile_shows_low_when_only_low(client, db):
     assert "Flag: low" in response.text
 
 
+def _tiles_html(page: str) -> str:
+    """The Session tiles alone: the Open Flags panel's markup and script also say "flag-"."""
+    start = page.index('<div id="tiles">')
+    return page[start : page.index("<script>", start)]
+
+
 def test_closed_flags_do_not_mark(client, db):
     """Test that closed flags do not affect the tile marker."""
     _sign_in_as(client, db, "librarian")
@@ -336,8 +342,9 @@ def test_closed_flags_do_not_mark(client, db):
     response = client.get("/staff/live")
 
     assert response.status_code == 200
-    assert "flag-high" not in response.text
-    assert "Flag: high" not in response.text
+    tiles = _tiles_html(response.text)
+    assert "flag-high" not in tiles
+    assert "Flag: high" not in tiles
 
 
 def test_no_flag_no_marker(client, db):
@@ -350,8 +357,9 @@ def test_no_flag_no_marker(client, db):
     response = client.get("/staff/live")
 
     assert response.status_code == 200
-    assert "flag-" not in response.text
-    assert "Flag:" not in response.text
+    tiles = _tiles_html(response.text)
+    assert "flag-" not in tiles
+    assert "Flag:" not in tiles
 
 
 def test_tile_shows_high_when_high_and_low_flags_exist(client, db):
@@ -902,10 +910,11 @@ def test_supportive_reply_sends_no_delta_events(asking_client, bus):
 
     messages = _drain(queue)
     # No model call, so nothing streams: the answer event carries the reply whole. The
-    # Flag's Alarm and count (ADR-0010) come first.
+    # Flag's Alarm, its Open Flags panel row, and the count (ADR-0010) come first.
     assert [kind for kind, _ in messages] == [
         "question",
         "alarm",
+        "flag",
         "flag_count",
         "answer",
     ]
@@ -1015,3 +1024,140 @@ def test_live_pages_load_no_external_script(client, db):
         assert re.findall(r"<link[^>]*>", response.text) == [
             '<link rel="stylesheet" href="/library.css">'
         ]
+
+
+# The Open Flags panel (ADR-0010 amendment, lib-4m7): whoever is on Watch sees every open
+# Flag on the page they watch, low-severity too, without its category or words.
+
+
+def _flag(db, session_hash, severity, source="watchlist", minutes=0) -> int:
+    from library_assistant.flags import raise_flag
+
+    transcript_id = db.execute(
+        "SELECT id FROM transcripts WHERE session_hash = ? ORDER BY id DESC",
+        (session_hash,),
+    ).fetchone()[0]
+    return raise_flag(
+        db,
+        transcript_id=transcript_id,
+        class_label="Period 3",
+        card_number="14",
+        batch_expires_at=(NOW + timedelta(hours=6)).isoformat(),
+        message_hash=None,
+        category="bullying",
+        severity=severity,
+        source=source,
+        raised_at=(NOW + timedelta(minutes=minutes)).isoformat(),
+        reason="names a classmate",
+    )
+
+
+def _panel_html(page: str) -> str:
+    start = page.index('<section id="open-flags-panel"')
+    return page[start : page.index("</section>", start)]
+
+
+def test_live_view_panel_lists_every_open_flag_high_first(client, db):
+    _sign_in_as(client, db, "librarian")
+    _card(db, "token-14", "14")
+    session_hash = _session(db, "token-14")
+    _ask(db, session_hash, "Period 3", "14", "Billy says I stink and makes me cry")
+    low = _flag(db, session_hash, "low", source="oversight", minutes=5)
+    high = _flag(db, session_hash, "high", minutes=1)
+
+    panel = _panel_html(client.get("/staff/live").text)
+
+    assert panel.index(f'data-flag-id="{high}"') < panel.index(f'data-flag-id="{low}"')
+    assert f'href="/staff/flags/{low}"' in panel
+    assert "Oversight" in panel and "Watchlist" in panel
+    assert "Period 3 &middot; card 14" in panel
+    # Safe on a shared screen: no category, no reason, no words.
+    for withheld in ("bullying", "names a classmate", "Billy", "stink"):
+        assert withheld not in panel
+
+
+def test_panel_omits_closed_flags_and_says_when_none_are_open(client, db):
+    from library_assistant.flags import close_flag
+
+    _sign_in_as(client, db, "librarian")
+    _card(db, "token-14", "14")
+    session_hash = _session(db, "token-14")
+    _ask(db, session_hash, "Period 3", "14", "a question")
+    flag_id = _flag(db, session_hash, "low")
+    close_flag(db, flag_id, NOW.isoformat(), "librarian-account", "handled", "done")
+
+    panel = _panel_html(client.get("/staff/live").text)
+
+    assert "data-flag-id" not in panel
+    assert "No open Flags." in panel
+
+
+def test_session_detail_carries_the_panel_too(client, db):
+    _sign_in_as(client, db, "librarian")
+    _card(db, "token-14", "14")
+    session_hash = _session(db, "token-14")
+    _ask(db, session_hash, "Period 3", "14", "a question")
+    flag_id = _flag(db, session_hash, "low")
+    session_no = _session_no_for_card(db, "14", "Period 3")
+
+    page = client.get(f"/staff/live/sessions/{session_no}").text
+
+    assert f'data-flag-id="{flag_id}"' in _panel_html(page)
+
+
+def test_closing_a_flag_takes_it_off_the_panel_and_lowers_the_tile(client, db, bus):
+    _sign_in_as(client, db, "librarian")
+    _card(db, "token-14", "14")
+    session_hash = _session(db, "token-14")
+    _ask(db, session_hash, "Period 3", "14", "a question")
+    _flag(db, session_hash, "low")
+    high = _flag(db, session_hash, "high")
+    db.execute("UPDATE flags SET exported = 1 WHERE id = ?", (high,))
+    db.commit()
+    queue = bus.subscribe()
+
+    response = client.post(
+        f"/staff/flags/{high}/close",
+        data={"outcome": "handled", "reason": "spoke with the student"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    messages = []
+    while not queue.empty():
+        messages.append(queue.get_nowait())
+    closed = [data for kind, data in messages if kind == "flag_closed"]
+    assert closed == [
+        {
+            "flag_id": high,
+            "session_no": _session_no_for_card(db, "14", "Period 3"),
+            "session_severity": "low",
+        }
+    ]
+    assert ("flag_count", {"open": 1}) in messages
+
+
+def test_reopening_a_flag_puts_it_back_on_the_panel(client, db, bus):
+    from library_assistant.flags import close_flag
+
+    _sign_in_as(client, db, "librarian")
+    _card(db, "token-14", "14")
+    session_hash = _session(db, "token-14")
+    _ask(db, session_hash, "Period 3", "14", "a question")
+    flag_id = _flag(db, session_hash, "low")
+    close_flag(db, flag_id, NOW.isoformat(), "librarian-account", "handled", "done")
+    queue = bus.subscribe()
+
+    client.post(
+        f"/staff/flags/{flag_id}/reopen",
+        data={"reason": "came back"},
+        follow_redirects=False,
+    )
+
+    messages = []
+    while not queue.empty():
+        messages.append(queue.get_nowait())
+    [row] = [data for kind, data in messages if kind == "flag"]
+    assert row["flag_id"] == flag_id
+    assert row["session_severity"] == "low"
+    assert not [kind for kind, _ in messages if kind == "alarm"]
