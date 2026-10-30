@@ -234,6 +234,39 @@ def flag_queue(
     return page("Flag queue", body, account=account, db=db, now=clock)
 
 
+def _flag_layout(
+    flag: FlagRow,
+    stage: str,
+    details: str,
+    question: str,
+    answer: str,
+    actions: str,
+    history_rows: str,
+) -> str:
+    """A Flag page as an adult works it: severity, category, and stage at the top; what
+    was asked and answered, then the details and History; every action in one card."""
+    severity = html.escape(flag.severity)
+    return (
+        '<div class="flag-head"><h1>Flag</h1>'
+        f'<span class="chip sev-{severity}">{severity.capitalize()}</span>'
+        f'<span class="chip">{html.escape(flag.category)}</span>'
+        f'<span class="chip stage-chip">{html.escape(stage)}</span></div>'
+        '<div class="flag-layout"><div class="flag-main">'
+        '<section class="exchange">'
+        f'<p class="label">Question</p><p class="asked">{html.escape(question)}</p>'
+        f'<p class="label">Answer</p><p class="answered">{html.escape(answer)}</p>'
+        "</section>"
+        f"<h2>Details</h2>{details}"
+        "<h2>History</h2>"
+        "<table><thead><tr>"
+        "<th>At</th><th>Event</th><th>Account</th><th>Outcome</th><th>Reason</th>"
+        "</tr></thead><tbody>"
+        f"{history_rows}"
+        "</tbody></table>"
+        f'</div><aside class="flag-actions">{actions}</aside></div>'
+    )
+
+
 @router.get("/flags/{flag_id}")
 def flag_page(
     flag_id: int,
@@ -329,9 +362,7 @@ def flag_page(
             "<button>Acknowledge</button> <span>I see it and I'm reviewing it.</span>"
             "</form>"
         )
-    body = (
-        "<h1>Flag</h1>"
-        f"{acknowledge_form}"
+    details = (
         "<table><tbody>"
         f"<tr><th>Stage</th><td>{stage}</td></tr>"
         f"<tr><th>Raised at</th><td>{html.escape(flag.raised_at)}</td></tr>"
@@ -346,19 +377,20 @@ def flag_page(
         f"<tr><th>Raised unwatched</th><td>{'yes' if flag.raised_unwatched else ''}</td></tr>"
         f"<tr><th>Acknowledged</th><td>{_acknowledged(db, flag.id)}</td></tr>"
         "</tbody></table>"
-        f'<p><a href="/staff/flags/{flag.id}/export">Export</a></p>'
-        f"<p><strong>Question</strong></p><p>{html.escape(question)}</p>"
-        f"<p><strong>Answer</strong></p><p>{html.escape(answer)}</p>"
-        f"{form}"
-        f"{escalation_form}"
-        "<h2>History</h2>"
-        "<table><thead><tr>"
-        "<th>At</th><th>Event</th><th>Account</th><th>Outcome</th><th>Reason</th>"
-        "</tr></thead><tbody>"
-        f"{history_rows}"
-        "</tbody></table>"
     )
-    response = page("Flag", body, account=account, db=db, now=clock)
+    body = _flag_layout(
+        flag,
+        stage,
+        details,
+        question,
+        answer,
+        acknowledge_form
+        + f'<p><a class="button-link" href="/staff/flags/{flag.id}/export">Export</a></p>'
+        + form
+        + escalation_form,
+        history_rows,
+    )
+    response = page("Flag", body, account=account, db=db, now=clock, wide=True)
     response.headers["Cache-Control"] = "no-store"
     return response
 
@@ -739,8 +771,7 @@ def counselor_flag_page(
             '<p><label>Reason <input name="reason" required></label></p>'
             "<p><button>Escalate</button></p></form>"
         )
-    body = (
-        "<h1>Flag</h1>"
+    details = (
         "<table><tbody>"
         f"<tr><th>Stage</th><td>{flag_stage(flag, True)}</td></tr>"
         f"<tr><th>Raised at</th><td>{html.escape(flag.raised_at)}</td></tr>"
@@ -755,18 +786,18 @@ def counselor_flag_page(
         f"<tr><th>Raised unwatched</th><td>{'yes' if flag.raised_unwatched else ''}</td></tr>"
         f"<tr><th>Acknowledged</th><td>{_acknowledged(db, flag.id)}</td></tr>"
         "</tbody></table>"
-        f'<p><a href="/staff/flags/{flag.id}/export">Export</a></p>'
-        f"<p><strong>Question</strong></p><p>{html.escape(question)}</p>"
-        f"<p><strong>Answer</strong></p><p>{html.escape(answer)}</p>"
-        f"{form}"
-        f"{escalation_form}"
-        "<h2>History</h2>"
-        "<table><thead><tr>"
-        "<th>At</th><th>Event</th><th>Account</th><th>Outcome</th><th>Reason</th>"
-        "</tr></thead><tbody>"
-        f"{history_rows}"
-        "</tbody></table>"
     )
-    response = page("Flag", body, account=account, db=db, now=clock)
+    body = _flag_layout(
+        flag,
+        flag_stage(flag, True),
+        details,
+        question,
+        answer,
+        f'<p><a class="button-link" href="/staff/flags/{flag.id}/export">Export</a></p>'
+        + form
+        + escalation_form,
+        history_rows,
+    )
+    response = page("Flag", body, account=account, db=db, now=clock, wide=True)
     response.headers["Cache-Control"] = "no-store"
     return response

@@ -77,6 +77,72 @@ SETUP_FORM = """<h1>Create the librarian account</h1>
 </form>"""
 
 
+# Which top-bar link a page belongs to, by its title.
+_SECTION_OF_TITLE = {
+    "Live view": "/staff/live",
+    "Session Detail": "/staff/live",
+    "Flag queue": "/staff/flags",
+    "Flag": "/staff/flags",
+    "Counselor flag queue": "/staff/counselor",
+    "Staff accounts": "/staff/accounts",
+    "Registration keys": "/staff/keys",
+    "New registration key": "/staff/keys",
+    "Holds": "/staff/holds",
+    "Install settings": "/staff/settings",
+    "Staff": "/staff",
+}
+
+
+def nav_links(account: StaffAccount) -> list[tuple[str, str]]:
+    """The pages this account may open, as (label, href): one list for the top bar and
+    the /staff home, so a role never sees a link it would be refused."""
+    links: list[tuple[str, str]] = []
+    if account.role == "librarian" or account.is_stand_in:
+        links += [("Live view", "/staff/live"), ("Flags", "/staff/flags")]
+    if account.role == "counselor":
+        links.append(("Escalated Flags", "/staff/counselor"))
+    if account.role == "librarian":
+        links += [
+            ("Accounts", "/staff/accounts"),
+            ("Keys", "/staff/keys"),
+            ("Holds", "/staff/holds"),
+            ("Settings", "/staff/settings"),
+        ]
+    return links
+
+
+# One line under each /staff home card: what that page is for.
+_HOME_CARD_TEXT = {
+    "/staff/live": "Start watch, and see every Session and open Flag as it happens.",
+    "/staff/flags": "Every open Flag: Acknowledge, export, Escalate, and close.",
+    "/staff/counselor": "The Flags Escalated to you, to resolve and close.",
+    "/staff/accounts": "Add Teachers and Counselors; grant Stand-in.",
+    "/staff/keys": "Registration keys, and each Teacher's Minting page.",
+    "/staff/holds": "Keep an exchange past the Purge for a records request.",
+    "/staff/settings": "Supervision mode, Watch grace, the Alarm chime.",
+    "/staff/supportive-replies-preview": "What a Student sees instead of an answer.",
+}
+
+
+def _topbar(account: StaffAccount, title: str) -> str:
+    current = _SECTION_OF_TITLE.get(title)
+    items = "".join(
+        f'<a href="{href}"{' aria-current="page"' if href == current else ""}>'
+        f"{html.escape(label)}</a>"
+        for label, href in nav_links(account)
+    )
+    return (
+        '<header class="topbar">'
+        '<a class="brand" href="/staff">Library Assistant</a>'
+        f'<nav class="nav" aria-label="Staff pages">{items}</nav>'
+        f'<div class="me"><span>{html.escape(account.username)} &middot; {account.role}'
+        "</span>"
+        '<form method="post" action="/staff/logout"><button class="link">Sign out'
+        "</button></form></div>"
+        "</header>"
+    )
+
+
 def page(
     title: str,
     body: str,
@@ -85,16 +151,23 @@ def page(
     account: StaffAccount | None = None,
     db: sqlite3.Connection | None = None,
     now: datetime | None = None,
+    wide: bool = False,
 ) -> HTMLResponse:
     """Any staff page. Pass `account`, `db`, and `now` for a signed-in page so it
-    carries the Alarm (or, for a Counselor, the Escalation banner) from
-    `alarm_banner.alarm_banner` (decision lib-f24.77, ADR-0010)."""
+    carries the top bar and the Alarm (or, for a Counselor, the Escalation banner) from
+    `alarm_banner.alarm_banner` (decision lib-f24.77, ADR-0010). `wide` gives a page with
+    columns (the Live view) the whole window."""
     # Imported here, not at module level: alarm_banner -> alarms -> install_settings -> staff.
     from library_assistant.alarm_banner import alarm_banner
 
     banner = alarm_banner(db, account, now) if account is not None else ""
+    topbar = _topbar(account, title) if account is not None else ""
+    main_class = "page wide" if wide else "page"
     return HTMLResponse(
-        PAGE_HTML.format(title=html.escape(title), body=banner + body),
+        PAGE_HTML.format(
+            title=html.escape(title),
+            body=f'{topbar}<main class="{main_class}">{banner}{body}</main>',
+        ),
         status_code=status_code,
         headers={"Cache-Control": "no-store"},
     )
@@ -379,56 +452,34 @@ def staff_home(
     db: sqlite3.Connection = Depends(get_db),
     clock: datetime = Depends(get_clock),
 ) -> HTMLResponse:
-    # Build the links based on role
-    links = []
-
-    # All roles can access supportive replies preview
-    links.append(
-        '<li><a href="/staff/supportive-replies-preview">Supportive reply preview</a></li>'
+    links_html = "".join(
+        f'<a class="home-card" href="{href}"><strong>{html.escape(label)}</strong>'
+        f"<span>{_HOME_CARD_TEXT.get(href, '')}</span></a>"
+        for label, href in [
+            *nav_links(account),
+            ("Supportive reply preview", "/staff/supportive-replies-preview"),
+        ]
     )
-
-    # Role-specific links
-    if account.role in ("librarian", "teacher", "counselor"):
-        # Librarian and stand-in can access live view
-        if account.role == "librarian" or account.is_stand_in:
-            links.append('<li><a href="/staff/live">Live view</a></li>')
-
-        # Librarian and stand-in can access flag queue
-        if account.role == "librarian" or account.is_stand_in:
-            links.append('<li><a href="/staff/flags">Flag queue</a></li>')
-
-        # Librarian can access additional pages
-        if account.role == "librarian":
-            links.append('<li><a href="/staff/accounts">Accounts</a></li>')
-            links.append('<li><a href="/staff/holds">Holds</a></li>')
-            links.append('<li><a href="/staff/settings">Install settings</a></li>')
-            links.append('<li><a href="/staff/keys">Keys</a></li>')
-
-    # Counselor can access flag queue
-    if account.role == "counselor":
-        links.append('<li><a href="/staff/flags">Flag queue</a></li>')
-
-    links_html = "<ul>" + "".join(links) + "</ul>" if links else ""
+    links_html = f'<div class="home-grid">{links_html}</div>'
 
     # The accounts that mint (ADR-0002 addendum): their Minting page, filled in.
     minting_html = ""
     if account.role in MINTING_ROLES:
         minting_html = (
-            "<h2>Make Cards</h2>"
+            '<section class="card-panel"><h2>Make Cards</h2>'
             "<p>Download your Minting page, open it on your own computer, and make your "
             "class's Cards there. It has this assistant's address and a new Registration "
             "key built in; a Minting page you downloaded before stops working.</p>"
             '<form method="post" action="/staff/minting-page">'
-            "<button>Download my Minting page</button></form>"
+            "<button>Download my Minting page</button></form></section>"
         )
 
     return page(
         "Staff",
-        f"<h1>Library Assistant staff</h1>"
-        f"<p>Signed in as {html.escape(account.username)} ({account.role}).</p>"
-        f"{links_html}"
+        f"<h1>Welcome, {html.escape(account.username)}</h1>"
+        f'<p class="lede">Signed in as {html.escape(account.username)} ({account.role}).</p>'
         f"{minting_html}"
-        '<form method="post" action="/staff/logout"><button>Sign out</button></form>',
+        f"{links_html}",
         account=account,
         db=db,
         now=clock,

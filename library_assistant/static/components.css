@@ -1,0 +1,94 @@
+/* @theme library-components */
+
+/*
+ * The look the assistant's pages and the Marp handout share: headings, tables, callouts,
+ * chips, the lede, and pull quotes. Served in /library.css between palette.css and
+ * library.css (library_assistant/theme.py); the handout (docs/handout/handout.css) imports
+ * it as the Marp theme `library-components`, so both change together.
+ *
+ * Only how a thing looks lives here, never its size: the app sizes in rem for a screen, the
+ * handout in px for a printed Letter page, and each sets its own.
+ */
+
+h1, h2, h3 {
+  font-family: var(--font-heading);
+  color: var(--green-dark);
+  line-height: 1.2;
+}
+
+.lede {
+  color: var(--ink-muted);
+}
+
+/* tables: a rounded card with a green header row */
+
+table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+th, td {
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  text-align: left;
+  vertical-align: top;
+}
+
+tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+th {
+  background: var(--green-tint);
+  color: var(--green-dark);
+  font-weight: 600;
+}
+
+/* callouts: a note set apart in library green (.box in the handout, .help and .owner in
+   the app), and a pull quote in brass */
+
+.box, .help, .owner {
+  background: var(--green-tint);
+  border-left: 5px solid var(--green);
+  border-radius: 8px;
+}
+
+.quote {
+  font-family: var(--font-heading);
+  background: var(--brass-tint);
+  border: 1px solid var(--brass);
+  border-radius: 8px;
+}
+
+.card-panel {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-top: 4px solid var(--green);
+  border-radius: 12px;
+}
+
+/* chips: a short label (a severity, a category, a stage) */
+
+.chip {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 0.15em 0.75em;
+  font-weight: 600;
+  background: var(--green-tint);
+  color: var(--green-dark);
+}
+
+.chip.sev-high {
+  background: var(--alarm);
+  color: #fff;
+}
+
+.chip.sev-low, .chip.sev-medium {
+  background: var(--caution-tint);
+  color: var(--caution);
+}

@@ -251,7 +251,7 @@ def active_sessions(db: sqlite3.Connection, now: datetime) -> list[SessionTile]:
     return tiles
 
 
-def _tile_html(tile: SessionTile) -> str:
+def _tile_html(tile: SessionTile, timezone: str = "UTC") -> str:
     classes = ["tile"]
     if tile.flag_severity:
         classes.append(f"flag-{tile.flag_severity}")
@@ -276,7 +276,7 @@ def _tile_html(tile: SessionTile) -> str:
         f'<p class="who">{html.escape(tile.class_label)} &middot; '
         f"card {html.escape(tile.card_number)}</p>"
         '<p class="when">Last activity: '
-        f"{html.escape(tile.last_activity_at.isoformat())}</p>"
+        f"{tile.last_activity_at.astimezone(ZoneInfo(timezone)):%H:%M}</p>"
         f'<p class="count">{tile.message_count} message(s)</p>'
         f'<p class="latest">{html.escape(tile.latest_question)}</p>'
         f"{badge}"
@@ -484,7 +484,8 @@ __HEARTBEAT__
     tile.dataset.messageCount = String(count);
     tile.querySelector(".who").textContent =
       data.class_label + " \\u00b7 card " + data.card_number;
-    tile.querySelector(".when").textContent = "Last activity: " + data.asked_at;
+    tile.querySelector(".when").textContent = "Last activity: " +
+      new Date(data.asked_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
     tile.querySelector(".count").textContent = count + " message(s)";
     tile.querySelector(".latest").textContent = shorten(data.question);
     tiles.prepend(tile);
@@ -602,20 +603,27 @@ def live_view(
     paused, Pause (or Resume) Sessions."""
     tiles = active_sessions(db, clock)
     body = (
-        "".join(_tile_html(tile) for tile in tiles)
+        "".join(_tile_html(tile, settings.school_timezone) for tile in tiles)
         if tiles
         else '<p id="no-sessions">No active Sessions.</p>'
     )
     watch_control = _watch_control(is_watching(db, account.id, clock))
     screening = _screening_html(state, settings.school_timezone)
     panel = flags_panel(db, settings.school_timezone)
+    # Watch first, then the two things to keep an eye on: every open Flag beside the
+    # Sessions they came from.
     response = page(
         "Live view",
-        f"<h1>Live view</h1>{watch_control}"
-        f'{screening}{panel}<div id="tiles">{body}</div>{OVERVIEW_SCRIPT}',
+        f'<div class="live-head"><h1>Live view</h1>{watch_control}</div>'
+        f"{screening}"
+        f'<div class="live-layout"><aside class="live-flags">{panel}</aside>'
+        f'<section class="live-sessions"><h2>Sessions</h2>'
+        f'<div id="tiles" class="tiles">{body}</div></section></div>'
+        f"{OVERVIEW_SCRIPT}",
         account=account,
         db=db,
         now=clock,
+        wide=True,
     )
     response.headers["Cache-Control"] = "no-store"
     return response

@@ -71,3 +71,25 @@ def test_handout_uses_the_shared_palette():
     assert (
         "@import 'library-palette';" in (REPO / "docs/handout/handout.css").read_text()
     )
+
+
+def test_handout_and_pages_share_one_components_sheet():
+    """Headings, tables, callouts, and chips look the same on a staff page and in the
+    printed handout: one file, served in /library.css and imported by the Marp theme."""
+    components = (STATIC_DIR / "components.css").read_text()
+    assert components.startswith("/* @theme library-components */")
+    marprc = (REPO / "docs/handout/.marprc.yml").read_text()
+    assert "library_assistant/static/components.css" in marprc
+    handout = (REPO / "docs/handout/handout.css").read_text()
+    assert "@import 'library-components';" in handout
+    served = TestClient(app).get("/library.css").text
+    assert components in served
+    assert served.index(components) < served.index("/* The staff top bar")
+    # Colour stays in the palette: the shared sheet names tokens, not hex values, apart
+    # from white text on a filled chip.
+    assert set(re.findall(r"#[0-9a-fA-F]{3,6}\b", components)) <= {"#fff"}
+
+
+def test_stylesheet_is_revalidated_so_an_update_shows_at_once():
+    response = TestClient(app).get("/library.css")
+    assert response.headers["cache-control"] == "no-cache"

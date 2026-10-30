@@ -8,6 +8,8 @@
 @import 'default';
 /* the shared palette: library_assistant/static/palette.css, registered in .marprc.yml */
 @import 'library-palette';
+/* the shared look: library_assistant/static/components.css (headings, tables, callouts) */
+@import 'library-components';
 
 section {
   width: 8.5in;
@@ -65,36 +67,42 @@ strong {
 }
 
 .box {
-  background: var(--green-tint);
-  border-left: 4px solid var(--green);
   padding: 0.6em 0.9em;
   margin: 0.8em 0;
 }
 
 .quote {
-  font-family: Georgia, 'Times New Roman', serif;
   font-size: 16px;
-  background: var(--brass-tint);
-  border: 1px solid var(--brass);
   padding: 0.5em 0.8em;
   margin: 0.6em 0;
 }
 
 table {
   font-size: 13.5px;
-  border-collapse: collapse;
-  width: 100%;
   margin: 0.5em 0;
+  display: table; /* Marp's default theme makes tables block-level */
 }
 
 th, td {
-  border: 1px solid var(--rule);
   padding: 0.35em 0.55em;
-  vertical-align: top;
-  text-align: left;
 }
 
-th {
+/* Marp's default theme gives every cell a border and stripes the rows; the shared look
+   (components.css) is a rounded card with row rules only. */
+section table th, section table td {
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+section table tr, section table tr:nth-child(2n) {
+  background: transparent;
+}
+
+section table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+section table th {
   background: var(--green-tint);
 }
 
