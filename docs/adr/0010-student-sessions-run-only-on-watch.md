@@ -201,3 +201,24 @@ shows severity, Class label, Card number, time, and source, never the category, 
 or the Student's words, so the Live view stays safe to share (`docs/design/live-view.md`);
 the Flag's page, one click away, has the rest. A Counselor's stream carries none of it.
 
+## Amendment: every Flag goes New, Acknowledged, Closed
+
+Decided 2026-10-29 by the owner (lib-msq). Every Flag, whatever its severity, has the same
+three stages; severity (high, medium, low) only helps an adult sort and triage.
+
+- **New**: raised, and nobody has said they are on it.
+- **Acknowledged**: an adult has said "I see it and I'm reviewing it". This records who and
+  when, and silences the Flag's Alarm if it has one. Any open Flag can be Acknowledged: from
+  the Alarm banner, or from the Flag's own page, which a low-severity Flag needs since it
+  has no banner.
+- **Closed**: nothing is left to do. It is the last step. Closing a Flag nobody
+  Acknowledged records the closer's Acknowledgement first, at the same moment, so the record
+  always shows that someone dealt with it, and it silences the Flag's Alarm (and an
+  Escalated Flag's Alarm on the Counselor's page). Before this, a Flag closed without an
+  Acknowledge kept ringing.
+
+The Flag's History records `acknowledged` (with `escalation` as its reason for the
+Counselor's), then `closed`. The Open Flags panel shows each row's stage and updates it
+live. Reopening a Flag returns it to the panel at the stage it had; it does not sound a
+second Alarm.
+

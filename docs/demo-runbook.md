@@ -450,7 +450,8 @@ front of whoever is watching."*
 
 ## Step 10. Acknowledge, then the Flag page: Export and Close
 
-1. **Acknowledge.** Press **Acknowledge** on the Alarm banner. It records who and when, and
+1. **Acknowledge.** Press **Acknowledge** on the Alarm banner. The panel's row changes from
+   "New" to "Acknowledged" on every open staff page. It records who and when, and
    silences the Alarm on every page at once: the banner goes, the tab title and favicon come
    back, the chime stops. It does not close the Flag. Say: *"That's me saying I'm on it. The
    Flag stays open until it's worked."* An Alarm nobody Acknowledges replays at the next
@@ -467,7 +468,10 @@ front of whoever is watching."*
    the copy the school files in its own records. The assistant keeps no copy."*
 5. Refresh the Flag page. Now that it is exported, the confirmation is gone. Choose an
    **Outcome** (`handled`), type a **Reason** ("demo"), press **Close**. The Flag leaves the
-   queue, and its row leaves the Live view's Open Flags panel at the same moment.
+   queue, and its row leaves the Live view's Open Flags panel at the same moment. Say:
+   *"Every Flag goes New, Acknowledged, Closed, whatever its severity. Close is the last
+   step: if nobody had Acknowledged it, closing records that I did."* A low-severity Flag
+   has no banner; its Flag page has its own **Acknowledge** button.
 
 Optional: before closing, with the Counselor account from Step 2, the Flag page also offers
 **Escalate** (a reason is required). Say how Identification works: the Librarian asks the
