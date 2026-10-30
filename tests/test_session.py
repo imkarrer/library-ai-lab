@@ -384,6 +384,29 @@ def test_model_error_still_finishes_the_exchange_with_what_was_shown(
     ).fetchall() == [("a book about bulls?", "", "")]
 
 
+def test_model_error_inside_the_stream_tells_the_student(client, monkeypatch):
+    """llama.cpp's own failure report, a 200 stream carrying an error event (lib-30v)."""
+    test_client, db = client
+    _sign_in(test_client)
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            content=b'data: {"error":{"code":500,"message":"Compute error.",'
+            b'"type":"server_error"}}\n\n',
+            headers={"content-type": "text/event-stream"},
+        )
+
+    monkeypatch.setattr(
+        httpx.AsyncHTTPTransport, "handle_async_request", handle_async_request
+    )
+    response = test_client.post("/ask", json={"question": "a book about bulls?"})
+
+    assert response.status_code == 200
+    assert response.text == ERROR_TEXT
+    assert db.execute("SELECT answer FROM transcripts").fetchall() == [("",)]
+
+
 def test_chat_page_script_parses(client):
     """A syntax error anywhere in the chat script leaves Ask doing nothing (lib-y4j)."""
     test_client, _ = client

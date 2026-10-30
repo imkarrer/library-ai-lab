@@ -254,6 +254,11 @@ curl -s http://127.0.0.1:8080/v1/chat/completions -H 'content-type: application/
 
 Leave tab 1 open: services started inside an activation stop when its last shell exits.
 
+The model runs on the CPU (`--n-gpu-layers 0` in the manifest, lib-30v): on the M5 Pro,
+llama.cpp's GPU backend fails every request. Expect the first words of an answer about 6
+seconds after Ask and about 12 words a second after that; the very first request after a
+start is slower while the model loads from disk, which is what the warm-up is for.
+
 Tab 2, the assistant, bound to the LAN address, with the demo Watchlist on (as in Step 2, not
 as a flox service; GAP lib-f9o):
 
@@ -492,7 +497,10 @@ flox services logs model -n 50
 flox services restart model
 ```
 
-"Demo model not found" in the log means Step 1.4 did not finish, or ran in another
+`Compute error` or `kIOGPUCommandBufferCallbackErrorOutOfMemory` in the log means the model
+server is running on the GPU, which fails on the M5 Pro: check the manifest's model command
+still has `--n-gpu-layers 0`, then leave the activation and start it again (Step 5), since a
+running activation does not pick up manifest changes. "Demo model not found" in the log means Step 1.4 did not finish, or ran in another
 checkout. The model takes a minute or
 two to load after a restart; re-run the warm-up from Step 5.
 
@@ -623,5 +631,9 @@ As of this runbook; re-check before the trip.
 - **The assistant cannot run as a flox service for the demo** (lib-f9o).
   `flox services start assistant` does not see the variables `demo.env` and `today.env`
   export, so Steps 2 and 5 start it with `uvicorn` in its own tab instead.
+- **The model runs on the CPU, not the GPU** (lib-30v). llama.cpp 0.6.0's Metal backend fails
+  every request on the M5 Pro with an out-of-memory error, whatever is offloaded (full,
+  `--fit on`, `--cpu-moe`, flash attention off). Answers are usable but slower than on the
+  GPU; try a newer llama.cpp before the trip.
 - **The Live view's Flag badge is not live**: "Flag: high" on a tile appears only on refresh.
 - **No staff page shows Purge runs**; the after-the-talk check uses `sqlite3` (Step 14).
