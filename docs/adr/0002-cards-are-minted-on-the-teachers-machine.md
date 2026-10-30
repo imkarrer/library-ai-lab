@@ -76,3 +76,21 @@ stricter posture gives Teachers the repo's page and the key separately, as befor
 The downloaded file holds a live key, so it is sent with `Cache-Control: no-store`, and the
 page tells the Teacher to keep it to themselves. A lost copy is handled like a lost key: the
 Librarian downloads a new one, and the lost copy stops working.
+
+## Addendum: the Minting page keeps each Roster on the Teacher's computer for 7 days
+
+Decided 2026-10-29 by the owner (lib-3t8). A Roster typed into the Minting page lived only in
+that page, so closing it lost the names, and a Flag raised later could not be traced: it
+happened in the demo. The page now keeps each Batch's Roster in its own browser storage on the
+Teacher's computer: the Class label, the Batch's dates, and Card number to name, never a Token
+or its hash. **Find a Card** answers "who held card N in this Class" from it, and a **Finish**
+step says where it is kept and offers the printed copy for the office.
+
+Each kept Roster deletes itself 7 days after its Batch was made: long enough to trace a Flag
+found the next day or after a weekend (Flags are overdue after 7 days open), short enough that
+names do not collect in a browser. The Teacher can delete one sooner. The Roster still never
+reaches the assistant, so "the server never had it" holds. What changes is that a digital copy
+of a pupil record now sits on the Teacher's computer for a week instead of only in a file the
+Teacher chose to keep; a school that does not want that tells Teachers to use the page in a
+private browser window, which keeps nothing, and to keep the printed Roster.
+
