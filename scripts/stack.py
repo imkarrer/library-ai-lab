@@ -4,6 +4,7 @@
     ./stack up              assistant on 127.0.0.1:8000, both Lanes on this Mac's Ollama
     ./stack up --lan        listening on the Wi-Fi address, for phones (the venue)
     ./stack up --mock       the fake model (scripts/fake_model.py) instead of Ollama
+    ./stack up --https      HTTPS, with this Install's own certificate (the IT kit)
     ./stack seed            the demo cast, settings, and the Teacher's filled Minting page
     ./stack down            stop everything `up` started
     ./stack clear           down, then delete the stack's database and files
@@ -25,6 +26,7 @@ import json
 import os
 import shutil
 import signal
+import ssl
 import subprocess
 import sys
 import time
@@ -137,9 +139,19 @@ def _read_pid(state: Path, name: str) -> int | None:
     return None
 
 
+# The stack's CA certificate, once `main` knows the state folder: an HTTPS health check
+# verifies the assistant against it, as a Chromebook would.
+_ca_file: Path | None = None
+
+
 def _healthy(url: str, timeout: float = 1.0) -> bool:
+    context = None
+    if url.startswith("https://"):
+        context = ssl.create_default_context(
+            cafile=str(_ca_file) if _ca_file and _ca_file.exists() else None
+        )
     try:
-        with urllib.request.urlopen(url, timeout=timeout) as response:
+        with urllib.request.urlopen(url, timeout=timeout, context=context) as response:
             return response.status == 200
     except (urllib.error.URLError, OSError):
         return False
@@ -246,6 +258,14 @@ def assistant_env(state: Path, config: dict) -> dict[str, str]:
         "LIBRARY_ASSISTANT_OVERSIGHT_ENDPOINT": oversight,
         "LIBRARY_ASSISTANT_OVERSIGHT_MODEL": oversight_model,
         "LIBRARY_ASSISTANT_OVERSIGHT_REASONING_EFFORT": OVERSIGHT_EFFORT,
+        **(
+            {
+                "LIBRARY_ASSISTANT_TLS_DIR": str(state / "tls"),
+                "LIBRARY_ASSISTANT_TLS_NAMES": config["host"],
+            }
+            if config.get("https")
+            else {}
+        ),
     }
 
 
@@ -262,7 +282,8 @@ def fixture_catalog(state: Path) -> str:
 
 
 def base_url(config: dict) -> str:
-    return f"http://{config['host']}:{config['port']}"
+    scheme = "https" if config.get("https") else "http"
+    return f"{scheme}://{config['host']}:{config['port']}"
 
 
 def _warm(url: str, model: str, effort: str) -> None:
@@ -301,6 +322,7 @@ def up(state: Path, args: argparse.Namespace) -> None:
         "timezone": args.timezone or _local_timezone(),
         "day_end": args.day_end,
         "fake_port": args.fake_port,
+        "https": args.https,
     }
     _config_path(state).write_text(json.dumps(config, indent=1))
     _say(f"Starting the stack ({'fake model' if args.mock else 'Ollama'}):")
@@ -352,6 +374,12 @@ def up(state: Path, args: argparse.Namespace) -> None:
             OVERSIGHT_EFFORT,
         )
 
+    if args.https:
+        from library_assistant.tls import ensure_certificates
+
+        tls = ensure_certificates(state / "tls", [config["host"]])
+        if tls.new_ca:
+            _say(f"  HTTPS: a new certificate for {config['host']}; the IT kit has it")
     # Every `up`, not only the first: an older stack gains the cast it is missing.
     seed(state, quiet=True)
     _start(
@@ -436,7 +464,10 @@ def seed(state: Path, quiet: bool = False) -> None:
         "SELECT id FROM staff_accounts WHERE username = ?", (teacher.username,)
     ).fetchone()[0]
     page = state / download_filename(teacher.username)
-    if not page.exists():
+    # A page made for another address (HTTP before HTTPS, another network) is made again.
+    if not page.exists() or f'"assistant_url": "{base_url(config)}"' not in (
+        page.read_text()
+    ):
         key = issue_registration_key(db, teacher_id, now)
         page.write_text(
             filled_minting_page(
@@ -477,10 +508,10 @@ def clear(state: Path) -> None:
     removed += sorted(page.name for page in state.glob("*-minting-page.html"))
     for name in removed:
         (state / name).unlink()
-    cards = state / "cards"
-    if cards.exists():
-        shutil.rmtree(cards)
-        removed.append("cards/")
+    for folder in ("cards", "tls"):
+        if (state / folder).exists():
+            shutil.rmtree(state / folder)
+            removed.append(f"{folder}/")
     _say(f"Cleared {state}: {', '.join(removed) or 'nothing to clear'}")
 
 
@@ -521,6 +552,8 @@ def status(state: Path) -> None:
             )
         _say(f"  Staff sign-in: {url}/staff/login")
         _say(f"  Live view:     {url}/staff/live  (press Start watch)")
+        if config.get("https"):
+            _say(f"  IT kit:        {url}/staff/it-kit  (HTTPS for Chromebooks)")
     credentials = state / "credentials.txt"
     if credentials.exists():
         _say(f"  Passwords:     {credentials}")
@@ -555,6 +588,9 @@ def main(argv: list[str] | None = None) -> None:
         "--lan", dest="on_wifi", action="store_true", help="listen on the Wi-Fi address"
     )
     start.add_argument("--port", type=int, default=8000)
+    start.add_argument(
+        "--https", action="store_true", help="serve HTTPS with the stack's own CA"
+    )
     start.add_argument("--fake-port", type=int, default=FAKE_MODEL_PORT)
     start.add_argument(
         "--fake-delay-ms", type=int, default=30, help="between streamed chunks (--mock)"
@@ -573,6 +609,8 @@ def main(argv: list[str] | None = None) -> None:
         commands.add_parser(name, help=text)
     args = parser.parse_args(argv)
     state = args.state.expanduser()
+    global _ca_file
+    _ca_file = state / "tls" / "library-assistant-ca.crt"
     if args.command == "up":
         up(state, args)
     elif args.command == "down":

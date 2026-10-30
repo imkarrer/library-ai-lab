@@ -7,6 +7,7 @@ import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from library_assistant.app import app
@@ -116,6 +117,14 @@ def test_demo_deck_introduces_the_cast_the_stack_seeds():
     flat = " ".join(deck.split())
     for number, student in enumerate(stack.DEMO_STUDENTS, start=1):
         assert f"<b>{number}</b>{student}" in flat
+
+
+@pytest.mark.parametrize("doc", ["it-network-request.md", "it-https-rollout.md"])
+def test_the_it_sheets_are_built_with_the_handouts_look(doc):
+    """The sheets for district IT are part of the Marp build (docs/handout/Makefile)."""
+    source = (REPO / "docs/templates" / doc).read_text()
+    assert source.startswith("---\nmarp: true\ntheme: handout\n")
+    assert f"../templates/{doc}" in (REPO / "docs/handout/Makefile").read_text()
 
 
 def test_stylesheet_is_revalidated_so_an_update_shows_at_once():
