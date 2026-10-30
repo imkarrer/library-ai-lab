@@ -11,6 +11,7 @@ import asyncio
 import hashlib
 import html
 import json
+import logging
 import sqlite3
 from collections.abc import Awaitable, Callable
 from datetime import datetime
@@ -65,6 +66,8 @@ from library_assistant.watchlist import Watchlist, normalize
 BANNER_TEXT = "This can be wrong, check the source."
 
 ERROR_TEXT = "Something went wrong. Ask the librarian."
+
+logger = logging.getLogger(__name__)
 
 # How long the probe waits between asking a down Oversight endpoint whether it is back,
 # and the catch-up waits while a Card awaits a verdict.
@@ -181,10 +184,15 @@ CHAT_PAGE_HTML = """<!DOCTYPE html>
       // Stream the response as today
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      for (;;) {{
-        const {{ done, value }} = await reader.read();
-        if (done) break;
-        answer.textContent += decoder.decode(value, {{ stream: true }});
+      try {{
+        for (;;) {{
+          const {{ done, value }} = await reader.read();
+          if (done) break;
+          answer.textContent += decoder.decode(value, {{ stream: true }});
+        }}
+      }} catch (error) {{
+        // The connection dropped mid-answer: say so, and let the Student ask again.
+        answer.textContent += (answer.textContent ? "\n\n" : "") + ERROR_TEXT;
       }}
       // Re-enable Ask button after successful stream
       questionInput.disabled = false;
@@ -632,31 +640,39 @@ def _answer(
             # Create a single filter instance for the entire streaming process
             filter_instance = SearchLineFilter()
 
-            async with http_client.stream(
-                "POST",
-                "/chat/completions",
-                json={
-                    "model": settings.openai_model,
-                    "messages": messages,
-                    "stream": True,
-                },
-            ) as response:
-                async for line in response.aiter_lines():
-                    if not line.startswith("data: "):
-                        continue
-                    payload = line.removeprefix("data: ")
-                    if payload == "[DONE]":
-                        break
-                    delta = json.loads(payload)["choices"][0]["delta"].get(
-                        "content", ""
-                    )
-                    if delta:
-                        # Use the filter to handle search lines
-                        output = filter_instance.feed(delta)
-                        if output:
-                            shown_parts.append(output)
-                            publish_delta(output)
-                            yield output
+            # The response's 200 is already sent, so a model server that is down or
+            # drops the stream cannot become an error status: the Student is told in
+            # the answer instead, and the log names the error class, never the question.
+            try:
+                async with http_client.stream(
+                    "POST",
+                    "/chat/completions",
+                    json={
+                        "model": settings.openai_model,
+                        "messages": messages,
+                        "stream": True,
+                    },
+                ) as response:
+                    async for line in response.aiter_lines():
+                        if not line.startswith("data: "):
+                            continue
+                        payload = line.removeprefix("data: ")
+                        if payload == "[DONE]":
+                            break
+                        delta = json.loads(payload)["choices"][0]["delta"].get(
+                            "content", ""
+                        )
+                        if delta:
+                            # Use the filter to handle search lines
+                            output = filter_instance.feed(delta)
+                            if output:
+                                shown_parts.append(output)
+                                publish_delta(output)
+                                yield output
+            except httpx.HTTPError as error:
+                logger.warning("model request failed: %s", type(error).__name__)
+                yield ("\n\n" if shown_parts else "") + ERROR_TEXT
+                return
 
             # After streaming, extract search terms from the full response
             remaining_text, search_terms = filter_instance.finish()

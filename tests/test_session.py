@@ -25,7 +25,7 @@ from library_assistant.catalog import Catalog, Record
 from library_assistant.config import Settings
 from library_assistant.dependencies import get_catalog, get_settings
 from library_assistant.install_settings import SUPERVISION_MODE, set_setting
-from library_assistant.routers.session import BANNER_TEXT, _in_flight
+from library_assistant.routers.session import BANNER_TEXT, ERROR_TEXT, _in_flight
 from library_assistant.staff import create_account
 
 REGISTRATION_KEY = "s3cret-registration-key"
@@ -372,12 +372,25 @@ def test_model_error_still_finishes_the_exchange_with_what_was_shown(
     monkeypatch.setattr(
         httpx.AsyncHTTPTransport, "handle_async_request", handle_async_request
     )
-    with pytest.raises(httpx.ConnectError):
-        test_client.post("/ask", json={"question": "a book about bulls?"})
+    response = test_client.post("/ask", json={"question": "a book about bulls?"})
 
+    # The stream's 200 was already sent: the Student is told in the answer, not left
+    # with a broken stream and nothing on screen.
+    assert response.status_code == 200
+    assert response.text == ERROR_TEXT
     assert db.execute(
         "SELECT question, answer, citations FROM transcripts"
     ).fetchall() == [("a book about bulls?", "", "")]
+
+
+def test_chat_page_shows_the_error_text_when_the_stream_breaks(client):
+    """A dropped connection mid-answer ends in ERROR_TEXT with Ask enabled again."""
+    test_client, _ = client
+    _sign_in(test_client)
+    page = test_client.get("/chat").text
+    read_loop = page[page.index("response.body.getReader()") :]
+    assert "} catch (error) {" in read_loop
+    assert "ERROR_TEXT" in read_loop[: read_loop.index("askButton.disabled = false")]
 
 
 def test_chat_page_has_end_session_button(client):
@@ -587,7 +600,8 @@ async def test_card_released_after_model_error(client, held_model):
     async with _signed_in() as device:
         async with _first_message_in_flight(device, held_model) as first:
             assert _one_moment(await _ask(device))
-        assert isinstance(first["error"], httpx.ConnectError)
+        assert first["response"].status_code == 200
+        assert first["response"].text == ERROR_TEXT
 
         again = await _ask(device)
     assert again.status_code == 200
