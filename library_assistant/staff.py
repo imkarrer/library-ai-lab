@@ -56,25 +56,62 @@ PAGE_HTML = """<!DOCTYPE html>
 </html>
 """
 
-LOGIN_FORM = """<h1>Staff sign-in</h1>
-{message}
-<form method="post" action="/staff/login">
-  <p><label>Username <input name="username" autocomplete="username" required></label></p>
-  <p><label>Password <input name="password" type="password"
-     autocomplete="current-password" required></label></p>
-  <p><button>Sign in</button></p>
-</form>"""
+# The sign-in, first-run setup, and "please sign in" pages: one centred card. The mark is
+# an open book in the page's own colour (currentColor), so it carries no colour of its own.
+AUTH_MARK = (
+    '<svg class="auth-mark" viewBox="0 0 48 48" aria-hidden="true">'
+    '<path d="M24 12c-4-3-10-4-16-3v26c6-1 12 0 16 3 4-3 10-4 16-3V9c-6-1-12 0-16 3z" '
+    'fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>'
+    '<path d="M24 12v26" stroke="currentColor" stroke-width="2.5"/></svg>'
+)
 
-SETUP_FORM = """<h1>Create the librarian account</h1>
-{message}
-<form method="post" action="/staff/setup">
-  <p><label>Username <input name="username" autocomplete="username" required></label></p>
-  <p><label>Password <input name="password" type="password"
-     autocomplete="new-password" required></label></p>
-  <p><label>Password again <input name="password_again" type="password"
-     autocomplete="new-password" required></label></p>
-  <p><button>Create account</button></p>
-</form>"""
+
+def _auth_card(heading: str, lede: str, inner: str) -> str:
+    return (
+        '<div class="auth"><div class="auth-card">'
+        f'<div class="auth-brand">{AUTH_MARK}<span>Library Assistant</span></div>'
+        f"<h1>{heading}</h1>"
+        f'<p class="auth-lede">{lede}</p>'
+        f"{inner}"
+        "</div>"
+        '<p class="auth-foot">Staff only. Students sign in by scanning their Card.</p>'
+        "</div>"
+    )
+
+
+LOGIN_FORM = _auth_card(
+    "Staff sign-in",
+    "Sign in to watch Sessions, work Flags, and make Cards.",
+    '<div class="auth-message" role="alert">{message}</div>'
+    '<form class="auth-form" method="post" action="/staff/login">'
+    '<label>Username <input name="username" autocomplete="username" required autofocus>'
+    "</label>"
+    '<label>Password <input name="password" type="password"'
+    ' autocomplete="current-password" required></label>'
+    "<button>Sign in</button>"
+    "</form>",
+)
+
+SETUP_FORM = _auth_card(
+    "Create the librarian account",
+    "The first account on this Install. It manages the others, and it cannot be removed.",
+    '<div class="auth-message" role="alert">{message}</div>'
+    '<form class="auth-form" method="post" action="/staff/setup">'
+    '<label>Username <input name="username" autocomplete="username" required autofocus>'
+    "</label>"
+    '<label>Password <input name="password" type="password"'
+    ' autocomplete="new-password" required></label>'
+    '<label>Password again <input name="password_again" type="password"'
+    ' autocomplete="new-password" required></label>'
+    "<button>Create account</button>"
+    "</form>",
+)
+
+SIGN_IN_FIRST = _auth_card(
+    "Please sign in",
+    "This page is for staff. Sign in first, then come back.",
+    '<p><a class="auth-button" href="/staff/login">Go to sign-in</a></p>',
+)
 
 
 # Which top-bar link a page belongs to, by its title.
@@ -228,7 +265,7 @@ def sign_in_required_handler(
 ) -> HTMLResponse:
     return page(
         "Sign in",
-        '<p>Please <a href="/staff/login">sign in</a> first.</p>',
+        SIGN_IN_FIRST,
         status_code=401,
     )
 
