@@ -1,4 +1,5 @@
 import asyncio
+import dataclasses
 import json
 import sqlite3
 from unittest.mock import patch
@@ -290,3 +291,62 @@ def test_screen_unavailable_on_timeout():
 
     with pytest.raises(OversightUnavailable):
         _run_screen(handler)
+
+
+def _screen_payload(settings: Settings) -> dict:
+    seen: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["payload"] = json.loads(request.content)
+        return _chat_response(
+            json.dumps({"category": None, "severity": None, "reason": "fine"})
+        )
+
+    async def go() -> None:
+        async with _client(handler) as client:
+            await screen(client, settings, "is the library open on Saturday?")
+
+    asyncio.run(go())
+    return seen["payload"]
+
+
+def test_oversight_reasoning_effort_is_sent_when_set():
+    """A thinking model spends the verdict's 256 tokens thinking without it (lib-ktv)."""
+    settings = dataclasses.replace(_settings(), oversight_reasoning_effort="none")
+    assert _screen_payload(settings)["reasoning_effort"] == "none"
+
+
+def test_oversight_reasoning_effort_is_left_out_by_default():
+    assert "reasoning_effort" not in _screen_payload(_settings())
+
+
+def test_from_env_reads_oversight_reasoning_effort():
+    env = {"LIBRARY_ASSISTANT_OVERSIGHT_REASONING_EFFORT": "none"}
+    assert Settings.from_env(env).oversight_reasoning_effort == "none"
+
+
+def test_startup_takes_the_oversight_lock_beside_the_database(monkeypatch, tmp_path):
+    """Not beside the Catalog, which put the lock in the repo checkout (lib-ktv)."""
+    from fastapi.testclient import TestClient
+
+    import library_assistant.access as access_module
+    import library_assistant.app as app_module
+    from library_assistant.access import connect
+    from library_assistant.dependencies import get_settings
+
+    locked: list[str] = []
+    monkeypatch.setattr(access_module, "DB_PATH", str(tmp_path / "install.db"))
+    monkeypatch.setattr(app_module, "connect", lambda: connect(":memory:"))
+    monkeypatch.setattr(
+        app_module, "acquire_oversight_lock", lambda path: locked.append(path)
+    )
+    app_module.app.dependency_overrides[get_settings] = lambda: dataclasses.replace(
+        _settings(), catalog_path="/srv/shared/catalog.db"
+    )
+    try:
+        with TestClient(app_module.app):
+            pass
+    finally:
+        app_module.app.dependency_overrides.clear()
+
+    assert locked == [str(tmp_path / "install.db")]
