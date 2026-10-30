@@ -262,7 +262,9 @@ The assistant cannot tell you who a Student is. It never had that information, b
 Student uses a **Card**: a printed QR code with a **Card number** on it, handed out by a Teacher
 for one class (a **Batch**, labelled with a **Class label** such as "Period 3"). Only the
 **Teacher** who minted that Batch has the **Roster**: the list of which Student got which Card
-number. The Roster lives on the Teacher's own computer.
+number. The Roster lives on the Teacher's own computer: the Minting page keeps each Batch's Roster
+in that computer's browser for 7 days, then deletes it, and the Teacher can also download it or
+print it for the office.
 
 **Identification** is one adult asking another:
 
@@ -271,7 +273,8 @@ number. The Roster lives on the Teacher's own computer.
    key, so the assistant knows which Teacher's class a Card was for, never which Student held
    it.
 2. Ask in person or by phone: "Who had card `N` in `Class label` today?"
-3. The Teacher looks it up in their Roster and tells you.
+3. The Teacher looks it up: **Find a Card** at the top of their Minting page (pick the Class,
+   type the Card number), or their downloaded or printed Roster. Then they tell you.
 4. **Never type the name into the assistant.** Not in the Flag, not in a close note, not in a
    chat to test something. Never email or message "card 14 is [name]". The link between a
    Card number and a name exists only in the Teacher's Roster and in the adults' heads, and in

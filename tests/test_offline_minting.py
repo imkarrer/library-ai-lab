@@ -504,3 +504,98 @@ process.stdout.write(JSON.stringify([
 
 def test_page_carries_the_loopback_warning(page_html: str) -> None:
     assert 'id="loopback-warning"' in page_html
+
+
+# --- Rosters kept on the Teacher's computer (lib-3t8): 7 days, never a Token.
+
+ROSTER_HARNESS = """
+const store = {};
+const storage = {
+  getItem: (k) => (k in store ? store[k] : null),
+  setItem: (k, v) => { store[k] = String(v); },
+};
+"""
+
+
+def test_a_kept_roster_has_names_and_dates_but_never_a_token(
+    app_logic_script: str,
+) -> None:
+    js = f"""
+{NODE_STUB_DOCUMENT}
+{app_logic_script}
+{ROSTER_HARNESS}
+(async () => {{
+  const data = await generateCards(2, 'Period 3', '23:59', ['Fred', 'Ada']);
+  saveRosters(storage, upsertRoster(loadRosters(storage), rosterRecord(data)));
+  const raw = store['library-assistant-rosters'];
+  const [kept] = loadRosters(storage);
+  process.stdout.write(JSON.stringify({{
+    raw, tokens: data.cards.map(c => c.token), hashes: data.cards.map(c => c.tokenHash),
+    names: kept.rows.map(r => r.students),
+    days: (new Date(kept.keepUntil) - new Date(kept.madeAt)) / 86400000,
+  }}));
+}})();
+"""
+    out = json.loads(_run_node(js))
+    assert out["names"] == ["Fred", "Ada"]
+    assert out["days"] == 7
+    for secret in out["tokens"] + out["hashes"]:
+        assert secret not in out["raw"]
+
+
+def test_rosters_past_seven_days_or_damaged_are_dropped(app_logic_script: str) -> None:
+    js = f"""
+{NODE_STUB_DOCUMENT}
+{app_logic_script}
+{ROSTER_HARNESS}
+storage.setItem('library-assistant-rosters', JSON.stringify([
+  {{id: 'old', classLabel: 'P1', madeAt: '2026-01-01T00:00:00Z', keepUntil: '2026-01-08T00:00:00Z', rows: []}},
+  {{id: 'new', classLabel: 'P2', madeAt: '2026-01-07T00:00:00Z', keepUntil: '2026-01-14T00:00:00Z', rows: []}},
+]));
+const kept = loadRosters(storage, new Date('2026-01-10T00:00:00Z')).map(r => r.id);
+storage.setItem('library-assistant-rosters', 'not json');
+process.stdout.write(JSON.stringify({{kept, damaged: loadRosters(storage)}}));
+"""
+    assert json.loads(_run_node(js)) == {"kept": ["new"], "damaged": []}
+
+
+def test_saving_a_batch_again_replaces_it_and_find_card_answers(
+    app_logic_script: str,
+) -> None:
+    js = f"""
+{NODE_STUB_DOCUMENT}
+{app_logic_script}
+{ROSTER_HARNESS}
+(async () => {{
+  const monday = await generateCards(2, 'Period 3', '23:58', ['Fred', '']);
+  monday.startDate = new Date(Date.now() - 86400000);
+  const today = await generateCards(1, 'Period 3', '23:59', ['Grace']);
+  let rosters = upsertRoster([], rosterRecord(monday));
+  rosters = upsertRoster(rosters, rosterRecord(today));
+  monday.rosterRows[1].students = 'Ada';  // named later, at hand-out
+  rosters = upsertRoster(rosters, rosterRecord(monday));
+  const one = findCard(rosters, 'Period 3', 1).map(f => f.row.students);
+  const exact = findCard(rosters, 'Period 3', 1, monday.expiresAt.toISOString()).map(f => f.row.students);
+  process.stdout.write(JSON.stringify({{
+    count: rosters.length, one, exact,
+    two: findCard(rosters, 'Period 3', 2).map(f => f.row.students),
+    none: findCard(rosters, 'Period 4', 1).length,
+  }}));
+}})();
+"""
+    out = json.loads(_run_node(js))
+    assert out["count"] == 2
+    assert out["one"] == ["Grace", "Fred"]  # newest Batch first
+    assert out["exact"] == ["Fred"]
+    assert out["two"] == ["Ada"]
+    assert out["none"] == 0
+
+
+def test_page_has_find_a_card_and_finish(page_html: str) -> None:
+    for element in (
+        'id="find-card"',
+        'id="find-class"',
+        'id="find-number"',
+        'id="finish-btn"',
+    ):
+        assert element in page_html
