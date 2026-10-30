@@ -13,12 +13,22 @@ FILE="Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf"
 SHA256="6c997b8af17debdfb01d890214400ccbab00db6acc0ba8da5de1cc906c4774d0"
 URL="https://huggingface.co/${REPO}/resolve/main/${FILE}"
 
+# Compares the digest itself rather than using `sha256sum --check --status`: macOS's
+# sha256sum (Darwin 1.0) rejects --status and a check list on stdin, and a usage error
+# read as a mismatch deleted a good 17 GB download. Both print "<digest>  <file>".
+verify() {
+  local digest
+  digest="$(sha256sum "$1")" || return 1
+  [ "${digest%% *}" = "$SHA256" ]
+}
+
+# Sourced (by tests/test_fetch_demo_model.py), stop after defining verify.
+if [ "${BASH_SOURCE[0]}" != "$0" ]; then
+  return 0
+fi
+
 dest_dir="${FLOX_ENV_CACHE:?run inside the flox environment (FLOX_ENV_CACHE unset)}/models"
 dest="$dest_dir/$FILE"
-
-verify() {
-  echo "$SHA256  $1" | sha256sum --check --status
-}
 
 mkdir -p "$dest_dir"
 

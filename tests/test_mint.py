@@ -1,6 +1,7 @@
 import csv
 import io
 import json
+import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -208,6 +209,15 @@ def test_qr_sheet_encodes_sign_in_url_when_base_url_given():
     result = mint_cards(1, "Period 3", _expiry())
     html = qr_sheet_html(result.cards, "Period 3", base_url="http://intranet")
     assert "<svg" in html
+
+
+def test_qr_sheet_svg_uses_only_elements_html_renders():
+    # An HTML page ignores namespace prefixes: <svg:rect> modules draw nothing.
+    result = mint_cards(2, "Period 3", _expiry())
+    html = qr_sheet_html(result.cards, "Period 3", base_url="http://intranet")
+    tags = re.findall(r"<([A-Za-z][\w:.-]*)", html)
+    assert not [tag for tag in tags if ":" in tag]
+    assert html.count("<path") == 2
 
 
 def _sheet(count: int = 3, class_label: str = "Period 3") -> tuple[str, list]:

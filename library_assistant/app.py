@@ -14,6 +14,7 @@ from library_assistant.install_settings import router as install_settings_router
 # Import here to avoid circular imports
 from library_assistant.oversight import acquire_oversight_lock
 from library_assistant.purge import purge_loop, run_if_due
+from library_assistant.registration_cors import RegistrationCorsMiddleware
 from library_assistant.routers.about import router as about_router
 from library_assistant.routers.alarms import router as alarms_router
 from library_assistant.routers.flags import router as flags_router
@@ -116,6 +117,8 @@ app.add_exception_handler(StaffSignInRequired, sign_in_required_handler)
 # The only access log: route template, status, duration (ADR-0003 addendum).
 access_log.configure()
 app.add_middleware(AccessLogMiddleware)
+# CORS for /batches alone, so the offline Minting page can register (ADR-0002).
+app.add_middleware(RegistrationCorsMiddleware)
 
 
 @app.get("/health")

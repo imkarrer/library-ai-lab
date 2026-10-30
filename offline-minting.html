@@ -67,6 +67,11 @@
             margin-top: 10px;
             color: #666;
         }
+        .hint {
+            font-size: 12px;
+            color: #666;
+            margin: 4px 0 0;
+        }
         .hidden {
             display: none;
         }
@@ -104,11 +109,13 @@
 </head>
 <body>
     <h1>Offline Minting Page</h1>
-    <p>This page works from a file:// URL with networking off, except for the Registration upload.</p>
+    <p>Make Cards for a class on this computer. Each Card's code is made here and never leaves
+    it: Registration sends the Library Assistant only a fingerprint (hash) of each code, so it can
+    recognise a Card but never learns who holds it. The Roster stays with you.</p>
 
-    <!-- Step 1: Configuration -->
+    <!-- Step 1: make and register the Batch -->
     <div id="step1" class="step active">
-        <h2>Batch Configuration</h2>
+        <h2>Make Cards</h2>
         <div class="form-group">
             <label for="class-label">Class Label:</label>
             <input type="text" id="class-label" value="Period 3" required>
@@ -121,22 +128,36 @@
             <label for="until">Cards stop working at (today):</label>
             <input type="time" id="until" value="15:30" required>
         </div>
-        <button id="generate-btn">Generate Cards</button>
+        <div class="form-group">
+            <label for="assistant-url">Library Assistant address:</label>
+            <input type="text" id="assistant-url" placeholder="http://library-assistant.school.example:8000">
+            <p class="hint">From your librarian. This computer remembers it.</p>
+        </div>
+        <div class="form-group">
+            <label for="registration-key">Your Registration key:</label>
+            <input type="password" id="registration-key" autocomplete="off">
+            <p class="hint">From your librarian. Never saved on this computer.</p>
+        </div>
+        <div id="make-status" class="hidden"></div>
+        <button id="generate-btn">Make Cards</button>
     </div>
 
-    <!-- Step 2: QR Sheet -->
+    <!-- Step 2: the registered Batch's Cards and Roster -->
     <div id="step2" class="step">
-        <h2>Printable QR Sheet</h2>
-        <div id="qr-sheet-container" class="qr-sheet"></div>
+        <h2>Your Cards are ready</h2>
+        <p id="registered-note" class="success"></p>
+        <p>Download or print the Cards now: they are not kept anywhere once you leave this page.</p>
+        <button id="download-cards-btn">Download Cards</button>
+        <button id="print-cards-btn">Print Cards</button>
         <button id="download-csv-btn">Download Roster CSV</button>
         <button id="print-roster-btn">Print Sealed Roster Sheet</button>
-        <button id="register-btn">Register Batch</button>
-        <button id="back-to-config-btn">Back to Configuration</button>
+        <button id="back-to-config-btn">Make another Batch</button>
+        <div id="qr-sheet-container"></div>
         <details>
             <summary>Technical details: Token hashes (for verifying against the server database by hand)</summary>
             <p>Each Card's Token is hashed with SHA-256 on this machine, the same way the server
-            hashes a Card at sign-in. These hashes are what Registration sends; the Tokens
-            themselves never leave this machine. The table is here only so a Teacher can
+            hashes a Card at sign-in. These hashes are what Registration sent; the Tokens
+            themselves never left this machine. The table is here only so a Teacher can
             cross-check a Card against the server's <code>cards</code> table if an upload
             ever needs confirming by hand.</p>
             <table id="audit-table" class="audit">
@@ -144,23 +165,6 @@
                 <tbody id="audit-table-body"></tbody>
             </table>
         </details>
-    </div>
-
-    <!-- Step 3: Registration -->
-    <div id="step3" class="step">
-        <h2>Registration</h2>
-        <p>Enter the registration endpoint and key to register this batch:</p>
-        <div class="form-group">
-            <label for="registration-url">Registration URL:</label>
-            <input type="text" id="registration-url" placeholder="https://your-school.intranet/batches">
-        </div>
-        <div class="form-group">
-            <label for="registration-key">Registration Key:</label>
-            <input type="password" id="registration-key" placeholder="Your registration key">
-        </div>
-        <div id="registration-status" class="hidden"></div>
-        <button id="submit-registration-btn">Submit Registration</button>
-        <button id="back-to-qrs-btn">Back to QR Sheet</button>
     </div>
 
     <!-- Vendored MIT-licensed QR Code generator (Kazuhiko Arase), kept with its licence notice.
@@ -2568,17 +2572,42 @@ var qrcode = function() {
             };
         }
 
+        function escapeHtml(text) {
+            return String(text).replace(/[&<>"']/g, ch => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            })[ch]);
+        }
+
+        // The assistant's address as the Teacher typed it, with a scheme and no trailing slash.
+        function normaliseBase(address) {
+            let base = address.trim();
+            if (base && !/^https?:\/\//i.test(base)) {
+                base = 'http://' + base;
+            }
+            return base.replace(/\/+$/, '');
+        }
+
+        // What a Card's QR code carries: the sign-in page, with the Token after the #, so a
+        // phone's camera opens the chat and the Token never reaches a server log.
+        function signInUrl(base, token) {
+            return `${base}/card#t=${token}`;
+        }
+
+        function registrationUrl(base) {
+            return `${base}/batches`;
+        }
+
         // Generate QR sheet HTML
-        function generateQRSheet(cards, classLabel) {
+        function generateQRSheet(cards, classLabel, base) {
             const PRIVACY_NOTE = "This card doesn't tell the assistant your name. Adults can see what you ask.";
 
             return `
-                <h2>${classLabel} - Cards</h2>
+                <h2>${escapeHtml(classLabel)} - Cards</h2>
                 <div class="qr-sheet">
                     ${cards.map(card => `
                         <div class="card">
                             <div class="card-number">Card ${card.cardNumber}</div>
-                            <div class="qr">${generateQRCodeSVG(card.token)}</div>
+                            <div class="qr">${generateQRCodeSVG(signInUrl(base, card.token))}</div>
                             <div class="privacy-note">${PRIVACY_NOTE}</div>
                         </div>
                     `).join('')}
@@ -2596,7 +2625,7 @@ var qrcode = function() {
         // Generate CSV content for roster
         function generateCSV(rosterRows) {
             const headers = ["card_number", "students"];
-            const rows = rosterRows.map(row => [row.card_number, row.students]);
+            const rows = rosterRows.map(row => [row.cardNumber, row.students]);
 
             const csvContent = [
                 headers.join(','),
@@ -2606,9 +2635,35 @@ var qrcode = function() {
             return csvContent;
         }
 
-        // Download CSV file
-        function downloadCSV(csvContent, filename) {
-            const blob = new Blob([csvContent], { type: 'text/csv' });
+        // The Cards as a page of their own, for the Teacher to save or print.
+        function cardsDocument(classLabel, sheetHtml) {
+            return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>${escapeHtml(classLabel)} - Cards</title>
+<style>
+  body { font-family: sans-serif; padding: 0.25in; }
+  .qr-sheet { display: flex; flex-wrap: wrap; gap: 0.3in; }
+  .card { width: 2in; text-align: center; border: 1px solid #999; padding: 0.15in;
+          break-inside: avoid; }
+  .card-number { font-weight: bold; margin-bottom: 0.1in; }
+  .qr svg { width: 1.6in; height: 1.6in; }
+  .privacy-note { font-size: 0.7em; margin-top: 0.1in; }
+</style>
+</head>
+<body>
+${sheetHtml}
+</body>
+</html>`;
+        }
+
+        function fileStem(classLabel) {
+            return classLabel.replace(/\s+/g, '_');
+        }
+
+        function downloadFile(content, filename, type) {
+            const blob = new Blob([content], { type: type });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -2659,12 +2714,11 @@ var qrcode = function() {
 
         // Submit registration to server. Only the Registration payload (Token hashes, Card
         // numbers, expiry, Class label) and the registration key ever leave this machine; the Roster
-        // (student names) never does.
-        async function submitRegistration(url, key, payload) {
-            const statusDiv = document.getElementById('registration-status');
-            statusDiv.classList.remove('hidden');
+        // (student names) never does. Resolves to {ok: true} or {error: <what to tell the Teacher>}.
+        async function submitRegistration(base, key, payload) {
+            let response;
             try {
-                const response = await fetch(url, {
+                response = await fetch(registrationUrl(base), {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -2674,15 +2728,52 @@ var qrcode = function() {
                         ...payload
                     })
                 });
-
-                if (response.ok) {
-                    statusDiv.innerHTML = '<div class="success">Registration successful!</div>';
-                } else {
-                    throw new Error('Registration failed');
-                }
             } catch (error) {
-                statusDiv.innerHTML = '<div class="error">Registration failed: ' + error.message + '</div>';
+                return { error: `Could not reach the Library Assistant at ${base}. Check the address, and that this computer is on the school network.` };
             }
+            if (response.ok) {
+                return { ok: true };
+            }
+            if (response.status === 403) {
+                return { error: 'The Library Assistant did not accept that Registration key. Check it with your librarian.' };
+            }
+            let detail = '';
+            try {
+                const body = await response.json();
+                detail = typeof body.detail === 'string' ? body.detail : '';
+            } catch (error) {
+                // Not JSON: fall through to the status.
+            }
+            return { error: detail || `The Library Assistant refused the Cards (status ${response.status}).` };
+        }
+
+        function rememberedBase() {
+            try {
+                return localStorage.getItem('assistant-url') || '';
+            } catch (error) {
+                return '';
+            }
+        }
+
+        function rememberBase(base) {
+            try {
+                localStorage.setItem('assistant-url', base);
+            } catch (error) {
+                // A browser that keeps nothing for file:// pages: the Teacher types it again.
+            }
+        }
+
+        function showStatus(message) {
+            const status = document.getElementById('make-status');
+            status.innerHTML = message ? `<div class="error">${escapeHtml(message)}</div>` : '';
+            status.classList.toggle('hidden', !message);
+        }
+
+        function openAndPrint(html) {
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(html);
+            printWindow.document.close();
+            printWindow.print();
         }
 
         function dateStamp(date) {
@@ -2690,87 +2781,88 @@ var qrcode = function() {
         }
 
         document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('assistant-url').value = rememberedBase();
+
             document.getElementById('generate-btn').addEventListener('click', async function() {
-                const classLabel = document.getElementById('class-label').value;
+                const classLabel = document.getElementById('class-label').value.trim();
                 const count = parseInt(document.getElementById('count').value);
                 const until = document.getElementById('until').value;
+                const base = normaliseBase(document.getElementById('assistant-url').value);
+                const key = document.getElementById('registration-key').value.trim();
 
-                if (!classLabel || count < 1 || !until) {
-                    alert('Please fill all fields with valid values');
+                if (!classLabel || !(count >= 1) || !until) {
+                    showStatus('Fill in the Class label, the number of Cards, and the time they stop working.');
+                    return;
+                }
+                if (!base || !key) {
+                    showStatus('Fill in the Library Assistant address and your Registration key.');
                     return;
                 }
 
-                const result = await generateCards(count, classLabel, until);
+                const button = this;
+                button.disabled = true;
+                showStatus('');
+                try {
+                    const result = await generateCards(count, classLabel, until);
+                    if (result.error) {
+                        showStatus(result.error);
+                        return;
+                    }
 
-                if (result.error) {
-                    alert(result.error);
-                    return;
+                    // Register before showing a Card: a Card the assistant refused would not work.
+                    const registration = await submitRegistration(base, key, result.registrationPayload);
+                    if (registration.error) {
+                        showStatus(registration.error + ' No Cards were made.');
+                        return;
+                    }
+                    rememberBase(base);
+
+                    result.sheetHtml = generateQRSheet(result.cards, classLabel, base);
+                    window.generatedData = result;
+                    document.getElementById('qr-sheet-container').innerHTML = result.sheetHtml;
+                    document.getElementById('audit-table-body').innerHTML = generateAuditTableRows(result.cards);
+                    document.getElementById('registered-note').textContent =
+                        `Registered ${result.cards.length} Cards for ${classLabel}. They stop working at ${until} today.`;
+
+                    document.getElementById('step1').classList.remove('active');
+                    document.getElementById('step2').classList.add('active');
+                } finally {
+                    button.disabled = false;
                 }
+            });
 
-                document.getElementById('qr-sheet-container').innerHTML = generateQRSheet(result.cards, classLabel);
-                document.getElementById('audit-table-body').innerHTML = generateAuditTableRows(result.cards);
+            document.getElementById('download-cards-btn').addEventListener('click', function() {
+                const data = window.generatedData;
+                downloadFile(cardsDocument(data.classLabel, data.sheetHtml),
+                    `${fileStem(data.classLabel)}-cards.html`, 'text/html');
+            });
 
-                // Store the data for later use
-                window.generatedData = result;
-
-                // Switch to step 2
-                document.getElementById('step1').classList.remove('active');
-                document.getElementById('step2').classList.add('active');
+            document.getElementById('print-cards-btn').addEventListener('click', function() {
+                const data = window.generatedData;
+                openAndPrint(cardsDocument(data.classLabel, data.sheetHtml));
             });
 
             document.getElementById('download-csv-btn').addEventListener('click', function() {
-                if (!window.generatedData) {
-                    alert('No data generated yet');
-                    return;
-                }
-
-                const csvContent = generateCSV(window.generatedData.rosterRows);
-                downloadCSV(csvContent, `${document.getElementById('class-label').value.replace(/\s+/g, '_')}-roster.csv`);
+                const data = window.generatedData;
+                downloadFile(generateCSV(data.rosterRows),
+                    `${fileStem(data.classLabel)}-roster.csv`, 'text/csv');
             });
 
             document.getElementById('print-roster-btn').addEventListener('click', function() {
-                if (!window.generatedData) {
-                    alert('No data generated yet');
-                    return;
-                }
-
                 const data = window.generatedData;
                 const cardNumbers = data.cards.map(card => card.cardNumber);
-                const classLabel = document.getElementById('class-label').value;
-                const sheetHtml = generateSealedRosterSheet(
-                    cardNumbers, classLabel, dateStamp(data.startDate), dateStamp(data.expiresAt)
-                );
-                const printWindow = window.open('', '_blank');
-                printWindow.document.write(sheetHtml);
-                printWindow.document.close();
-                printWindow.print();
+                openAndPrint(generateSealedRosterSheet(
+                    cardNumbers, escapeHtml(data.classLabel), dateStamp(data.startDate), dateStamp(data.expiresAt)
+                ));
             });
 
-            document.getElementById('register-btn').addEventListener('click', function() {
-                document.getElementById('step2').classList.remove('active');
-                document.getElementById('step3').classList.add('active');
-            });
-
+            // Drop this Batch's Tokens from the page before making another.
             document.getElementById('back-to-config-btn').addEventListener('click', function() {
+                window.generatedData = null;
+                document.getElementById('qr-sheet-container').innerHTML = '';
+                document.getElementById('audit-table-body').innerHTML = '';
                 document.getElementById('step2').classList.remove('active');
                 document.getElementById('step1').classList.add('active');
-            });
-
-            document.getElementById('back-to-qrs-btn').addEventListener('click', function() {
-                document.getElementById('step3').classList.remove('active');
-                document.getElementById('step2').classList.add('active');
-            });
-
-            document.getElementById('submit-registration-btn').addEventListener('click', async function() {
-                const url = document.getElementById('registration-url').value;
-                const key = document.getElementById('registration-key').value;
-
-                if (!url || !key || !window.generatedData) {
-                    alert('Please fill all registration fields');
-                    return;
-                }
-
-                await submitRegistration(url, key, window.generatedData.registrationPayload);
             });
         });
     </script>

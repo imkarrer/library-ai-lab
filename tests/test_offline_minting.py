@@ -221,3 +221,137 @@ def test_generate_uses_until_not_days(app_logic_script: str) -> None:
     assert payload["futureExpiresSameDay"] is True
     assert payload["pastHasError"] is True
     assert payload["pastHasCards"] is False
+
+
+def test_qr_codes_carry_the_sign_in_url_not_a_bare_token(
+    qrcode_lib_script: str, app_logic_script: str
+) -> None:
+    """A phone's camera must open the chat: each QR code carries <address>/card#t=<Token>."""
+    js = f"""
+{NODE_STUB_DOCUMENT}
+{qrcode_lib_script}
+{app_logic_script}
+const encoded = [];
+generateQRCodeSVG = (data) => {{ encoded.push(data); return '<svg></svg>'; }};
+(async () => {{
+  const result = await generateCards(2, 'Period 3', '23:59');
+  generateQRSheet(result.cards, 'Period 3', normaliseBase('192.0.2.10:8000/'));
+  process.stdout.write(JSON.stringify({{encoded, tokens: result.cards.map(c => c.token)}}));
+}})();
+"""
+    out = json.loads(_run_node(js))
+    assert out["encoded"] == [
+        f"http://192.0.2.10:8000/card#t={token}" for token in out["tokens"]
+    ]
+
+
+def test_normalise_base_adds_a_scheme_and_drops_trailing_slashes(
+    app_logic_script: str,
+) -> None:
+    js = f"""
+{NODE_STUB_DOCUMENT}
+{app_logic_script}
+process.stdout.write(JSON.stringify([
+  normaliseBase(' library.school.example:8000 '),
+  normaliseBase('https://library.school.example//'),
+  normaliseBase('HTTP://192.0.2.10:8000'),
+]));
+"""
+    assert json.loads(_run_node(js)) == [
+        "http://library.school.example:8000",
+        "https://library.school.example",
+        "HTTP://192.0.2.10:8000",
+    ]
+
+
+def _submit(app_logic_script: str, fake_fetch: str) -> dict:
+    js = f"""
+{NODE_STUB_DOCUMENT}
+{app_logic_script}
+const calls = [];
+global.fetch = {fake_fetch};
+(async () => {{
+  const result = await generateCards(2, 'Period 3', '23:59');
+  const outcome = await submitRegistration(
+    'http://192.0.2.10:8000', 'the-key', result.registrationPayload
+  );
+  process.stdout.write(JSON.stringify({{
+    outcome, calls, tokens: result.cards.map(c => c.token)
+  }}));
+}})();
+"""
+    return json.loads(_run_node(js))
+
+
+def test_registration_posts_hashes_to_the_assistants_batches_route(
+    app_logic_script: str,
+) -> None:
+    out = _submit(
+        app_logic_script,
+        "async (url, init) => { calls.push({url, body: init.body}); "
+        "return {ok: true, status: 201}; }",
+    )
+    assert out["outcome"] == {"ok": True}
+    [call] = out["calls"]
+    assert call["url"] == "http://192.0.2.10:8000/batches"
+    body = json.loads(call["body"])
+    assert body["registration_key"] == "the-key"
+    assert not any(token in call["body"] for token in out["tokens"])
+
+
+def test_registration_refusal_tells_the_teacher_why(app_logic_script: str) -> None:
+    detail = "A Batch must expire by the end of today's school day."
+    out = _submit(
+        app_logic_script,
+        "async () => ({ok: false, status: 422, "
+        f"json: async () => ({{detail: {json.dumps(detail)}}})}})",
+    )
+    assert out["outcome"] == {"error": detail}
+
+
+def test_wrong_registration_key_is_named(app_logic_script: str) -> None:
+    out = _submit(
+        app_logic_script,
+        "async () => ({ok: false, status: 403, json: async () => ({detail: 'x'})})",
+    )
+    assert "Registration key" in out["outcome"]["error"]
+
+
+def test_unreachable_assistant_names_the_address(app_logic_script: str) -> None:
+    out = _submit(app_logic_script, "async () => { throw new TypeError('Failed'); }")
+    assert "http://192.0.2.10:8000" in out["outcome"]["error"]
+
+
+def test_roster_csv_lists_every_card_number(app_logic_script: str) -> None:
+    js = f"""
+{NODE_STUB_DOCUMENT}
+{app_logic_script}
+(async () => {{
+  const result = await generateCards(3, 'Period 3', '23:59');
+  process.stdout.write(generateCSV(result.rosterRows));
+}})();
+"""
+    assert _run_node(js).splitlines() == ["card_number,students", "1,", "2,", "3,"]
+
+
+def test_cards_download_is_a_whole_page_with_the_sheet(app_logic_script: str) -> None:
+    js = f"""
+{NODE_STUB_DOCUMENT}
+{app_logic_script}
+process.stdout.write(cardsDocument('Period <3>', '<div class="qr-sheet">SHEET</div>'));
+"""
+    page = _run_node(js)
+    assert page.startswith("<!DOCTYPE html>")
+    assert "SHEET" in page
+    assert "<title>Period &lt;3&gt; - Cards</title>" in page
+
+
+def test_one_form_asks_for_the_address_and_key_before_making_cards(
+    page_html: str,
+) -> None:
+    """Cards are registered before they are shown, so the form asks for both up front."""
+    step1 = page_html[page_html.index('id="step1"') : page_html.index('id="step2"')]
+    assert 'id="assistant-url"' in step1
+    assert 'id="registration-key"' in step1
+    assert 'id="step3"' not in page_html
+    assert "Download Cards" in page_html
