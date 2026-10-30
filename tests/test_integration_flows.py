@@ -61,14 +61,14 @@ def _stack(state: Path, *args: str) -> str:
 class Install:
     base: str
     state: Path
-    passwords: dict[str, str]
+    accounts: dict[str, tuple[str, str]]  # role: (username, password)
     teacher_key: str
 
-    def staff(self, username: str) -> httpx.Client:
+    def staff(self, role: str) -> httpx.Client:
+        username, password = self.accounts[role]
         client = httpx.Client(base_url=self.base, timeout=30, follow_redirects=True)
         response = client.post(
-            "/staff/login",
-            data={"username": username, "password": self.passwords[username]},
+            "/staff/login", data={"username": username, "password": password}
         )
         assert response.status_code == 200, response.text
         return client
@@ -108,16 +108,20 @@ def install(tmp_path_factory) -> Iterator[Install]:
         _midday_zone(),
     )
     try:
-        passwords = {
-            line.split(" ")[0]: line.rsplit(": ", 1)[1]
+        # Keyed by role: "librarian.overdue (librarian): <password>".
+        accounts = {
+            re.search(r"\((\w+)\)", line).group(1): (
+                line.split(" ")[0],
+                line.rsplit(": ", 1)[1],
+            )
             for line in (state / "credentials.txt").read_text().splitlines()
         }
-        page = (state / "teacher-minting-page.html").read_text()
+        page = (state / "teacher.popquiz-minting-page.html").read_text()
         config = json.loads(
             re.search(r'id="install-config">(.*?)</script>', page, re.DOTALL).group(1)
         )
         yield Install(
-            f"http://127.0.0.1:{port}", state, passwords, config["registration_key"]
+            f"http://127.0.0.1:{port}", state, accounts, config["registration_key"]
         )
     finally:
         _stack(state, "down")
@@ -311,7 +315,7 @@ def test_the_counselor_asks_the_teacher_who_held_an_escalated_card(install, libr
 
     counselor = install.staff("counselor")
     assert (
-        "Ask teacher who held it"
+        "Ask teacher.popquiz who held it"
         in counselor.get(f"/staff/counselor/flags/{flag_id}").text
     )
     counselor.post(f"/staff/counselor/flags/{flag_id}/identify")
@@ -323,11 +327,14 @@ def test_the_counselor_asks_the_teacher_who_held_an_escalated_card(install, libr
     [request] = [
         r for r in page.json()["requests"] if r["class_label"] == "Journey identify"
     ]
-    assert request["requested_by"] == "counselor" and request["card_number"] == "1"
+    assert (
+        request["requested_by"] == "counselor.hugsworth"
+        and request["card_number"] == "1"
+    )
     httpx.post(
         f"{install.base}/batches/identification-requests/{request['request_id']}/answer",
         json={"registration_key": install.teacher_key, "answer": "told"},
     )
 
     after = counselor.get(f"/staff/counselor/flags/{flag_id}").text
-    assert "teacher has the name and told counselor" in after
+    assert "teacher.popquiz has the name and told counselor.hugsworth" in after

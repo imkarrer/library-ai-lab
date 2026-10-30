@@ -3144,6 +3144,14 @@ ${sheetHtml}
                     ? `${names.length} Card${names.length === 1 ? '' : 's'}, one per name. Names stay on this computer.`
                     : 'Names stay on this computer. Leave empty to make numbered Cards only.';
             });
+            // The demo stack's page arrives with its fictional class (./stack seed).
+            if (config.class_label) {
+                document.getElementById('class-label').value = config.class_label;
+            }
+            if (Array.isArray(config.class_list) && config.class_list.length) {
+                students.value = config.class_list.join('\n');
+                students.dispatchEvent(new Event('input'));
+            }
 
             // The Tokens and names live only in this page: warn before they are lost.
             window.addEventListener('beforeunload', function(event) {
