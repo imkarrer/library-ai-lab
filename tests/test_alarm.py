@@ -297,7 +297,9 @@ def test_alarm_carries_no_exchange_text(student, bus):
     assert "988" not in text
 
 
-def test_low_flag_publishes_only_a_count(student, bus):
+def test_low_flag_sounds_no_alarm_but_reaches_the_panel(student, bus):
+    """ADR-0010 amendment: a low-severity Flag is silent, but whoever is on Watch sees it
+    at once as an Open Flags row, never with its category or words."""
     queue = bus.subscribe()
 
     student.post("/ask", json={"question": LOW_QUESTION})
@@ -305,10 +307,15 @@ def test_low_flag_publishes_only_a_count(student, bus):
     messages = _drain(queue)
     assert _of(messages, "alarm") == []
     assert _of(messages, "flag_count") == [{"open": 1}]
+    [row] = _of(messages, "flag")
+    assert row["severity"] == "low"
+    assert "category" not in row and "reason" not in row
+    assert LOW_QUESTION not in json.dumps(row)
     assert {kind for kind, _ in messages} == {
         "question",
         "delta",
         "answer",
+        "flag",
         "flag_count",
     }
 
@@ -372,16 +379,19 @@ def test_alarm_reaches_the_live_view_stream():
         response = await live_events(librarian, bus, never)
         stream = response.body_iterator
         announce_flag(db, bus.publish, flag_id, is_repeat=False)
-        first = await asyncio.wait_for(anext(stream), STREAM_TIMEOUT)
-        second = await asyncio.wait_for(anext(stream), STREAM_TIMEOUT)
+        events = [
+            await asyncio.wait_for(anext(stream), STREAM_TIMEOUT) for _ in range(3)
+        ]
         await stream.aclose()
-        return first, second
+        return events
 
-    first, second = asyncio.run(scenario())
+    first, row, count = asyncio.run(scenario())
 
     assert first.startswith("event: alarm\ndata: ")
     assert json.loads(first.split("data: ", 1)[1])["flag_id"] == flag_id
-    assert second == 'event: flag_count\ndata: {"open": 1}\n\n'
+    assert row.startswith("event: flag\ndata: ")
+    assert json.loads(row.split("data: ", 1)[1])["flag_id"] == flag_id
+    assert count == 'event: flag_count\ndata: {"open": 1}\n\n'
 
 
 # --- Acknowledge

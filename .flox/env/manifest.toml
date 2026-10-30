@@ -55,9 +55,10 @@ fish = '''
 
 [services.assistant]
 command = '''
-  # --no-access-log: uvicorn's access log writes the raw path and query, which could
-  # carry a Token or Card number; the app keeps its own (ADR-0003 addendum).
-  cd "$FLOX_ENV_PROJECT" && "$FLOX_ENV_CACHE/venv/bin/uvicorn" library_assistant.app:app --host "${LIBRARY_ASSISTANT_HOST:-127.0.0.1}" --port "${LIBRARY_ASSISTANT_PORT:-8000}" --no-access-log
+  # library_assistant/__main__.py runs uvicorn with no access log (it writes the raw path
+  # and query, which could carry a Token or Card number; ADR-0003 addendum) and a bounded
+  # shutdown, and reads LIBRARY_ASSISTANT_HOST / _PORT.
+  cd "$FLOX_ENV_PROJECT" && exec "$FLOX_ENV_CACHE/venv/bin/python" -m library_assistant
 '''
 
 [services.model]

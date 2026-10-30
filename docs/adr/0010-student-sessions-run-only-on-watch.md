@@ -185,3 +185,19 @@ review. The Student still gets the Supportive reply at once; the adults learn of
 Rule 2 of "Every exchange is screened while someone is on Watch" above then holds only in
 Live mode, and the escalation protocol's Rule 1 becomes school policy rather than something
 the product enforces. The template says who reviews and how often in each mode (lib-f24.80).
+
+## Amendment: every Flag reaches whoever is on Watch at once
+
+Decided 2026-10-29 by the owner (lib-4m7). "A low-severity Flag raises the Flag queue's count
+and nothing else" left the adult on Watch unaware of it: they watch the Live view, and the
+count sat on another page. Now every new Flag, low-severity too, appears the moment it is
+raised as a row in an **Open Flags** panel on the watching pages (the Live view and the
+Session detail), and its Session's tile marker updates without a refresh. Closing a Flag
+takes its row away; reopening one puts it back.
+
+What does not change: only a high-severity Flag sounds the Alarm (banner, tab title,
+favicon, chime). A low-severity Flag stays silent; it is a row, not a sound. A panel row
+shows severity, Class label, Card number, time, and source, never the category, the reason,
+or the Student's words, so the Live view stays safe to share (`docs/design/live-view.md`);
+the Flag's page, one click away, has the rest. A Counselor's stream carries none of it.
+

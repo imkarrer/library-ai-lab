@@ -138,11 +138,12 @@ volunteers' questions.
    ask a volunteer to type a real disclosure or anything from the real Watchlist.
 
 2. **Presenter.** Start the assistant on this machine only, for setup. It runs in this
-   Terminal tab until you press Ctrl-C:
+   Terminal tab until you press Ctrl-C, which stops it within two seconds even with staff
+   pages open:
 
    ```bash
    source ~/library-assistant-demo/demo.env
-   flox activate -- uvicorn library_assistant.app:app --host 127.0.0.1 --port 8000 --no-access-log
+   flox activate -- python3 -m library_assistant
    ```
 
    **GAP (lib-f9o):** start the assistant this way, not with `flox services start assistant`.
@@ -296,7 +297,7 @@ as a flox service; GAP lib-f9o):
 ```bash
 source ~/library-assistant-demo/demo.env && source ~/library-assistant-demo/today.env
 echo "Assistant address: http://$LAN_IP:8000"
-flox activate -- uvicorn library_assistant.app:app --host "$LAN_IP" --port 8000 --no-access-log
+LIBRARY_ASSISTANT_HOST="$LAN_IP" flox activate -- python3 -m library_assistant
 ```
 
 Write down the address it prints: the Teacher types it into the Minting page (Step 6) and you
@@ -309,7 +310,7 @@ Tab 3, check what is listening and what is connected:
 source ~/library-assistant-demo/demo.env && source ~/library-assistant-demo/today.env
 curl -s "http://$LAN_IP:8000/health"
 lsof -nP -iTCP -sTCP:LISTEN | grep -E 'ollama|python'
-lsof -nP -a -p "$(pgrep -d, -f 'uvicorn library_assistant')" -iTCP
+lsof -nP -a -p "$(pgrep -d, -f 'python3 -m library_assistant')" -iTCP
 ```
 
 Expect `{"status":"ok"}`; `ollama` listening on `127.0.0.1:11434` and `127.0.0.1:11435`
@@ -434,10 +435,18 @@ demo we've added one harmless phrase that counts as a self-harm disclosure."*
    the Flag queue tab), with no refresh: a banner that stays ("Alarm: high self-harm
    (watchlist), Conference demo · card 1, registered by demo-teacher, raised ..."), the tab
    title "(1) Alarm - ...", a red favicon, and the chime, repeating every **Alarm repeat
-   seconds** (30) until someone Acknowledges. The "Open Flags" count goes up by one.
+   seconds** (30) until someone Acknowledges. The "Open Flags" count goes up by one, the
+   **Open Flags** panel at the top of the Live view gets a red "High" row for Conference demo
+   · card 1, and card 1's tile shows "Flag: high", all without a refresh.
 
 Say: *"The screen is ringing, and it never shows the words, so it's safe on a projector. The
-words are one click away, on the Flag."* (Card 1's tile shows "Flag: high" after a refresh.)
+words are one click away, on the Flag."*
+
+Optional, to show the quiet kind: have volunteer 2 type **everyone picks on me** (a
+low-severity Watchlist phrase) or, with Oversight on, something the phrase list would miss,
+such as *"Billy says I stink and makes me cry"*. No sound: a "Low" row appears in the panel
+within a second or two. Say: *"Not everything rings. The small worries still land here, in
+front of whoever is watching."*
 
 ## Step 10. Acknowledge, then the Flag page: Export and Close
 
@@ -446,8 +455,8 @@ words are one click away, on the Flag."* (Card 1's tile shows "Flag: high" after
    back, the chime stops. It does not close the Flag. Say: *"That's me saying I'm on it. The
    Flag stays open until it's worked."* An Alarm nobody Acknowledges replays at the next
    Start watch.
-2. In the Flag queue tab (refresh it), the Flag's row shows raised at, category, severity, source, entry,
-   Class ("Conference demo"), Card ("1"), and Registered by (`demo-teacher`). Click **View**.
+2. In the Live view's **Open Flags** panel, click the High row (or use the Flag queue tab,
+   whose row also shows the category, entry, and Registered by `demo-teacher`).
 3. The Flag page (`/staff/flags/<id>`) shows the same fields, who Acknowledged it and when,
    the question and the reply, and its History (each view is recorded). Point at "Not yet exported. Next Purge: ..." and the
    checkbox "The school does not need this exchange": a high-severity Flag cannot be closed
@@ -458,7 +467,7 @@ words are one click away, on the Flag."* (Card 1's tile shows "Flag: high" after
    the copy the school files in its own records. The assistant keeps no copy."*
 5. Refresh the Flag page. Now that it is exported, the confirmation is gone. Choose an
    **Outcome** (`handled`), type a **Reason** ("demo"), press **Close**. The Flag leaves the
-   queue.
+   queue, and its row leaves the Live view's Open Flags panel at the same moment.
 
 Optional: before closing, with the Counselor account from Step 2, the Flag page also offers
 **Escalate** (a reason is required). Say how Identification works: the Librarian asks the
@@ -670,5 +679,4 @@ As of this runbook; re-check before the trip.
   `llama-cpp` (0.6.0) fails every request on the M5 Pro's GPU, so the demo uses this Mac's
   Ollama and the flox model server is a slower CPU fallback. A school's flox Install still
   needs a llama.cpp whose GPU backend works here.
-- **The Live view's Flag badge is not live**: "Flag: high" on a tile appears only on refresh.
 - **No staff page shows Purge runs**; the after-the-talk check uses `sqlite3` (Step 14).

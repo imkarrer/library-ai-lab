@@ -1,8 +1,10 @@
 """The Alarm and Acknowledge (ADR-0010, `docs/design/watch.md`).
 
 A high-severity Flag that is not a repeat (decision lib-f24.66) sounds an Alarm on every
-open staff page: the LiveBus carries an `alarm` event to each staff stream. A low-severity
-Flag only moves the open-Flag count (`flag_count`). Acknowledge records which adult said
+open staff page: the LiveBus carries an `alarm` event to each staff stream. Every new Flag,
+low-severity too, adds a row to the Live view's Open Flags panel (`flag`, ADR-0010
+amendment) and moves the open-Flag count (`flag_count`); closing one removes its row
+(`flag_closed`). Acknowledge records which adult said
 "I'm on it" and when, on the Flag itself, and sends `silenced` to every stream; it never
 closes the Flag. An Escalated Flag sounds its own Alarm (`escalated`) on an open
 Counselor page, Acknowledged there separately.
@@ -41,6 +43,8 @@ ALARM = "alarm"
 ESCALATED = "escalated"
 SILENCED = "silenced"
 FLAG_COUNT = "flag_count"
+FLAG_RAISED = "flag"
+FLAG_CLOSED = "flag_closed"
 
 
 def alarm_payload(db: sqlite3.Connection, flag: FlagRow) -> dict:
@@ -70,6 +74,53 @@ def escalation_payload(db: sqlite3.Connection, flag: FlagRow) -> dict:
     }
 
 
+def session_no_for_transcript(db: sqlite3.Connection, transcript_id: int) -> int | None:
+    """The Live view tile (sessions rowid) a Flag's exchange belongs to, while its
+    Session still exists."""
+    row = db.execute(
+        "SELECT sessions.rowid FROM transcripts JOIN sessions "
+        "ON sessions.session_hash = transcripts.session_hash WHERE transcripts.id = ?",
+        (transcript_id,),
+    ).fetchone()
+    return row[0] if row else None
+
+
+def session_flag_severity(db: sqlite3.Connection, session_no: int | None) -> str | None:
+    """The highest open Flag severity on a Session's exchanges, for its tile's marker."""
+    if session_no is None:
+        return None
+    severities = {
+        row[0]
+        for row in db.execute(
+            "SELECT flags.severity FROM flags "
+            "JOIN transcripts ON transcripts.id = flags.transcript_id "
+            "JOIN sessions ON sessions.session_hash = transcripts.session_hash "
+            "WHERE sessions.rowid = ? AND flags.closed_at IS NULL",
+            (session_no,),
+        )
+    }
+    if "high" in severities:
+        return "high"
+    return "low" if severities else None
+
+
+def panel_payload(db: sqlite3.Connection, flag: FlagRow) -> dict:
+    """An Open Flags panel row. The Live view is safe to share (docs/design/live-view.md):
+    severity and who, never the category, the reason, or the Student's words."""
+    session_no = session_no_for_transcript(db, flag.transcript_id)
+    return {
+        "flag_id": flag.id,
+        "severity": flag.severity,
+        "source": flag.source,
+        "class_label": flag.class_label,
+        "card_number": flag.card_number,
+        "raised_at": flag.raised_at,
+        "url": f"/staff/flags/{flag.id}",
+        "session_no": session_no,
+        "session_severity": session_flag_severity(db, session_no),
+    }
+
+
 def open_flag_count(db: sqlite3.Connection) -> int:
     return db.execute("SELECT COUNT(*) FROM flags WHERE closed_at IS NULL").fetchone()[
         0
@@ -89,6 +140,38 @@ def announce_flag(
         return
     if flag.severity == "high":
         publish(ALARM, alarm_payload(db, flag))
+    publish(FLAG_RAISED, panel_payload(db, flag))
+    publish(FLAG_COUNT, {"open": open_flag_count(db)})
+
+
+def announce_flag_closed(
+    db: sqlite3.Connection, publish: Publish, flag_id: int
+) -> None:
+    """A closed Flag leaves the Open Flags panel, and its tile's marker drops to what
+    stays open on that Session."""
+    flag = get_flag(db, flag_id)
+    if flag is None:
+        return
+    session_no = session_no_for_transcript(db, flag.transcript_id)
+    publish(
+        FLAG_CLOSED,
+        {
+            "flag_id": flag.id,
+            "session_no": session_no,
+            "session_severity": session_flag_severity(db, session_no),
+        },
+    )
+    publish(FLAG_COUNT, {"open": open_flag_count(db)})
+
+
+def announce_flag_reopened(
+    db: sqlite3.Connection, publish: Publish, flag_id: int
+) -> None:
+    """A reopened Flag is open again: back on the panel, without a second Alarm."""
+    flag = get_flag(db, flag_id)
+    if flag is None:
+        return
+    publish(FLAG_RAISED, panel_payload(db, flag))
     publish(FLAG_COUNT, {"open": open_flag_count(db)})
 
 
