@@ -169,3 +169,24 @@ def test_downloaded_page_defaults_the_stop_time_to_the_school_day_end():
     filled = filled_minting_page("http://192.0.2.10:8000", "t", "k", "15:15")
     assert _config(filled)["school_day_end"] == "15:15"
     assert "school_day_end" not in _config(filled_minting_page("http://x", "t", "k"))
+
+
+def test_a_demo_class_prefills_the_form_and_the_download_route_never_sends_one():
+    """Only `./stack seed` passes a class list: fictional, onto the presenter's disk."""
+    page = filled_minting_page(
+        "http://intranet:8000",
+        "teacher.popquiz",
+        "key",
+        class_label="Period 3",
+        class_list=("Paige Turner", "Justin Time"),
+    )
+    config = json.loads(
+        re.search(r'id="install-config">(.*?)</script>', page, re.DOTALL).group(1)
+    )
+    assert config["class_label"] == "Period 3"
+    assert config["class_list"] == ["Paige Turner", "Justin Time"]
+
+    plain = filled_minting_page("http://intranet:8000", "teacher.popquiz", "key")
+    assert (
+        "class_list" not in plain.split('id="install-config">')[1].split("</script>")[0]
+    )

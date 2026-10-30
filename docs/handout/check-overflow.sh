@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# Fails if any page's content runs past the bottom of its US Letter page, or is silently
-# clipped inside a scroll container.
+# Fails if any page of the handout, or slide of the deck, runs past its bottom edge, or is
+# silently clipped inside a scroll container.
 #
 # Marp clips a page that is too long: the source looks fine, the preview looks fine, and the
 # last paragraph of page 4 is simply not on the paper. Worth a headless browser to catch.

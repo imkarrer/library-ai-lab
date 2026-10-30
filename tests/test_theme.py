@@ -1,7 +1,9 @@
 """The shared palette and stylesheet: one palette for the assistant's pages, the printed
 sheets, and the Marp handout, fetched from nowhere but the Install (ADR-0006)."""
 
+import importlib.util
 import re
+import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -88,6 +90,32 @@ def test_handout_and_pages_share_one_components_sheet():
     # Colour stays in the palette: the shared sheet names tokens, not hex values, apart
     # from white text on a filled chip.
     assert set(re.findall(r"#[0-9a-fA-F]{3,6}\b", components)) <= {"#fff"}
+
+
+def test_demo_deck_shares_the_handouts_palette_and_look():
+    """The deck that leads into the demo looks like the handout and the app's pages."""
+    marprc = (REPO / "docs/handout/.marprc.yml").read_text()
+    assert "./deck.css" in marprc
+    deck_css = (REPO / "docs/handout/deck.css").read_text()
+    assert deck_css.startswith("/* @theme deck */")
+    assert "@import 'library-palette';" in deck_css
+    assert "@import 'library-components';" in deck_css
+    assert "theme: deck" in (REPO / "docs/handout/demo-deck.md").read_text()
+
+
+def test_demo_deck_introduces_the_cast_the_stack_seeds():
+    """`./stack seed` and the deck's "Meet the cast" slide name the same people."""
+    spec = importlib.util.spec_from_file_location("stack", REPO / "scripts/stack.py")
+    stack = importlib.util.module_from_spec(spec)
+    sys.modules["stack"] = stack  # @dataclass looks its module up here
+    spec.loader.exec_module(stack)
+    deck = (REPO / "docs/handout/demo-deck.md").read_text()
+    for persona in stack.DEMO_CAST:
+        assert persona.username.startswith(f"{persona.role}.")
+        assert persona.name in deck and f"<code>{persona.username}</code>" in deck
+    flat = " ".join(deck.split())
+    for number, student in enumerate(stack.DEMO_STUDENTS, start=1):
+        assert f"<b>{number}</b>{student}" in flat
 
 
 def test_stylesheet_is_revalidated_so_an_update_shows_at_once():

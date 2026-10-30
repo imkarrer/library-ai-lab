@@ -654,3 +654,11 @@ global.fetch = async (url, init) => {{ sent.push({{url, body: JSON.parse(init.bo
 
 def test_page_has_the_requests_panel(page_html: str) -> None:
     assert 'id="requests-panel"' in page_html and 'id="request-list"' in page_html
+
+
+def test_page_prefills_a_class_from_its_install_config(page_html: str) -> None:
+    """The demo stack's page arrives with its class label and fictional class list."""
+    assert "config.class_label" in page_html
+    assert "config.class_list.join('\\n')" in page_html
+    # Filling the list must update the count the way pasting does.
+    assert "students.dispatchEvent(new Event('input'))" in page_html
