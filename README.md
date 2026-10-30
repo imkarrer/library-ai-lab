@@ -34,7 +34,8 @@ One command runs the whole stack on this machine (`scripts/stack.py`):
 
 Every `up` makes sure the demo cast exists, each username starting with its role: Ms.
 Overdue (`librarian.overdue`), Mr. Pop-Quiz (`teacher.popquiz`), and Dr. Hugsworth
-(`counselor.hugsworth`). Passwords are generated once, into `credentials.txt`. It also sets
+(`counselor.hugsworth`). Each password is the word after the dot (`overdue`, `popquiz`,
+`hugsworth`), put back on every `up` and listed in `credentials.txt`. It also sets
 Live supervision and writes `teacher.popquiz-minting-page.html`, with Period 3's fictional
 class list (Paige Turner, Justin Time, ...) filled in. `./stack status` lists the cast. The
 deck that leads into the demo introduces the same people ([`docs/handout/`](docs/handout/)).
