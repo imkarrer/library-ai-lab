@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# The whole stack in one command; see scripts/stack.py. Runs inside the flox environment.
+here="$(cd "$(dirname "$0")" && pwd)"
+exec flox activate -d "$here" -- python3 "$here/scripts/stack.py" "$@"

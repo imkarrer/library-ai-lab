@@ -15,8 +15,28 @@ conference, with a Wisconsin middle school library as the first real Install.
 
 ## Status
 
-Pre-code. The design is settled in [`CONTEXT.md`](CONTEXT.md) (the vocabulary) and
+Running as a demo. The design is settled in [`CONTEXT.md`](CONTEXT.md) (the vocabulary) and
 [`docs/adr/`](docs/adr) (the decisions and why). Work is tracked in beads.
+
+## Running it
+
+One command runs the whole stack on this machine (`scripts/stack.py`):
+
+```bash
+./stack up --mock    # the fake model (scripts/fake_model.py): no Ollama, answers in a second
+./stack up           # both Lanes on this Mac's Ollama: gpt-oss:20b answers, qwen3.5:4b screens
+./stack up --lan     # listening on the Wi-Fi address, so phones can reach it
+./stack status       # what is running, the sign-in URL, the passwords file, the Minting page
+./stack down         # stop everything `up` started (Ctrl-C-safe: it is all in the background)
+./stack seed         # accounts, settings, and a Teacher's filled Minting page (idempotent)
+./stack clear        # down, then delete the stack's database and files
+```
+
+An empty stack is seeded on its first `up`: a `librarian`, a `teacher`, and a `counselor`
+account with generated passwords in `credentials.txt`, Live supervision, and
+`teacher-minting-page.html` for making Cards. All of it lives in one folder outside the repo,
+readable only by you (`--state`, default `~/library-assistant-demo`). The stack leaves alone
+anything already answering on its ports, such as an Oversight Ollama started by hand.
 
 ## How it protects students
 

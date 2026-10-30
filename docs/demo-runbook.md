@@ -13,6 +13,11 @@ network, starting the assistant. They use Terminal, as whoever installs the assi
 school would. **Librarian** and **Teacher** steps are what school staff do, and they happen
 only in a browser: no Terminal, no script. Show those on stage exactly as written.
 
+**Shortcut:** `./stack up --lan` does the Presenter's part of Steps 2 and 5 in one command
+(accounts, settings, the Teacher's Minting page, the Oversight Ollama, warming both models,
+the assistant on the LAN address), and `./stack down` stops it; see `README.md`, "Running
+it". The steps below are what it does, by hand, for when something needs doing differently.
+
 Follow it in order. Steps 1 to 3 happen at home, online, days before. Steps 4 to 7 happen at
 the venue, offline, before the audience arrives. Steps 8 to 14 are the demo itself. Commands
 are for macOS's Terminal (zsh) and are run from the repo root unless a step says otherwise.
