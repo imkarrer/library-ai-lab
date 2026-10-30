@@ -544,3 +544,31 @@ def test_home_links_for_teacher(client, db):
     assert "/staff/holds" not in text
     assert "/staff/settings" not in text
     assert "/staff/keys" not in text
+
+
+def test_sign_in_setup_and_sign_in_first_share_one_card():
+    """The sign-in, first-run setup, and "please sign in" pages: one centred card with
+    the mark and the product name, and no colours of their own (they live in the palette)."""
+    import re
+
+    from library_assistant.staff import LOGIN_FORM, SETUP_FORM, SIGN_IN_FIRST
+
+    for template in (LOGIN_FORM, SETUP_FORM, SIGN_IN_FIRST):
+        assert '<div class="auth-card">' in template
+        assert 'class="auth-mark"' in template and "Library Assistant" in template
+        assert not re.search(r"#[0-9a-fA-F]{3,6}\b", template)
+    assert "Staff sign-in" in LOGIN_FORM
+    assert 'action="/staff/login"' in LOGIN_FORM
+    assert "Create the librarian account" in SETUP_FORM
+
+
+def test_a_wrong_password_shows_in_the_cards_alert(client, db):
+    create_account(db, "librarian", "correct horse", "librarian")
+    response = client.post(
+        "/staff/login", data={"username": "librarian", "password": "wrong"}
+    )
+    assert response.status_code == 401
+    assert (
+        '<div class="auth-message" role="alert"><p>Wrong username or password.</p></div>'
+        in response.text
+    )
