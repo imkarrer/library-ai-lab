@@ -23,6 +23,8 @@ from library_assistant.access import (
     review_due_at,
 )
 from library_assistant.alarms import (
+    acknowledge_before_close,
+    acknowledge_flag,
     acknowledgement,
     announce_escalation,
     announce_flag_closed,
@@ -39,6 +41,7 @@ from library_assistant.flags import (
     is_overdue,
     open_flags,
     reopen_flag,
+    validate_close,
 )
 from library_assistant.holds import active_hold_count
 from library_assistant.purge import next_purge_at
@@ -306,9 +309,31 @@ def flag_page(
             '<p><label>Reason <input name="reason" required></label></p>'
             "<p><button>Escalate</button></p></form>"
         )
+    # raised -> acknowledged -> closed, whatever the severity (ADR-0010 amendment).
+    acknowledged = acknowledgement(db, flag.id) is not None
+    stage = (
+        "Closed"
+        if flag.closed_at is not None
+        else "Acknowledged"
+        if acknowledged
+        else "New"
+    )
+    acknowledge_form = ""
+    if (
+        flag.closed_at is None
+        and not acknowledged
+        and (account.role == "librarian" or account.is_stand_in)
+    ):
+        acknowledge_form = (
+            f'<form method="post" action="/staff/flags/{flag.id}/acknowledge">'
+            "<button>Acknowledge</button> <span>I see it and I'm reviewing it.</span>"
+            "</form>"
+        )
     body = (
         "<h1>Flag</h1>"
+        f"{acknowledge_form}"
         "<table><tbody>"
+        f"<tr><th>Stage</th><td>{stage}</td></tr>"
         f"<tr><th>Raised at</th><td>{html.escape(flag.raised_at)}</td></tr>"
         f"<tr><th>Category</th><td>{html.escape(flag.category)}</td></tr>"
         f"<tr><th>Severity</th><td>{html.escape(flag.severity)}</td></tr>"
@@ -367,9 +392,12 @@ def close_flag_route(
         )
 
     try:
-        close_flag(db, flag_id, clock.isoformat(), account.username, outcome, reason)
+        validate_close(outcome, reason)
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
+    # Closed is the last step: acknowledged first, by the closer if nobody else did.
+    acknowledge_before_close(db, bus.publish, flag_id, account.id, clock)
+    close_flag(db, flag_id, clock.isoformat(), account.username, outcome, reason)
     announce_flag_closed(db, bus.publish, flag_id)
     return RedirectResponse("/staff/flags", status_code=303)
 
@@ -441,6 +469,20 @@ def export_flag(
         f'attachment; filename="flag-{flag_id}-export.txt"'
     )
     return response
+
+
+@router.post("/flags/{flag_id}/acknowledge", response_model=None)
+def acknowledge_flag_route(
+    flag_id: int,
+    account: StandInDep,
+    db: sqlite3.Connection = Depends(get_db),
+    clock: datetime = Depends(get_clock),
+    bus: LiveBus = Depends(get_live_bus),
+) -> RedirectResponse:
+    """The Flag page's Acknowledge: any severity, back to the Flag."""
+    if acknowledge_flag(db, bus.publish, flag_id, account.id, clock) is None:
+        raise HTTPException(status_code=404, detail="no open Flag to acknowledge")
+    return RedirectResponse(f"/staff/flags/{flag_id}", status_code=303)
 
 
 @router.post("/flags/{flag_id}/reopen", response_model=None)

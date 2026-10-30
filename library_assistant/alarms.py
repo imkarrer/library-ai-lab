@@ -9,6 +9,11 @@ amendment) and moves the open-Flag count (`flag_count`); closing one removes its
 closes the Flag. An Escalated Flag sounds its own Alarm (`escalated`) on an open
 Counselor page, Acknowledged there separately.
 
+Every Flag, whatever its severity, moves raised -> acknowledged -> closed (ADR-0010
+amendment, lib-msq): severity only sorts. Any open Flag can be Acknowledged, and closing
+one nobody Acknowledged records the closer's Acknowledgement first, so someone's
+interaction is always on record and a closed Flag never keeps ringing.
+
 Binding: an Alarm carries the Flag's own fields and the registering Teacher's name
 (ADR-0002 addendum), never the Student's words (ADR-0003) and never a Student. It goes
 only to the open pages' streams, never off the Install (ADR-0006).
@@ -23,6 +28,7 @@ from collections.abc import Callable
 from datetime import datetime
 
 from library_assistant.access import registering_teacher
+from library_assistant.flag_history import append_event
 from library_assistant.flags import FlagRow, get_flag, open_flags
 from library_assistant.install_settings import (
     ALARM_CHIME,
@@ -118,6 +124,7 @@ def panel_payload(db: sqlite3.Connection, flag: FlagRow) -> dict:
         "url": f"/staff/flags/{flag.id}",
         "session_no": session_no,
         "session_severity": session_flag_severity(db, session_no),
+        "acknowledged": acknowledgement(db, flag.id) is not None,
     }
 
 
@@ -193,11 +200,11 @@ def _acknowledge(
     """Record the first Acknowledgement (a later one changes nothing) and silence the
     Alarm on every page."""
     prefix = "escalation_" if escalation else ""
-    db.execute(
+    first = db.execute(
         f"UPDATE flags SET {prefix}acknowledged_at = ?, {prefix}acknowledged_by = ? "
         f"WHERE id = ? AND {prefix}acknowledged_at IS NULL",
         (at.isoformat(), account_id, flag_id),
-    )
+    ).rowcount
     db.commit()
     acknowledged_at, username = db.execute(
         f"SELECT flags.{prefix}acknowledged_at, staff_accounts.username FROM flags "
@@ -205,6 +212,15 @@ def _acknowledge(
         "WHERE flags.id = ?",
         (flag_id,),
     ).fetchone()
+    if first:
+        append_event(
+            db,
+            flag_id,
+            "acknowledged",
+            at=at.isoformat(),
+            account=username,
+            reason="escalation" if escalation else None,
+        )
     silenced = {
         "flag_id": flag_id,
         "escalation": escalation,
@@ -215,19 +231,43 @@ def _acknowledge(
     return silenced
 
 
-def acknowledge_alarm(
+def acknowledge_flag(
     db: sqlite3.Connection,
     publish: Publish,
     flag_id: int,
     account_id: int,
     at: datetime,
 ) -> dict | None:
-    """The Librarian or a Stand-in Acknowledges a high-severity Flag's Alarm. None when
-    the Flag does not exist or sounds no Alarm."""
+    """The Librarian or a Stand-in Acknowledges an open Flag of any severity: "I see it
+    and I'm reviewing it". Silences its Alarm if it has one. None when the Flag does not
+    exist or is already closed."""
     flag = get_flag(db, flag_id)
-    if flag is None or flag.severity != "high":
+    if flag is None or flag.closed_at is not None:
         return None
     return _acknowledge(db, publish, flag_id, account_id, at, escalation=False)
+
+
+def acknowledge_before_close(
+    db: sqlite3.Connection,
+    publish: Publish,
+    flag_id: int,
+    account_id: int,
+    at: datetime,
+) -> None:
+    """Closing is the last step: record the closer's Acknowledgement if nobody gave one,
+    the Counselor's too for an Escalated Flag, and silence every Alarm it sounds."""
+    row = db.execute(
+        "SELECT acknowledged_at, escalated_at, escalation_acknowledged_at "
+        "FROM flags WHERE id = ?",
+        (flag_id,),
+    ).fetchone()
+    if row is None:
+        return
+    acknowledged_at, escalated_at, escalation_acknowledged_at = row
+    if acknowledged_at is None:
+        _acknowledge(db, publish, flag_id, account_id, at, escalation=False)
+    if escalated_at is not None and escalation_acknowledged_at is None:
+        _acknowledge(db, publish, flag_id, account_id, at, escalation=True)
 
 
 def acknowledge_escalation(

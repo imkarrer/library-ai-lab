@@ -272,6 +272,14 @@ def get_flag(db: sqlite3.Connection, flag_id: int) -> FlagRow | None:
     return FlagRow(*row)
 
 
+def validate_close(outcome: str, reason: str) -> None:
+    """Raise ValueError unless `outcome` and `reason` would close a Flag."""
+    if outcome not in OUTCOMES:
+        raise ValueError(f"unknown close outcome: {outcome!r}")
+    if not reason.strip():
+        raise ValueError("close requires a reason")
+
+
 def close_flag(
     db: sqlite3.Connection,
     flag_id: int,
@@ -285,10 +293,7 @@ def close_flag(
     Requires an outcome from the fixed `OUTCOMES` list and a one-line reason
     (ADR-0003 addendum, "Flag lifecycle").
     """
-    if outcome not in OUTCOMES:
-        raise ValueError(f"unknown close outcome: {outcome!r}")
-    if not reason.strip():
-        raise ValueError("close requires a reason")
+    validate_close(outcome, reason)
     db.execute(
         """
         UPDATE flags

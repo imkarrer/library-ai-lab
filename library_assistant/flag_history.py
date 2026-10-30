@@ -9,7 +9,16 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass
 
-EVENTS = ("raised", "viewed", "closed", "reopened", "repeated", "escalated", "exported")
+EVENTS = (
+    "raised",
+    "viewed",
+    "acknowledged",
+    "closed",
+    "reopened",
+    "repeated",
+    "escalated",
+    "exported",
+)
 
 
 @dataclass(frozen=True)
