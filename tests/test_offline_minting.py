@@ -386,3 +386,102 @@ def test_page_hides_the_key_field_when_the_key_is_built_in(page_html: str) -> No
     )
     assert 'id="key-group"' in page_html
     assert 'id="key-built-in"' in page_html
+
+
+# --- The class list, one-at-a-time hand-out, and the print stub (lib-bk0). Names stay on
+# the Teacher's machine: they reach the Roster and the stubs, never the payload (ADR-0002).
+
+
+def test_pasted_names_make_one_card_each_and_never_join_the_payload(
+    app_logic_script: str,
+) -> None:
+    js = f"""
+{NODE_STUB_DOCUMENT}
+{app_logic_script}
+(async () => {{
+  const names = parseNames("  Ada Lovelace \\n\\nGrace Hopper\\r\\nKatherine Johnson\\n");
+  const result = await generateCards(99, 'Period 3', '23:59', names);
+  process.stdout.write(JSON.stringify({{
+    names, count: result.cards.length, roster: result.rosterRows,
+    payload: JSON.stringify(result.registrationPayload),
+  }}));
+}})();
+"""
+    out = json.loads(_run_node(js))
+    assert out["names"] == ["Ada Lovelace", "Grace Hopper", "Katherine Johnson"]
+    assert out["count"] == 3
+    assert [row["students"] for row in out["roster"]] == out["names"]
+    for name in out["names"]:
+        assert name not in out["payload"]
+
+
+def test_roster_csv_quotes_names_with_commas_and_quotes(app_logic_script: str) -> None:
+    js = f"""
+{NODE_STUB_DOCUMENT}
+{app_logic_script}
+process.stdout.write(generateCSV([
+  {{cardNumber: "1", students: "Hopper, Grace"}},
+  {{cardNumber: "2", students: 'Ada "the Countess"'}},
+  {{cardNumber: "3", students: ""}},
+]));
+"""
+    assert _run_node(js).splitlines() == [
+        "card_number,students",
+        '1,"Hopper, Grace"',
+        '2,"Ada ""the Countess"""',
+        "3,",
+    ]
+
+
+def test_print_sheet_puts_a_name_on_a_stub_escaped_and_only_when_given(
+    qrcode_lib_script: str, app_logic_script: str
+) -> None:
+    js = f"""
+{NODE_STUB_DOCUMENT}
+{qrcode_lib_script}
+{app_logic_script}
+(async () => {{
+  const result = await generateCards(2, 'Period 3', '23:59');
+  process.stdout.write(generateQRSheet(result.cards, 'Period 3', 'http://192.0.2.10:8000',
+    ['<b>Ada</b>', '']));
+}})();
+"""
+    sheet = _run_node(js)
+    assert sheet.count('class="stub"') == 1
+    assert "For: &lt;b&gt;Ada&lt;/b&gt;" in sheet
+    assert "<b>Ada</b>" not in sheet
+
+
+def test_sealed_roster_lists_the_names(app_logic_script: str) -> None:
+    js = f"""
+{NODE_STUB_DOCUMENT}
+{app_logic_script}
+process.stdout.write(generateSealedRosterSheet(['1', '2'], 'Period 3', '2026-10-29',
+  '2026-10-29', ['Grace Hopper', '']));
+"""
+    sheet = _run_node(js)
+    assert "<tr><td>1</td><td>Grace Hopper</td></tr>" in sheet
+    assert "<tr><td>2</td><td>&nbsp;</td></tr>" in sheet
+
+
+def test_one_at_a_time_never_steps_off_either_end(app_logic_script: str) -> None:
+    js = f"""
+{NODE_STUB_DOCUMENT}
+{app_logic_script}
+process.stdout.write(JSON.stringify([
+  handoutIndex(0, 3, 1), handoutIndex(2, 3, 1), handoutIndex(0, 3, -1), handoutIndex(1, 3, -1),
+]));
+"""
+    assert json.loads(_run_node(js)) == [1, 2, 0, 0]
+
+
+def test_page_has_the_class_list_and_both_hand_out_views(page_html: str) -> None:
+    for element in (
+        'id="students"',
+        'id="tab-handout"',
+        'id="tab-print"',
+        'id="handout-qr"',
+        'id="handed-out-btn"',
+        'id="roster-list"',
+    ):
+        assert element in page_html

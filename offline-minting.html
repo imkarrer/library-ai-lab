@@ -2,161 +2,213 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Offline Minting Page</title>
+    <title>Make Cards - Offline Minting Page</title>
     <!-- Filled in by the assistant when a Librarian or Teacher downloads this page from it
          (library_assistant/minting_page.py): its address and the account's Registration key. -->
     <script type="application/json" id="install-config">{}</script>
     <style>
+        /* The reading-room palette (library_assistant/static/palette.css), copied: this page
+           works from a file, offline, so it carries its own. */
+        :root {
+            --paper: #faf6ec; --surface: #fffdf8; --ink: #2a2620; --ink-muted: #5e574c;
+            --rule: #e3dacb; --green: #24533f; --green-dark: #183a2c; --green-tint: #e6efe8;
+            --brass: #b08a3e; --brass-tint: #f6eddb; --alarm: #b3261e; --alarm-tint: #fce9e7;
+            --focus: #1f5fa8;
+            --font-body: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            --font-heading: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+        }
+        * { box-sizing: border-box; }
         body {
-            font-family: sans-serif;
-            max-width: 800px;
+            font-family: var(--font-body);
+            color: var(--ink);
+            background: var(--paper);
+            max-width: 880px;
             margin: 0 auto;
-            padding: 20px;
+            padding: 24px 20px 64px;
+            line-height: 1.45;
         }
-        .form-group {
-            margin-bottom: 15px;
+        h1, h2, h3 { font-family: var(--font-heading); color: var(--green-dark); margin: 0 0 0.4em; }
+        h1 { font-size: 1.7em; }
+        .lede { color: var(--ink-muted); margin: 0 0 1.4em; }
+        .panel {
+            background: var(--surface);
+            border: 1px solid var(--rule);
+            border-top: 5px solid var(--green);
+            border-radius: 10px;
+            padding: 20px 22px;
+            box-shadow: 0 1px 2px rgba(42, 38, 32, 0.06);
         }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-        input, select {
+        .step { display: none; }
+        .step.active { display: block; animation: rise 160ms ease-out; }
+        @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; }
+        .grid .wide { grid-column: 1 / -1; }
+        .form-group label { display: block; font-weight: 600; margin-bottom: 4px; }
+        input, select, textarea {
             width: 100%;
-            padding: 8px;
-            box-sizing: border-box;
+            font: inherit;
+            padding: 9px 11px;
+            border: 1px solid var(--rule);
+            border-radius: 7px;
+            background: #fff;
         }
+        textarea { min-height: 150px; resize: vertical; }
+        input:focus, textarea:focus, button:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
+        .hint { font-size: 0.85em; color: var(--ink-muted); margin: 4px 0 0; }
         button {
-            background-color: #4CAF50;
-            color: white;
-            padding: 10px 20px;
-            border: none;
+            font: inherit;
+            font-weight: 600;
+            background: var(--green);
+            color: #fff;
+            border: 1px solid var(--green);
+            border-radius: 7px;
+            padding: 10px 18px;
             cursor: pointer;
-            font-size: 16px;
-            margin-right: 10px;
-            margin-top: 10px;
+            transition: background 120ms, transform 60ms;
         }
-        button:hover {
-            background-color: #45a049;
+        button:hover { background: var(--green-dark); }
+        button:active { transform: translateY(1px); }
+        button:disabled { opacity: 0.55; cursor: progress; }
+        button.secondary { background: var(--surface); color: var(--green-dark); border-color: var(--rule); }
+        button.secondary:hover { background: var(--green-tint); }
+        .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+        .hidden { display: none !important; }
+        .error { color: var(--alarm); background: var(--alarm-tint); border-radius: 7px; padding: 10px 12px; font-weight: 600; }
+        .success { color: var(--green-dark); background: var(--green-tint); border-radius: 7px; padding: 10px 12px; font-weight: 600; }
+        .tabs { display: flex; gap: 6px; margin: 18px 0 14px; border-bottom: 1px solid var(--rule); }
+        .tabs button {
+            background: none; color: var(--ink-muted); border: none; border-bottom: 3px solid transparent;
+            border-radius: 0; padding: 8px 14px;
         }
-        .step {
-            display: none;
-            border: 1px solid #ddd;
-            padding: 20px;
-            margin-bottom: 20px;
-        }
-        .step.active {
-            display: block;
-        }
-        .qr-sheet {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-            justify-content: center;
-        }
+        .tabs button[aria-selected="true"] { color: var(--green-dark); border-bottom-color: var(--brass); }
+
+        /* One at a time: the Card big enough to scan from across a desk. */
+        .handout { display: grid; grid-template-columns: minmax(260px, 1fr) 1fr; gap: 22px; align-items: center; }
+        .handout .qr-large { background: #fff; border: 1px solid var(--rule); border-radius: 12px; padding: 14px; }
+        .handout .qr-large svg { width: 100%; height: auto; display: block; }
+        .handout .who { font-family: var(--font-heading); font-size: 1.9em; color: var(--green-dark); margin: 0.1em 0 0.3em; }
+        .handout .count { color: var(--ink-muted); font-weight: 600; letter-spacing: 0.02em; }
+        .progress { height: 6px; background: var(--rule); border-radius: 3px; overflow: hidden; margin: 10px 0 14px; }
+        .progress span { display: block; height: 100%; background: var(--brass); transition: width 200ms; }
+        .roster-list { list-style: none; margin: 14px 0 0; padding: 0; max-height: 220px; overflow: auto; border-top: 1px solid var(--rule); }
+        .roster-list li { display: flex; justify-content: space-between; padding: 6px 2px; border-bottom: 1px solid var(--rule); }
+        .roster-list li.done { color: var(--ink-muted); }
+        .roster-list li.current { font-weight: 700; color: var(--green-dark); }
+
+        /* The print sheet, on screen and on paper. */
+        .qr-sheet { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; }
         .card {
-            width: 200px;
+            background: #fff;
+            border: 1px dashed #9a9180;
+            border-radius: 8px;
+            padding: 12px;
             text-align: center;
-            border: 1px solid #ccc;
-            padding: 15px;
-            margin-bottom: 15px;
+            break-inside: avoid;
         }
-        .card-number {
-            font-weight: bold;
-            margin-bottom: 10px;
-        }
-        .privacy-note {
-            font-size: 12px;
-            margin-top: 10px;
-            color: #666;
-        }
-        .hint {
-            font-size: 12px;
-            color: #666;
-            margin: 4px 0 0;
-        }
-        .hidden {
-            display: none;
-        }
-        .error {
-            color: red;
-            font-weight: bold;
-        }
-        .success {
-            color: green;
-            font-weight: bold;
-        }
-        .code-block {
-            background-color: #f4f4f4;
-            padding: 10px;
-            border-radius: 4px;
-            font-family: monospace;
-            overflow-x: auto;
-        }
-        details summary {
-            cursor: pointer;
-            font-weight: bold;
-        }
-        table.audit {
-            border-collapse: collapse;
-            width: 100%;
-            margin-top: 10px;
-        }
-        table.audit th, table.audit td {
-            border: 1px solid #ccc;
-            padding: 4px 8px;
-            font-family: monospace;
-            font-size: 12px;
-        }
+        .card-number { font-weight: 700; margin-bottom: 6px; }
+        .qr svg { width: 100%; max-width: 170px; height: auto; }
+        .privacy-note { font-size: 0.72em; color: var(--ink-muted); margin-top: 6px; }
+        .stub { border-top: 1px dashed #9a9180; margin-top: 10px; padding-top: 6px; font-size: 0.85em; }
+        .stub .cut { color: var(--ink-muted); font-size: 0.8em; }
+        details summary { cursor: pointer; font-weight: 600; margin-top: 18px; }
+        table.audit { border-collapse: collapse; width: 100%; margin-top: 10px; }
+        table.audit th, table.audit td { border: 1px solid var(--rule); padding: 4px 8px; font-family: monospace; font-size: 12px; }
+        @media (max-width: 640px) { .grid, .handout { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body>
-    <h1>Offline Minting Page</h1>
-    <p>Make Cards for a class on this computer. Each Card's code is made here and never leaves
-    it: Registration sends the Library Assistant only a fingerprint (hash) of each code, so it can
-    recognise a Card but never learns who holds it. The Roster stays with you.</p>
+    <h1>Make Cards</h1>
+    <p class="lede">Offline Minting Page. Each Card's code is made here, on this computer, and never
+    leaves it: Registration sends the Library Assistant only a fingerprint (hash) of each code, so
+    it can recognise a Card but never learns who holds it. Names you type stay on this page and in
+    the Roster you keep.</p>
 
     <!-- Step 1: make and register the Batch -->
-    <div id="step1" class="step active">
-        <h2>Make Cards</h2>
-        <div class="form-group">
-            <label for="class-label">Class Label:</label>
-            <input type="text" id="class-label" value="Period 3" required>
+    <div id="step1" class="step active panel">
+        <div class="grid">
+            <div class="form-group">
+                <label for="class-label">Class Label:</label>
+                <input type="text" id="class-label" value="Period 3" required>
+            </div>
+            <div class="form-group">
+                <label for="until">Cards stop working at (today):</label>
+                <input type="time" id="until" value="15:30" required>
+            </div>
+            <div class="form-group wide">
+                <label for="students">Students (optional, one name per line):</label>
+                <textarea id="students" placeholder="Paste your class list: one Card per name"></textarea>
+                <p class="hint" id="students-hint">Names stay on this computer. Leave empty to make numbered Cards only.</p>
+            </div>
+            <div class="form-group" id="count-group">
+                <label for="count">Number of Cards:</label>
+                <input type="number" id="count" min="1" max="100" value="24" required>
+            </div>
+            <div class="form-group">
+                <label for="assistant-url">Library Assistant address:</label>
+                <input type="text" id="assistant-url" placeholder="http://library-assistant.school.example:8000">
+                <p class="hint">From your librarian. This computer remembers it.</p>
+            </div>
+            <div class="form-group wide" id="key-group">
+                <label for="registration-key">Your Registration key:</label>
+                <input type="password" id="registration-key" autocomplete="off">
+                <p class="hint">From your librarian. Never saved on this computer.</p>
+            </div>
+            <p id="key-built-in" class="hint wide hidden"></p>
         </div>
-        <div class="form-group">
-            <label for="count">Number of Cards:</label>
-            <input type="number" id="count" min="1" max="100" value="24" required>
-        </div>
-        <div class="form-group">
-            <label for="until">Cards stop working at (today):</label>
-            <input type="time" id="until" value="15:30" required>
-        </div>
-        <div class="form-group">
-            <label for="assistant-url">Library Assistant address:</label>
-            <input type="text" id="assistant-url" placeholder="http://library-assistant.school.example:8000">
-            <p class="hint">From your librarian. This computer remembers it.</p>
-        </div>
-        <div class="form-group" id="key-group">
-            <label for="registration-key">Your Registration key:</label>
-            <input type="password" id="registration-key" autocomplete="off">
-            <p class="hint">From your librarian. Never saved on this computer.</p>
-        </div>
-        <p id="key-built-in" class="hint hidden"></p>
         <div id="make-status" class="hidden"></div>
-        <button id="generate-btn">Make Cards</button>
+        <div class="actions"><button id="generate-btn">Make Cards</button></div>
     </div>
 
-    <!-- Step 2: the registered Batch's Cards and Roster -->
-    <div id="step2" class="step">
+    <!-- Step 2: hand the registered Batch's Cards out, one at a time or on paper -->
+    <div id="step2" class="step panel">
         <h2>Your Cards are ready</h2>
         <p id="registered-note" class="success"></p>
-        <p>Download or print the Cards now: they are not kept anywhere once you leave this page.</p>
-        <button id="download-cards-btn">Download Cards</button>
-        <button id="print-cards-btn">Print Cards</button>
-        <button id="download-csv-btn">Download Roster CSV</button>
-        <button id="print-roster-btn">Print Sealed Roster Sheet</button>
-        <button id="back-to-config-btn">Make another Batch</button>
-        <div id="qr-sheet-container"></div>
+        <div class="tabs" role="tablist">
+            <button id="tab-handout" role="tab" aria-selected="true">One at a time</button>
+            <button id="tab-print" role="tab" aria-selected="false">Print</button>
+        </div>
+
+        <section id="handout-view">
+            <p class="hint">Invite one Student up at a time to scan the code on this screen with their
+            device's camera, then press Handed out.</p>
+            <div class="progress"><span id="handout-progress" style="width:0%"></span></div>
+            <div class="handout">
+                <div class="qr-large" id="handout-qr"></div>
+                <div>
+                    <div class="count" id="handout-count"></div>
+                    <div class="who" id="handout-who"></div>
+                    <div class="form-group" id="handout-name-group">
+                        <label for="handout-name">Student's name (optional):</label>
+                        <input type="text" id="handout-name" autocomplete="off">
+                    </div>
+                    <div class="actions">
+                        <button id="handed-out-btn">Handed out, next Card</button>
+                        <button id="prev-btn" class="secondary">Back</button>
+                    </div>
+                </div>
+            </div>
+            <div id="handout-done" class="success hidden">Every Card is handed out. Keep the Roster below.</div>
+            <ul class="roster-list" id="roster-list"></ul>
+        </section>
+
+        <section id="print-view" class="hidden">
+            <p class="hint">Each Card prints with its number; a Student's name, if you gave one, goes on
+            a tear-off stub below the cut line, so the Card itself does not say whose it is.</p>
+            <div class="actions">
+                <button id="print-cards-btn">Print Cards</button>
+                <button id="download-cards-btn" class="secondary">Download Cards</button>
+            </div>
+            <div id="qr-sheet-container"></div>
+        </section>
+
+        <h3 style="margin-top:22px">The Roster</h3>
+        <p class="hint">Which Student holds which Card. It never reaches the Library Assistant: keep it,
+        or seal the printed sheet with the office.</p>
+        <div class="actions">
+            <button id="download-csv-btn" class="secondary">Download Roster CSV</button>
+            <button id="print-roster-btn" class="secondary">Print Sealed Roster Sheet</button>
+            <button id="back-to-config-btn" class="secondary">Make another Batch</button>
+        </div>
         <details>
             <summary>Technical details: Token hashes (for verifying against the server database by hand)</summary>
             <p>Each Card's Token is hashed with SHA-256 on this machine, the same way the server
@@ -2527,10 +2579,19 @@ var qrcode = function() {
             return qr.createSvgTag(4);
         }
 
-        // Generate cards with tokens, hashes, and roster data
-        async function generateCards(count, classLabel, until) {
+        // A pasted class list: one name per line, blank lines and stray spaces dropped.
+        function parseNames(text) {
+            return String(text || '').split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+        }
+
+        // Generate cards with tokens, hashes, and roster data. With `names`, one Card per name,
+        // in order, and the Roster carries each name; the names never join the payload.
+        async function generateCards(count, classLabel, until, names = []) {
             const cards = [];
             const rosterRows = [];
+            if (names.length) {
+                count = names.length;
+            }
 
             const now = new Date();
             const [untilHours, untilMinutes] = until.split(':').map(Number);
@@ -2555,7 +2616,7 @@ var qrcode = function() {
 
                 rosterRows.push({
                     cardNumber: cardNumber,
-                    students: ""
+                    students: names[i] || ""
                 });
             }
 
@@ -2601,18 +2662,20 @@ var qrcode = function() {
             return `${base}/batches`;
         }
 
-        // Generate QR sheet HTML
-        function generateQRSheet(cards, classLabel, base) {
+        // The print sheet. A name, if given, sits on a stub below a cut line, so the Card the
+        // Student keeps does not say whose it is.
+        function generateQRSheet(cards, classLabel, base, names = []) {
             const PRIVACY_NOTE = "This card doesn't tell the assistant your name. Adults can see what you ask.";
 
             return `
                 <h2>${escapeHtml(classLabel)} - Cards</h2>
                 <div class="qr-sheet">
-                    ${cards.map(card => `
+                    ${cards.map((card, i) => `
                         <div class="card">
                             <div class="card-number">Card ${card.cardNumber}</div>
                             <div class="qr">${generateQRCodeSVG(signInUrl(base, card.token))}</div>
                             <div class="privacy-note">${PRIVACY_NOTE}</div>
+                            ${names[i] ? `<div class="stub"><div class="cut">tear off before handing out</div>For: ${escapeHtml(names[i])}</div>` : ''}
                         </div>
                     `).join('')}
                 </div>
@@ -2626,17 +2689,21 @@ var qrcode = function() {
             ).join('');
         }
 
+        // One CSV field: quoted when a name carries a comma, a quote, or a line break.
+        function csvField(value) {
+            const text = String(value);
+            return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+        }
+
         // Generate CSV content for roster
         function generateCSV(rosterRows) {
             const headers = ["card_number", "students"];
             const rows = rosterRows.map(row => [row.cardNumber, row.students]);
 
-            const csvContent = [
+            return [
                 headers.join(','),
-                ...rows.map(row => row.join(','))
+                ...rows.map(row => row.map(csvField).join(','))
             ].join('\n');
-
-            return csvContent;
         }
 
         // The Cards as a page of their own, for the Teacher to save or print.
@@ -2647,13 +2714,15 @@ var qrcode = function() {
 <meta charset="utf-8">
 <title>${escapeHtml(classLabel)} - Cards</title>
 <style>
-  body { font-family: sans-serif; padding: 0.25in; }
-  .qr-sheet { display: flex; flex-wrap: wrap; gap: 0.3in; }
-  .card { width: 2in; text-align: center; border: 1px solid #999; padding: 0.15in;
-          break-inside: avoid; }
-  .card-number { font-weight: bold; margin-bottom: 0.1in; }
+  body { font-family: system-ui, sans-serif; padding: 0.25in; color: #2a2620; }
+  .qr-sheet { display: flex; flex-wrap: wrap; gap: 0.25in; }
+  .card { width: 2.2in; text-align: center; border: 1px dashed #777; padding: 0.15in;
+          break-inside: avoid; border-radius: 6px; }
+  .card-number { font-weight: bold; margin-bottom: 0.08in; }
   .qr svg { width: 1.6in; height: 1.6in; }
-  .privacy-note { font-size: 0.7em; margin-top: 0.1in; }
+  .privacy-note { font-size: 0.7em; margin-top: 0.08in; }
+  .stub { border-top: 1px dashed #777; margin-top: 0.1in; padding-top: 0.06in; font-size: 0.85em; }
+  .stub .cut { color: #777; font-size: 0.8em; }
 </style>
 </head>
 <body>
@@ -2678,11 +2747,12 @@ ${sheetHtml}
             document.body.removeChild(a);
         }
 
-        // The sealed Roster sheet (ADR-0002, "a sealed printed Roster"): Card numbers only,
-        // never a Token or its hash, for the office to seal and shred when the Batch expires.
-        function generateSealedRosterSheet(cardNumbers, classLabel, startDate, endDate) {
-            const rows = cardNumbers.map(number =>
-                `<tr><td>${number}</td><td>&nbsp;</td></tr>`
+        // The sealed Roster sheet (ADR-0002, "a sealed printed Roster"): Card numbers and, if
+        // given, names; never a Token or its hash. The office seals it and shreds it when the
+        // Batch expires.
+        function generateSealedRosterSheet(cardNumbers, classLabel, startDate, endDate, names = []) {
+            const rows = cardNumbers.map((number, i) =>
+                `<tr><td>${number}</td><td>${names[i] ? escapeHtml(names[i]) : '&nbsp;'}</td></tr>`
             ).join('');
 
             return `<!DOCTYPE html>
@@ -2795,9 +2865,56 @@ ${sheetHtml}
             return date.toISOString().slice(0, 10);
         }
 
+        // Where one-at-a-time hand-out goes next: forward or back one Card, never off either end.
+        function handoutIndex(index, total, step) {
+            return Math.min(Math.max(index + step, 0), Math.max(total - 1, 0));
+        }
+
+        // One-at-a-time hand-out: the current Card big on screen, its Student's name if known.
+        function renderHandout() {
+            const data = window.generatedData;
+            const index = data.handoutIndex;
+            const total = data.cards.length;
+            const card = data.cards[index];
+            const row = data.rosterRows[index];
+            document.getElementById('handout-qr').innerHTML =
+                generateQRCodeSVG(signInUrl(data.base, card.token));
+            document.getElementById('handout-count').textContent =
+                `Card ${card.cardNumber} of ${total}`;
+            document.getElementById('handout-who').textContent = row.students || `Card ${card.cardNumber}`;
+            const nameInput = document.getElementById('handout-name');
+            nameInput.value = row.students;
+            document.getElementById('handout-progress').style.width =
+                `${Math.round(100 * data.handedOut.size / total)}%`;
+            const allDone = data.handedOut.size === total;
+            document.getElementById('handout-done').classList.toggle('hidden', !allDone);
+            document.getElementById('roster-list').innerHTML = data.rosterRows.map((r, i) =>
+                `<li class="${i === index ? 'current' : ''} ${data.handedOut.has(i) ? 'done' : ''}">` +
+                `<span>Card ${escapeHtml(r.cardNumber)}${r.students ? ' · ' + escapeHtml(r.students) : ''}</span>` +
+                `<span>${data.handedOut.has(i) ? 'handed out' : ''}</span></li>`
+            ).join('');
+        }
+
+        function showTab(name) {
+            const handout = name === 'handout';
+            document.getElementById('handout-view').classList.toggle('hidden', !handout);
+            document.getElementById('print-view').classList.toggle('hidden', handout);
+            document.getElementById('tab-handout').setAttribute('aria-selected', String(handout));
+            document.getElementById('tab-print').setAttribute('aria-selected', String(!handout));
+            if (!handout) {
+                const data = window.generatedData;
+                const names = data.rosterRows.map(r => r.students);
+                data.sheetHtml = generateQRSheet(data.cards, data.classLabel, data.base, names);
+                document.getElementById('qr-sheet-container').innerHTML = data.sheetHtml;
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             const config = parseInstallConfig(document.getElementById('install-config').textContent);
             document.getElementById('assistant-url').value = config.assistant_url || rememberedBase();
+            if (config.school_day_end) {
+                document.getElementById('until').value = config.school_day_end;
+            }
             if (config.registration_key) {
                 document.getElementById('registration-key').value = config.registration_key;
                 document.getElementById('key-group').classList.add('hidden');
@@ -2806,15 +2923,34 @@ ${sheetHtml}
                 builtIn.classList.remove('hidden');
             }
 
+            // A pasted class list sets the number of Cards.
+            const students = document.getElementById('students');
+            students.addEventListener('input', function() {
+                const names = parseNames(students.value);
+                document.getElementById('count-group').classList.toggle('hidden', names.length > 0);
+                document.getElementById('students-hint').textContent = names.length
+                    ? `${names.length} Card${names.length === 1 ? '' : 's'}, one per name. Names stay on this computer.`
+                    : 'Names stay on this computer. Leave empty to make numbered Cards only.';
+            });
+
+            // The Tokens and names live only in this page: warn before they are lost.
+            window.addEventListener('beforeunload', function(event) {
+                if (window.generatedData) {
+                    event.preventDefault();
+                    event.returnValue = '';
+                }
+            });
+
             document.getElementById('generate-btn').addEventListener('click', async function() {
                 const classLabel = document.getElementById('class-label').value.trim();
-                const count = parseInt(document.getElementById('count').value);
+                const names = parseNames(students.value);
+                const count = names.length || parseInt(document.getElementById('count').value);
                 const until = document.getElementById('until').value;
                 const base = normaliseBase(document.getElementById('assistant-url').value);
                 const key = document.getElementById('registration-key').value.trim();
 
                 if (!classLabel || !(count >= 1) || !until) {
-                    showStatus('Fill in the Class label, the number of Cards, and the time they stop working.');
+                    showStatus('Fill in the Class label, the Students or the number of Cards, and the time they stop working.');
                     return;
                 }
                 if (!base || !key) {
@@ -2826,7 +2962,7 @@ ${sheetHtml}
                 button.disabled = true;
                 showStatus('');
                 try {
-                    const result = await generateCards(count, classLabel, until);
+                    const result = await generateCards(count, classLabel, until, names);
                     if (result.error) {
                         showStatus(result.error);
                         return;
@@ -2840,28 +2976,54 @@ ${sheetHtml}
                     }
                     rememberBase(base);
 
-                    result.sheetHtml = generateQRSheet(result.cards, classLabel, base);
+                    result.base = base;
+                    result.handoutIndex = 0;
+                    result.handedOut = new Set();
+                    result.sheetHtml = generateQRSheet(result.cards, classLabel, base, names);
                     window.generatedData = result;
-                    document.getElementById('qr-sheet-container').innerHTML = result.sheetHtml;
                     document.getElementById('audit-table-body').innerHTML = generateAuditTableRows(result.cards);
                     document.getElementById('registered-note').textContent =
                         `Registered ${result.cards.length} Cards for ${classLabel}. They stop working at ${until} today.`;
 
                     document.getElementById('step1').classList.remove('active');
                     document.getElementById('step2').classList.add('active');
+                    showTab('handout');
+                    renderHandout();
                 } finally {
                     button.disabled = false;
                 }
             });
 
+            document.getElementById('tab-handout').addEventListener('click', () => { showTab('handout'); renderHandout(); });
+            document.getElementById('tab-print').addEventListener('click', () => showTab('print'));
+
+            document.getElementById('handed-out-btn').addEventListener('click', function() {
+                const data = window.generatedData;
+                const typed = document.getElementById('handout-name').value.trim();
+                if (typed) {
+                    data.rosterRows[data.handoutIndex].students = typed;
+                }
+                data.handedOut.add(data.handoutIndex);
+                data.handoutIndex = handoutIndex(data.handoutIndex, data.cards.length, 1);
+                renderHandout();
+            });
+
+            document.getElementById('prev-btn').addEventListener('click', function() {
+                const data = window.generatedData;
+                data.handoutIndex = handoutIndex(data.handoutIndex, data.cards.length, -1);
+                renderHandout();
+            });
+
             document.getElementById('download-cards-btn').addEventListener('click', function() {
                 const data = window.generatedData;
+                showTab('print');
                 downloadFile(cardsDocument(data.classLabel, data.sheetHtml),
                     `${fileStem(data.classLabel)}-cards.html`, 'text/html');
             });
 
             document.getElementById('print-cards-btn').addEventListener('click', function() {
                 const data = window.generatedData;
+                showTab('print');
                 openAndPrint(cardsDocument(data.classLabel, data.sheetHtml));
             });
 
@@ -2875,14 +3037,17 @@ ${sheetHtml}
                 const data = window.generatedData;
                 const cardNumbers = data.cards.map(card => card.cardNumber);
                 openAndPrint(generateSealedRosterSheet(
-                    cardNumbers, escapeHtml(data.classLabel), dateStamp(data.startDate), dateStamp(data.expiresAt)
+                    cardNumbers, escapeHtml(data.classLabel), dateStamp(data.startDate),
+                    dateStamp(data.expiresAt), data.rosterRows.map(r => r.students)
                 ));
             });
 
-            // Drop this Batch's Tokens from the page before making another.
+            // Drop this Batch's Tokens and names from the page before making another.
             document.getElementById('back-to-config-btn').addEventListener('click', function() {
                 window.generatedData = null;
                 document.getElementById('qr-sheet-container').innerHTML = '';
+                document.getElementById('handout-qr').innerHTML = '';
+                document.getElementById('roster-list').innerHTML = '';
                 document.getElementById('audit-table-body').innerHTML = '';
                 document.getElementById('step2').classList.remove('active');
                 document.getElementById('step1').classList.add('active');

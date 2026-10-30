@@ -29,8 +29,13 @@ def _script_safe_json(value: dict[str, str]) -> str:
 
 
 def filled_minting_page(
-    assistant_url: str, username: str, registration_key: str
+    assistant_url: str,
+    username: str,
+    registration_key: str,
+    school_day_end: str | None = None,
 ) -> str:
+    """The page with this Install's address, the account's key, and the school day's end
+    (the default "Cards stop working at" time, so a Teacher rarely changes it)."""
     page = PAGE_PATH.read_text(encoding="utf-8")
     if page.count(CONFIG_PLACEHOLDER) != 1:
         raise RuntimeError(f"{PAGE_PATH.name} has lost its install-config block")
@@ -39,6 +44,7 @@ def filled_minting_page(
             "assistant_url": assistant_url.rstrip("/"),
             "username": username,
             "registration_key": registration_key,
+            **({"school_day_end": school_day_end} if school_day_end else {}),
         }
     )
     return page.replace(
