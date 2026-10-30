@@ -38,6 +38,14 @@ account with generated passwords in `credentials.txt`, Live supervision, and
 readable only by you (`--state`, default `~/library-assistant-demo`). The stack leaves alone
 anything already answering on its ports, such as an Oversight Ollama started by hand.
 
+`tests/test_integration_flows.py` runs whole school-day journeys (a Card scanned before Watch,
+Oversight catching a paraphrase, a Flag going New, Acknowledged, Closed, an Escalation the
+Counselor closes, a Revoke) against `./stack up --mock` in a temp folder, in a few seconds:
+
+```bash
+flox activate -- python3 -m pytest -q tests/test_integration_flows.py
+```
+
 ## How it protects students
 
 - **Cards are minted on the Teacher's machine.** The assistant receives only Token hashes,

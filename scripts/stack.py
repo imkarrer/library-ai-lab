@@ -264,7 +264,14 @@ def up(state: Path, args: argparse.Namespace) -> None:
         _start(
             state,
             "fake-model",
-            [sys.executable, "scripts/fake_model.py", "--port", str(args.fake_port)],
+            [
+                sys.executable,
+                "scripts/fake_model.py",
+                "--port",
+                str(args.fake_port),
+                "--delay-ms",
+                str(args.fake_delay_ms),
+            ],
             dict(os.environ),
             f"http://127.0.0.1:{args.fake_port}/health",
         )
@@ -463,6 +470,9 @@ def main(argv: list[str] | None = None) -> None:
     )
     start.add_argument("--port", type=int, default=8000)
     start.add_argument("--fake-port", type=int, default=FAKE_MODEL_PORT)
+    start.add_argument(
+        "--fake-delay-ms", type=int, default=30, help="between streamed chunks (--mock)"
+    )
     start.add_argument(
         "--catalog", help="a Catalog file (default: catalog.db, else the fixture)"
     )
