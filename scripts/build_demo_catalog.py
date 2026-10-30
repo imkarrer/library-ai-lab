@@ -4,19 +4,25 @@
 A separate setup command, never run by the assistant itself (ADR-0006's demo
 exception). It reads the LoC MDSConnect "Books All" page, takes the newest
 year's MARCXML parts (BooksAll.<year>.partNN.xml.gz), and for each part:
-downloads it, keeps only juvenile and adolescent titles (the 008
-target-audience byte), loads them into a SQLite Catalog, and deletes the
-part. Run once, on the presenter's machine, before the demo:
+downloads it, keeps only the books a school librarian would recognize on a
+shelf (juvenile or adolescent by the 008 target-audience byte, with a Dewey
+number, E, FIC, or B: `is_shelf_ready`), loads them into a SQLite Catalog,
+and deletes the part. Run once, on the presenter's machine, before the demo:
 
     python3 scripts/build_demo_catalog.py --dest catalog.db
 
-Resuming: re-running with the same --download-dir skips parts already
-loaded (listed in done.txt) and continues a partially downloaded part.
+The build writes <dest>.building and replaces <dest> only when every part is
+in, so the demo keeps its current Catalog until then. Resuming: re-running
+continues <dest>.building, skipping parts already loaded (done.txt in
+--download-dir) and continuing a partially downloaded part. --fresh throws
+away a build in progress, and with it an existing <dest>, and starts over:
+the way to clean an older Catalog and reseed it.
 """
 
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import shutil
 import sys
@@ -29,7 +35,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from library_assistant.catalog.marc import (
-    is_juvenile,
+    is_shelf_ready,
     parse_marcxml,
     to_record,
 )
@@ -77,7 +83,7 @@ def parse_index_links(html: str, base_url: str) -> list[str]:
     """The newest year's MARCXML part links on the Books All page, in order.
 
     Older years, the single "combined" file, and the binary MARC (.utf8.gz,
-    .marc8.gz) files are skipped: `load_juvenile_records` parses MARCXML
+    .marc8.gz) files are skipped: `load_school_records` parses MARCXML
     (library_assistant/catalog/marc.py), and the parts keep one file on disk
     at a time.
     """
@@ -124,8 +130,8 @@ def download_resumable(url: str, dest: Path) -> None:
             shutil.copyfileobj(response, out)
 
 
-def load_juvenile_records(marcxml_path: Path, catalog: SqliteCatalog) -> int:
-    """Filter `marcxml_path` to juvenile/adolescent titles, load into `catalog`.
+def load_school_records(marcxml_path: Path, catalog: SqliteCatalog) -> int:
+    """Filter `marcxml_path` to the shelf-ready juvenile titles, load into `catalog`.
 
     Pure apart from the filesystem read of `marcxml_path`; no network. This
     is what tests/test_build_demo_catalog.py exercises against the fixture.
@@ -133,24 +139,56 @@ def load_juvenile_records(marcxml_path: Path, catalog: SqliteCatalog) -> int:
     records = [
         to_record(marc_record)
         for marc_record in parse_marcxml(str(marcxml_path))
-        if is_juvenile(marc_record)
+        if is_shelf_ready(marc_record)
     ]
     catalog.load_records(records)
     return len(records)
+
+
+def start_build(dest: Path, download_dir: Path, fresh: bool) -> Path:
+    """Where this run builds: <dest>.building, new or (unless `fresh`) resumed.
+
+    A finished <dest> with no build in progress is left alone unless `fresh`; a done.txt
+    with no build beside it belongs to an older build and is cleared, or every part
+    would be skipped into an empty Catalog."""
+    building = dest.with_name(dest.name + ".building")
+    download_dir.mkdir(parents=True, exist_ok=True)
+    done_list = download_dir / "done.txt"
+    if fresh:
+        building.unlink(missing_ok=True)
+        done_list.unlink(missing_ok=True)
+    elif not building.exists():
+        if dest.exists():
+            raise SystemExit(
+                f"{dest} is already built. To clean it and seed it again from the "
+                "Library of Congress, run with --fresh."
+            )
+        done_list.unlink(missing_ok=True)
+    return building
+
+
+def finish_build(building: Path, dest: Path, download_dir: Path) -> None:
+    """Swap the finished build in for <dest> in one step, and clear its progress."""
+    os.replace(building, dest)
+    (download_dir / "done.txt").unlink(missing_ok=True)
 
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dest", type=Path, default=Path("catalog.db"))
     parser.add_argument("--download-dir", type=Path, default=Path("marc-dist-download"))
+    parser.add_argument(
+        "--fresh",
+        action="store_true",
+        help="start over: discard a build in progress and replace an existing --dest",
+    )
     args = parser.parse_args(argv)
 
+    building = start_build(args.dest, args.download_dir, fresh=args.fresh)
     check_disk_space(args.dest, estimate_required_bytes())
-
-    args.download_dir.mkdir(parents=True, exist_ok=True)
     done_list = args.download_dir / "done.txt"
     done = set(done_list.read_text().split()) if done_list.exists() else set()
-    catalog = SqliteCatalog.open(str(args.dest))
+    catalog = SqliteCatalog.open(str(building))
     total = 0
     downloaded_bytes = 0
     for file_url in fetch_index_links():
@@ -162,12 +200,13 @@ def main(argv: list[str] | None = None) -> None:
         print(f"Downloading {file_url} -> {file_path}")
         download_resumable(file_url, file_path)
         downloaded_bytes += file_path.stat().st_size
-        added = load_juvenile_records(file_path, catalog)
+        added = load_school_records(file_path, catalog)
         total += added
         with done_list.open("a") as out:
             out.write(name + "\n")
         file_path.unlink()
-        print(f"  loaded {added} juvenile/adolescent records ({total} total)")
+        print(f"  loaded {added} shelf-ready records ({total} total)")
+    finish_build(building, args.dest, args.download_dir)
     print(
         f"Done: {total} records in {args.dest} "
         f"({downloaded_bytes:,} bytes downloaded this run, "

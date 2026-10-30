@@ -97,9 +97,17 @@ flox activate -- python3 scripts/build_demo_catalog.py --dest catalog.db
 
 It reads the Library of Congress "Books All" page, takes the newest year's MARCXML parts
 (43 parts of about 70 MB each for 2016, about 3 GB in all), and handles one part at a time:
-download, keep only juvenile and adolescent titles (the MARC 008 target-audience byte), load,
-delete. It checks free disk against an estimate before starting, and a re-run with the same
-`--download-dir` skips loaded parts and resumes a partial one.
+download, keep only the books a school librarian would recognize on a shelf, load, delete.
+Kept: juvenile and adolescent titles (the MARC 008 target-audience byte) with a Dewey number,
+or LoC's E (easy), Fic, or B (biography), in the record's 082. Each is labelled the way a
+school spine label reads, the class then three letters of the author's surname: `599.74 LEP`,
+`FIC SPI`, `B LIN`. It checks free disk against an estimate before starting. It builds into
+`catalog.db.building` and swaps it in only when done, so a running demo keeps its Catalog; a
+re-run resumes, and `--fresh` cleans out an older Catalog and seeds it again from the start.
+
+Measured on one 2016 part (250,000 records, 2026-10-30): of its 8,019 juvenile titles, 6,066
+(76%) were kept. Two thirds of the rest are music (LC class ML), which has no Dewey number.
+The figures below are from the earlier build, which kept every juvenile title.
 
 Measured from one real run against the live LoC distribution (`lib-f24.19`), on 2026-10-25,
 on an x86_64 AMD Ryzen 7 9800X3D (8 cores / 16 threads) with 30 GiB RAM, under WSL2 on a home
