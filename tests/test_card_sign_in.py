@@ -489,3 +489,126 @@ def test_card_signs_in_again_after_idle(client):
     response = tc.post("/card", json={"token": "token-1"})
     assert response.status_code == 200
     assert SESSION_COOKIE in response.cookies
+
+
+# --- A Card scanned while nobody is on Watch (lib-4vf, ADR-0010 "the same scan works
+# once someone is on Watch"), and expiries stored in UTC.
+
+
+def _run_card_page(responses: list[dict], hash_: str = "#t=tok-1") -> dict:
+    """Run the Card page's script in Node with `fetch` answering `responses` in turn."""
+    import json
+    import re
+    import subprocess
+
+    from library_assistant.access import CARD_PAGE_HTML
+
+    script = re.search(r"<script>(.*?)</script>", CARD_PAGE_HTML, re.DOTALL).group(1)
+    harness = f"""
+const responses = {json.dumps(responses)};
+const out = {{ statuses: [], replaced: null, posts: 0, url: null }};
+const el = {{ set textContent(v) {{ out.statuses.push(v); }}, style: {{}},
+  addEventListener() {{}} }};
+global.document = {{ getElementById: () => el }};
+global.window = {{ location: {{ hash: {json.dumps(hash_)}, pathname: "/card",
+  replace: (u) => {{ out.replaced = u; }} }} }};
+global.history = {{ replaceState: (a, b, u) => {{ out.url = u; }} }};
+const realSetTimeout = setTimeout;
+global.setTimeout = (fn) => setImmediate(fn);
+global.fetch = async (url, init) => {{
+  out.posts += 1;
+  const r = responses.shift();
+  if (r.throws) throw new TypeError("offline");
+  return {{ ok: r.status === 200, status: r.status, text: async () => r.text || "" }};
+}};
+{script}
+realSetTimeout(() => process.stdout.write(JSON.stringify(out)), 200);
+"""
+    result = subprocess.run(
+        ["node", "-e", harness], capture_output=True, text=True, timeout=30, check=False
+    )
+    assert result.returncode == 0, result.stderr
+    return json.loads(result.stdout)
+
+
+def test_card_page_waits_while_paused_then_signs_in_on_its_own():
+    out = _run_card_page(
+        [
+            {"status": 503, "text": "The Library Assistant is taking a break."},
+            {"throws": True},
+            {"status": 200},
+        ]
+    )
+    assert out["posts"] == 3
+    assert out["statuses"][0] == "The Library Assistant is taking a break."
+    assert "stopped working" not in " ".join(out["statuses"])
+    assert out["replaced"] == "/chat"
+    assert out["url"] == "/card"  # the Token left the address bar at once
+
+
+def test_card_page_reports_a_dead_card_once():
+    out = _run_card_page([{"status": 403}])
+    assert out["posts"] == 1
+    assert out["statuses"] == [
+        "This card has stopped working. Ask your teacher for a new one."
+    ]
+    assert out["replaced"] is None
+
+
+def test_card_page_script_parses():
+    from page_scripts import assert_scripts_parse
+
+    from library_assistant.access import CARD_PAGE_HTML
+
+    assert_scripts_parse(CARD_PAGE_HTML)
+
+
+def test_an_offset_expiry_is_stored_in_utc_and_its_tile_shows(client):
+    tc, db = client
+    chicago = timezone(timedelta(hours=-5))
+    # Later than now in real time, but "earlier" as text than a UTC timestamp.
+    _register(tc, DAY_END.astimezone(chicago))
+
+    [stored] = db.execute("SELECT expires_at FROM cards").fetchone()
+    assert stored == DAY_END.astimezone(UTC).isoformat()
+
+    from library_assistant.routers.live import active_sessions
+
+    assert tc.post("/card", json={"token": "token-1"}).status_code == 200
+    assert [tile.card_number for tile in active_sessions(db, FIXED_CLOCK)] == ["14"]
+
+
+def test_revoking_with_an_offset_expiry_finds_the_card(client):
+    tc, db = client
+    chicago = timezone(timedelta(hours=-5))
+    _register(tc, DAY_END)
+
+    response = tc.post(
+        "/batches/revoke-card",
+        json={
+            "registration_key": REGISTRATION_KEY,
+            "class_label": "Period 3",
+            "card_number": "14",
+            "expires_at": DAY_END.astimezone(chicago).isoformat(),
+        },
+    )
+
+    assert response.status_code == 200
+    assert db.execute("SELECT count(*) FROM cards").fetchone()[0] == 0
+
+
+def test_connect_converts_older_offset_expiries_to_utc(tmp_path):
+    path = str(tmp_path / "install.db")
+    db = connect(path)
+    db.execute(
+        "INSERT INTO cards (token_hash, card_number, expires_at, class_label) "
+        "VALUES ('h', '1', '2026-10-29T23:00:00-05:00', 'Conference demo')"
+    )
+    db.commit()
+    db.close()
+
+    db = connect(path)
+
+    assert db.execute("SELECT expires_at FROM cards").fetchone()[0] == (
+        "2026-10-30T04:00:00+00:00"
+    )
