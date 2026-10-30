@@ -12,22 +12,25 @@ from library_assistant.catalog.sqlite_backend import SqliteCatalog
 from scripts.build_demo_catalog import (
     check_disk_space,
     download_resumable,
-    load_juvenile_records,
+    finish_build,
+    load_school_records,
     parse_index_links,
+    start_build,
 )
 
 # Real Library of Congress records; see fixtures/catalog/README.md.
 LOC_SAMPLE = (
     Path(__file__).parent / "fixtures" / "catalog" / "loc-books-2016-sample.xml"
 )
-# 250 of the sample's 270 records carry a juvenile or adolescent 008/22 code.
-LOC_SAMPLE_JUVENILE_COUNT = 250
+# 250 of the sample's 270 records carry a juvenile or adolescent 008/22 code, and 242 of
+# those a Dewey number, E, FIC, or B a school librarian would shelve by.
+LOC_SAMPLE_SHELF_READY_COUNT = 242
 
 
-def test_load_juvenile_records_keeps_only_juvenile_and_adolescent(tmp_path):
+def test_load_school_records_keeps_only_shelf_ready_juvenile_books(tmp_path):
     catalog = SqliteCatalog(sqlite3.connect(":memory:"))
-    count = load_juvenile_records(LOC_SAMPLE, catalog)
-    assert count == LOC_SAMPLE_JUVENILE_COUNT
+    count = load_school_records(LOC_SAMPLE, catalog)
+    assert count == LOC_SAMPLE_SHELF_READY_COUNT
     # The three questions (j) and Fighting Ruben Wolfe (d) are kept.
     assert catalog.get("00049673") is not None
     assert catalog.get("00042817") is not None
@@ -35,6 +38,8 @@ def test_load_juvenile_records_keeps_only_juvenile_and_adolescent(tmp_path):
     assert catalog.get("00456254") is None
     assert catalog.get("00000002") is None
     assert "00456254" not in [r.id for r in catalog.search("domestic goddess", k=5)]
+    # Juvenile, but shelved only by LoC's own number (Pooh, PZ5.G3168): not kept.
+    assert catalog.get("00269808") is None
 
 
 def test_check_disk_space_refuses_when_free_space_is_below_estimate(
@@ -81,11 +86,11 @@ def test_parse_index_links_finds_nothing_on_an_unrelated_page():
     assert parse_index_links('<a href="notes.pdf">x</a>', "https://example.org/") == []
 
 
-def test_load_juvenile_records_reads_gzipped_marcxml(tmp_path):
+def test_load_school_records_reads_gzipped_marcxml(tmp_path):
     part = tmp_path / "BooksAll.2016.part01.xml.gz"
     part.write_bytes(gzip.compress(LOC_SAMPLE.read_bytes()))
     catalog = SqliteCatalog(sqlite3.connect(":memory:"))
-    assert load_juvenile_records(part, catalog) == LOC_SAMPLE_JUVENILE_COUNT
+    assert load_school_records(part, catalog) == LOC_SAMPLE_SHELF_READY_COUNT
     assert catalog.get("00057791").title == "The story of Ferdinand /"
 
 
@@ -136,3 +141,43 @@ def test_builder_runs_as_the_readme_documents():
     )
     assert result.returncode == 0, result.stderr
     assert "--download-dir" in result.stdout
+
+
+def test_a_build_leaves_the_current_catalog_until_it_is_done(tmp_path):
+    dest, downloads = tmp_path / "catalog.db", tmp_path / "downloads"
+    dest.write_text("the catalog the demo is using")
+    building = start_build(dest, downloads, fresh=True)
+    assert building == tmp_path / "catalog.db.building"
+    assert dest.read_text() == "the catalog the demo is using"
+    building.write_text("the new catalog")
+    (downloads / "done.txt").write_text("BooksAll.2016.part01.xml.gz\n")
+    finish_build(building, dest, downloads)
+    assert dest.read_text() == "the new catalog"
+    assert not building.exists() and not (downloads / "done.txt").exists()
+
+
+def test_a_built_catalog_is_only_rebuilt_with_fresh(tmp_path):
+    dest, downloads = tmp_path / "catalog.db", tmp_path / "downloads"
+    dest.write_text("built")
+    with pytest.raises(SystemExit, match="--fresh"):
+        start_build(dest, downloads, fresh=False)
+
+
+def test_an_interrupted_build_resumes_and_fresh_starts_over(tmp_path):
+    dest, downloads = tmp_path / "catalog.db", tmp_path / "downloads"
+    building = start_build(dest, downloads, fresh=False)
+    building.write_text("part 1 loaded")
+    (downloads / "done.txt").write_text("BooksAll.2016.part01.xml.gz\n")
+    assert start_build(dest, downloads, fresh=False) == building
+    assert (downloads / "done.txt").exists()
+    start_build(dest, downloads, fresh=True)
+    assert not building.exists() and not (downloads / "done.txt").exists()
+
+
+def test_an_older_builds_progress_list_is_not_trusted(tmp_path):
+    """A done.txt with no build beside it would skip every part into an empty Catalog."""
+    dest, downloads = tmp_path / "catalog.db", tmp_path / "downloads"
+    downloads.mkdir()
+    (downloads / "done.txt").write_text("BooksAll.2016.part01.xml.gz\n")
+    start_build(dest, downloads, fresh=False)
+    assert not (downloads / "done.txt").exists()

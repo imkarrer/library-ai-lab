@@ -304,14 +304,17 @@ def assistant_env(state: Path, config: dict) -> dict[str, str]:
 
 
 def fixture_catalog(state: Path) -> str:
-    """The 270-record LoC sample as a Catalog, built once into the state folder."""
-    from library_assistant.catalog.marc import parse_marcxml, to_record
+    """The LoC sample's shelf-ready books as a Catalog, built once into the state folder,
+    by the same rule as the demo Catalog (scripts/build_demo_catalog.py)."""
+    from library_assistant.catalog.marc import is_shelf_ready, parse_marcxml, to_record
     from library_assistant.catalog.sqlite_backend import SqliteCatalog
 
-    path = state / "catalog-fixture.db"
+    path = state / "catalog-fixture-v2.db"
     if not path.exists():
         catalog = SqliteCatalog.open(str(path))
-        catalog.load_records(to_record(m) for m in parse_marcxml(str(FIXTURE_MARC)))
+        catalog.load_records(
+            to_record(m) for m in parse_marcxml(str(FIXTURE_MARC)) if is_shelf_ready(m)
+        )
     return str(path)
 
 
@@ -531,6 +534,7 @@ def clear(state: Path) -> None:
         "oversight.lock",
         "credentials.txt",
         "catalog-fixture.db",
+        "catalog-fixture-v2.db",
         "stack.json",
         "assistant.log",
         "answer-ollama.log",

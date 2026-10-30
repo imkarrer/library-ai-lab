@@ -3,7 +3,13 @@ import sqlite3
 from pathlib import Path
 
 from library_assistant.catalog import Record
-from library_assistant.catalog.marc import parse_marcxml, to_record
+from library_assistant.catalog.marc import (
+    MarcRecord,
+    is_shelf_ready,
+    parse_marcxml,
+    school_call_number,
+    to_record,
+)
 from library_assistant.catalog.sqlite_backend import SqliteCatalog
 
 FIXTURES = Path(__file__).parent / "fixtures" / "catalog"
@@ -60,7 +66,7 @@ def test_search_returns_known_title_with_all_six_fields():
                 "a wringer at his town's annual Pigeon Day or find the courage to "
                 "oppose it."
             ),
-            call_number="PZ7.S75663 Wr 2000",
+            call_number="FIC SPI",
         )
     ]
 
@@ -98,7 +104,7 @@ def test_get_returns_record_by_id():
     assert record.title == "Fighting Ruben Wolfe /"
     assert record.author == "Zusak, Markus."
     assert record.subjects == "Boxing; Brothers"
-    assert record.call_number == "PZ7.Z837 Fi 2001"
+    assert record.call_number == "FIC ZUS"
 
     assert catalog.get("no-such-id") is None
 
@@ -113,3 +119,63 @@ def test_record_ids_carry_no_padding():
     record = catalog.get(WRINGER_ID)
     assert record is not None
     assert record.id == WRINGER_ID
+
+
+def _marc(**fields: list[tuple[str, str]]) -> MarcRecord:
+    return MarcRecord(
+        data_fields=[(tag[1:], subfields) for tag, subfields in fields.items()]
+    )
+
+
+def test_a_school_call_number_is_what_a_school_spine_label_says():
+    assert (
+        school_call_number(
+            _marc(t082=[("a", "[Fic]")], t100=[("a", "Spinelli, Jerry.")])
+        )
+        == "FIC SPI"
+    )
+    assert (
+        school_call_number(_marc(t082=[("a", "[E]")], t100=[("a", "Muth, Jon J.")]))
+        == "E MUT"
+    )
+    # LoC's segmentation mark ends the abridged Dewey school libraries use.
+    assert (
+        school_call_number(
+            _marc(t082=[("a", "813/.54")], t100=[("a", "Paulsen, Gary.")])
+        )
+        == "813 PAU"
+    )
+    assert (
+        school_call_number(
+            _marc(t082=[("a", "599.77")], t100=[("a", "Gibbons, Gail.")])
+        )
+        == "599.77 GIB"
+    )
+    # A biography shelves as B under its subject, not its author.
+    assert (
+        school_call_number(
+            _marc(
+                t082=[("a", "530/.092"), ("a", "B")],
+                t100=[("a", "MacLeod, Elizabeth.")],
+                t600=[("a", "Einstein, Albert,")],
+            )
+        )
+        == "B EIN"
+    )
+    # No author: the title's first word, past an article.
+    assert (
+        school_call_number(_marc(t082=[("a", "552")], t245=[("a", "The rocks book /")]))
+        == "552 ROC"
+    )
+
+
+def test_a_book_with_no_school_number_has_none():
+    assert school_call_number(_marc(t050=[("a", "PZ5.G3168")])) is None
+    assert school_call_number(_marc(t082=[("a", "A823.3")])) is None
+
+
+def test_only_juvenile_books_with_a_school_number_are_shelf_ready():
+    by_id = {m.control_fields["001"].strip(): m for m in parse_marcxml(str(LOC_SAMPLE))}
+    assert is_shelf_ready(by_id[WRINGER_ID])
+    assert not is_shelf_ready(by_id["00269808"])  # juvenile, LoC number only
+    assert not is_shelf_ready(by_id["00456254"])  # an adult cookbook
