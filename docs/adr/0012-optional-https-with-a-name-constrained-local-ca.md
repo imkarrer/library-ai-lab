@@ -1,6 +1,8 @@
 # HTTPS is optional, from the Install's own name-constrained CA
 
-Proposed 2026-10-30. Found while writing the network request for district IT
+Proposed 2026-10-30. **ADR-0013 replaces this as the default**: a publicly trusted certificate
+needs no IT at all. This local CA stays as the fallback, for schools that allow no outbound
+window. Found while writing the network request for district IT
 (`docs/templates/it-network-request.md`): the assistant serves plain HTTP on the school
 network, so students' questions cross a wired hop unencrypted, and IT will ask.
 
