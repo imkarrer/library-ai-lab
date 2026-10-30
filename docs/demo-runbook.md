@@ -117,11 +117,20 @@ volunteers' questions.
    export LIBRARY_ASSISTANT_OPENAI_ENDPOINT=http://127.0.0.1:11434/v1
    export LIBRARY_ASSISTANT_OPENAI_MODEL=gpt-oss:20b
    export LIBRARY_ASSISTANT_OPENAI_REASONING_EFFORT=low
+   export LIBRARY_ASSISTANT_OVERSIGHT_ENDPOINT=http://127.0.0.1:11435/v1
+   export LIBRARY_ASSISTANT_OVERSIGHT_MODEL=qwen3.5:4b
+   export LIBRARY_ASSISTANT_OVERSIGHT_REASONING_EFFORT=none
    EOF
    ```
 
-   The last three point the assistant at Ollama's `gpt-oss:20b`. `REASONING_EFFORT=low`
-   matters: without it the model thinks silently for most of a minute before its first word.
+   The three `OPENAI` lines point the Answer lane at Ollama's `gpt-oss:20b`.
+   `REASONING_EFFORT=low` matters: without it the model thinks silently for most of a minute
+   before its first word. The three `OVERSIGHT` lines turn on the Oversight Lane: a second,
+   small model that screens every message for what the Watchlist's phrases miss ("Billy says
+   I stink and makes me cry" is a bullying Flag from Oversight, not from the Watchlist). It
+   runs on a second Ollama (Step 5). Its `REASONING_EFFORT=none` matters more: without it
+   `qwen3.5:4b` spends its whole reply thinking, returns no verdict, and Oversight reports
+   itself down. Pull it once, online: `ollama pull qwen3.5:4b` (3.4 GB).
 
    `LIBRARY_ASSISTANT_DEMO=1` adds the demo Watchlist entry
    (`library_assistant/watchlist-demo.toml`): the phrase **library demo flag**, Rubric category
@@ -167,8 +176,8 @@ volunteers' questions.
      only while someone is on Watch, so End watch visibly pauses them (Step 13).
    - **Watch grace seconds: 300.** The default 90 is right for a library; on stage, 300 gives
      slack for a slow tab switch or a screen-share hiccup. End watch is still immediate.
-   - **Oversight down: Carry on.** The demo runs without Oversight (Recovery, "Oversight
-     down"), so this only matters if you configure one.
+   - **Oversight down: Carry on.** If the Oversight Lane stops answering, Students keep
+     chatting, screened by the Watchlist alone (Recovery, "Oversight is down").
    - Leave **Session idle minutes** at 0, **Alarm chime** On, **Alarm repeat seconds** 30.
 
    Press **Save**. The page lists the change under "Recent changes".
@@ -240,22 +249,36 @@ in Step 5, once the services are up.
 
 ## Step 5. Start the services
 
-**Presenter.** Ollama runs the model already (its LaunchAgent starts it at login). Three
-Terminal tabs, all at the repo root: tab 1 warms the model, tab 2 runs the assistant, tab 3 is
-for checks.
+**Presenter.** Ollama runs the Answer lane's model already (its LaunchAgent starts it at
+login, on `127.0.0.1:11434`). The Oversight Lane gets a second Ollama of its own, so neither
+Lane waits on the other (ADR-0004). Four Terminal tabs, all at the repo root: tab 1 runs the
+Oversight Ollama, tab 2 the assistant, tab 3 is for checks and warming, tab 4 spare.
 
-Tab 1, check Ollama answers and load the model so the first question is quick:
+Tab 1, the Oversight Ollama, on `127.0.0.1:11435`, sharing the downloaded models:
 
 ```bash
-curl -s http://127.0.0.1:11434/api/version
+OLLAMA_HOST=127.0.0.1:11435 OLLAMA_CONTEXT_LENGTH=4096 OLLAMA_NUM_PARALLEL=1 \
+  OLLAMA_MAX_LOADED_MODELS=1 OLLAMA_KEEP_ALIVE=30m OLLAMA_FLASH_ATTENTION=1 \
+  /Applications/Ollama.app/Contents/Resources/ollama serve
+```
+
+Leave it running. Tab 3, warm both models so the first question is quick:
+
+```bash
 curl -s http://127.0.0.1:11434/v1/chat/completions -H 'content-type: application/json' \
   -d '{"model":"gpt-oss:20b","messages":[{"role":"user","content":"Say ready."}],"reasoning_effort":"low"}' \
   | grep -o '"content":"[^"]*"'
+curl -s http://127.0.0.1:11435/v1/chat/completions -H 'content-type: application/json' \
+  -d '{"model":"qwen3.5:4b","messages":[{"role":"user","content":"Say ready."}],"reasoning_effort":"none"}' \
+  | grep -o '"content":"[^"]*"'
+curl -s http://127.0.0.1:11434/api/ps; curl -s http://127.0.0.1:11435/api/ps
 ```
 
-The first call takes 10 to 15 seconds while the model loads; Ollama keeps it loaded for 30
-minutes after the last question (`OLLAMA_KEEP_ALIVE`), so warm it again if the demo starts
-later than that. Quit memory-hungry apps first: the model takes about 14 GB of the 24.
+The first calls take 10 to 15 seconds while the models load; Ollama keeps them loaded for 30
+minutes after the last question (`OLLAMA_KEEP_ALIVE`), so warm them again if the demo starts
+later than that. Both fit on the GPU together (about 12.8 and 3.2 GB of the 24), measured
+here: a screen takes about a second and the answer's first words still come in about 0.3
+seconds. That leaves little memory free, so quit memory-hungry apps first.
 
 **Without Ollama** (fallback): run the flox model server on the CPU instead. It is slower
 (first words about 6 seconds after Ask), and `demo.env`'s three `OPENAI` lines must be
@@ -289,10 +312,10 @@ lsof -nP -iTCP -sTCP:LISTEN | grep -E 'ollama|python'
 lsof -nP -a -p "$(pgrep -d, -f 'uvicorn library_assistant')" -iTCP
 ```
 
-Expect `{"status":"ok"}`; `ollama` listening on `127.0.0.1:11434` only; the assistant
-(`python`) listening on `$LAN_IP:8000` only. Every connection the assistant has should be to
-`127.0.0.1:11434` (the model) or from an address on the router's network (your browser, the
-phones). Re-run the last line during the demo if anyone asks: that is the answer to "does
+Expect `{"status":"ok"}`; `ollama` listening on `127.0.0.1:11434` and `127.0.0.1:11435`
+only; the assistant (`python`) listening on `$LAN_IP:8000` only. Every connection the
+assistant has should be to `127.0.0.1:11434` or `11435` (the two models) or from an address on
+the router's network (your browser, the phones). Re-run the last line during the demo if anyone asks: that is the answer to "does
 anything leave the building?". Nothing in the assistant can reach the internet anyway: its one
 outbound client is scoped to the model endpoint (ADR-0006), and the room has no uplink.
 
@@ -516,13 +539,13 @@ checkout.
 
 ### Oversight is down: carry on or pause
 
-This runbook's demo runs without Oversight: `LIBRARY_ASSISTANT_OVERSIGHT_ENDPOINT` and
-`LIBRARY_ASSISTANT_OVERSIGHT_MODEL` are unset, so every message is screened by the Watchlist
-alone, and the Live view never shows a screening line. Do not point Oversight at the demo's
-one model server: the Oversight Lane must never take capacity from the Answer lane.
+The Oversight Lane is the second Ollama in Step 5, tab 1. Never point
+`LIBRARY_ASSISTANT_OVERSIGHT_ENDPOINT` at the Answer lane's Ollama (`11434`): it holds one
+model at a time, so the two would swap models on every message, and the Oversight Lane must
+never take capacity from the Answer lane (ADR-0004).
 
-If you do configure Oversight on its own Lane and it stops answering, the Live view shows
-"Screening is unavailable since HH:MM." What happens next is the **Oversight down** setting
+If it stops answering, check `curl -s http://127.0.0.1:11435/api/version` and restart tab 1's
+command. Meanwhile the Live view shows "Screening is unavailable since HH:MM." What happens next is the **Oversight down** setting
 on `/staff/settings`:
 
 - **Carry on** (the demo's choice): Students keep chatting, screened by the Watchlist alone;
@@ -641,6 +664,8 @@ As of this runbook; re-check before the trip.
 - **The assistant cannot run as a flox service for the demo** (lib-f9o).
   `flox services start assistant` does not see the variables `demo.env` and `today.env`
   export, so Steps 2 and 5 start it with `uvicorn` in its own tab instead.
+- **The Oversight Ollama runs in a Terminal tab** (lib-ktv), not as a LaunchAgent like the
+  Answer lane's, so it stops if the tab closes or the Mac restarts.
 - **The model comes from Ollama.app, which flox does not install** (lib-30v). The flox
   `llama-cpp` (0.6.0) fails every request on the M5 Pro's GPU, so the demo uses this Mac's
   Ollama and the flox model server is a slower CPU fallback. A school's flox Install still
