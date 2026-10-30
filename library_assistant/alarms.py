@@ -125,7 +125,18 @@ def panel_payload(db: sqlite3.Connection, flag: FlagRow) -> dict:
         "session_no": session_no,
         "session_severity": session_flag_severity(db, session_no),
         "acknowledged": acknowledgement(db, flag.id) is not None,
+        "escalated": flag.escalated_at is not None,
     }
+
+
+def flag_stage(flag: FlagRow, acknowledged: bool) -> str:
+    """New, Acknowledged, Closed (ADR-0010 amendment); an open Escalated Flag is the
+    Counselor's to resolve (lib-6n9)."""
+    if flag.closed_at is not None:
+        return "Closed"
+    if flag.escalated_at is not None:
+        return "Escalated: the Counselor owns it"
+    return "Acknowledged" if acknowledged else "New"
 
 
 def open_flag_count(db: sqlite3.Connection) -> int:
@@ -171,10 +182,9 @@ def announce_flag_closed(
     publish(FLAG_COUNT, {"open": open_flag_count(db)})
 
 
-def announce_flag_reopened(
-    db: sqlite3.Connection, publish: Publish, flag_id: int
-) -> None:
-    """A reopened Flag is open again: back on the panel, without a second Alarm."""
+def announce_flag_row(db: sqlite3.Connection, publish: Publish, flag_id: int) -> None:
+    """A Flag's panel row changed (reopened, Escalated): the panel redraws it, without a
+    second Alarm."""
     flag = get_flag(db, flag_id)
     if flag is None:
         return

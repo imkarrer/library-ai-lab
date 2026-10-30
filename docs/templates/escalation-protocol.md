@@ -199,7 +199,8 @@ recorded, and an unacknowledged high-severity Alarm sounds again as described ab
 
 **Rule 3: When a Flag needs the Counselor, Escalate it the same way every time.** If your
 Install has a Counselor account, the Librarian uses Escalate on the Flag's page (a reason is
-required) **and** tells the Counselor in person or by phone. An Escalated Flag sounds its own
+required) **and** tells the Counselor in person or by phone. From then on the Counselor owns
+the Flag and its resolution: only the Counselor's account can close or reopen it. An Escalated Flag sounds its own
 Alarm on the Counselor's Flag page, but only if that page is open; otherwise the Counselor hears
 it when they next open it. So the button alone is not enough for anything urgent. If there is no
 Counselor account, or a Stand-in is working the queue, walk or phone.
@@ -483,7 +484,8 @@ exchange stays until an adult closes the Flag, and is deleted at the next Purge 
 - **Closing a high-severity Flag that was never Exported** shows when the next Purge runs and
   asks you to tick "The school does not need this exchange". Tick it only if that is true.
 - **Close a Flag when the adult action is finished:** Identification done or decided against,
-  Counselor informed, reports made, record written. Pick the outcome (not a concern, handled,
+  Counselor informed, reports made, record written. An Escalated Flag is closed by the
+  Counselor, who owns it, when their part is finished. Pick the outcome (not a concern, handled,
   escalated to counselor, or other) and give the reason in one line without naming anyone:
   "Not a concern: book title", "Escalated to Counselor; handled per procedure". A closed Flag can
   be reopened, with a reason, until the Purge deletes its exchange.

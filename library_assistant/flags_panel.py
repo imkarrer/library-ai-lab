@@ -4,7 +4,8 @@ Whoever is on Watch sees every open Flag the moment it is raised, low-severity i
 on the page they are already watching: one row per open Flag, high-severity first, each a
 link to the Flag's page. A row shows what the Live view may show on a shared screen
 (docs/design/live-view.md): severity, Class label, Card number, time, source, and its stage
-(New, then Acknowledged; a closed Flag leaves the panel, lib-msq); never the
+(New, then Acknowledged, or Escalated once the Counselor owns it; a closed Flag
+leaves the panel, lib-msq, lib-6n9); never the
 category, the reason, or the Student's words, which are one click away. The rows follow the
 page's one event stream (`window.staffEvents`, opened by the Alarm banner): `flag` adds a
 row, `flag_closed` removes it, and both update the Session tile's Flag marker.
@@ -48,7 +49,7 @@ PANEL_SCRIPT = """<script>
       " \\u00b7 " + when + " \\u00b7 " + (sources[data.source] || data.source) + " \\u00b7 ");
     const stage = document.createElement("span");
     stage.className = "stage";
-    stage.textContent = data.acknowledged ? "Acknowledged" : "New";
+    stage.textContent = data.escalated ? "Escalated" : data.acknowledged ? "Acknowledged" : "New";
     link.append(stage);
     item.append(link);
     return item;
@@ -88,7 +89,7 @@ PANEL_SCRIPT = """<script>
     const data = JSON.parse(event.data);
     if (data.escalation) return;
     const stage = list.querySelector('[data-flag-id="' + Number(data.flag_id) + '"] .stage');
-    if (stage) stage.textContent = "Acknowledged";
+    if (stage && stage.textContent === "New") stage.textContent = "Acknowledged";
   });
   source.addEventListener("flag_closed", (event) => {
     const data = JSON.parse(event.data);
@@ -101,6 +102,12 @@ PANEL_SCRIPT = """<script>
 </script>"""
 
 
+def _stage(row: dict) -> str:
+    if row["escalated"]:
+        return "Escalated"
+    return "Acknowledged" if row["acknowledged"] else "New"
+
+
 def _row_html(row: dict, timezone: str) -> str:
     raised = datetime.fromisoformat(row["raised_at"]).astimezone(ZoneInfo(timezone))
     severity = "High" if row["severity"] == "high" else "Low"
@@ -108,7 +115,7 @@ def _row_html(row: dict, timezone: str) -> str:
         f"{html.escape(row['class_label'])} &middot; card "
         f"{html.escape(row['card_number'])} &middot; {raised:%H:%M} &middot; "
         f"{SOURCE_LABELS.get(row['source'], html.escape(row['source']))} &middot; "
-        f'<span class="stage">{"Acknowledged" if row["acknowledged"] else "New"}</span>'
+        f'<span class="stage">{_stage(row)}</span>'
     )
     return (
         f'<li class="flag-row flag-{html.escape(row["severity"])}" '
