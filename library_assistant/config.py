@@ -35,6 +35,9 @@ class Settings:
     # Sent as the request's reasoning_effort when set: a thinking model (qwen3.5,
     # gpt-oss) otherwise reasons silently for most of a minute before its first word.
     openai_reasoning_effort: str | None = None
+    # Sent on every Answer lane request: steady answers, and repeatable ones.
+    openai_temperature: float = 0.3
+    openai_seed: int = 42
     school_timezone: str = "America/Chicago"  # IANA name
     school_day_end: str = "15:30"  # HH:MM, local to school_timezone
     oversight_endpoint: str | None = None
@@ -78,6 +81,8 @@ def _parse(name: str, hint: object, raw: str) -> object:
         )
     if hint is int:
         return int(raw)
+    if hint is float:
+        return float(raw)
     if hint == str | None:
         return raw or None
     return raw

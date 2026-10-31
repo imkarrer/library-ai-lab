@@ -108,3 +108,12 @@ def test_from_env_reads_reasoning_effort():
     env = {"LIBRARY_ASSISTANT_OPENAI_REASONING_EFFORT": "none"}
     assert Settings.from_env(env).openai_reasoning_effort == "none"
     assert Settings.from_env({}).openai_reasoning_effort is None
+
+
+def test_temperature_and_seed_can_be_set_for_an_install():
+    env = {
+        "LIBRARY_ASSISTANT_OPENAI_TEMPERATURE": "0.1",
+        "LIBRARY_ASSISTANT_OPENAI_SEED": "7",
+    }
+    settings = Settings.from_env(env)
+    assert (settings.openai_temperature, settings.openai_seed) == (0.1, 7)

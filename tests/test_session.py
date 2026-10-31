@@ -437,6 +437,16 @@ def test_reasoning_effort_is_sent_when_set(client, settings, monkeypatch):
     assert _model_request_body(test_client, monkeypatch)["reasoning_effort"] == "none"
 
 
+def test_the_answer_and_the_choice_of_books_are_repeatable(client, monkeypatch):
+    test_client, _ = client
+    sent = _model_picks(monkeypatch, "1: It fits.")
+    _sign_in(test_client)
+
+    test_client.post("/ask", json={"question": "bulls?"})
+
+    assert [(body["temperature"], body["seed"]) for body in sent] == [(0.3, 42)] * 2
+
+
 def test_reasoning_effort_is_left_out_by_default(client, monkeypatch):
     test_client, _ = client
     assert "reasoning_effort" not in _model_request_body(test_client, monkeypatch)

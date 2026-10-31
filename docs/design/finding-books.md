@@ -85,9 +85,9 @@ is a yes or no with an order.
 
 ## What we know is weak
 
-- **Answers vary run to run.** The answer and choosing calls set no temperature or seed, so one
-  question gives different overviews, terms, and books. Only Oversight sets temperature 0.
-  Measuring a change needs both fixed.
+- **Repeatable is not correct.** The answer and choosing calls use temperature 0.3 and seed 42
+  (`openai_temperature`, `openai_seed`), so one wording gets one answer, right or wrong. A
+  reworded question, a new model, or a prompt change gives a different one.
 - **Search depends on the overview.** Its terms come from the same reply, so a wrong overview
   aims the search at the wrong books.
 - **Nothing measures quality yet.** Every change so far was judged on a handful of questions.
