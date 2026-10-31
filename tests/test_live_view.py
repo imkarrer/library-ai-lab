@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+from page_scripts import assert_scripts_parse
 from registration_helpers import batch_cards
 
 from library_assistant.access import (
@@ -945,7 +946,7 @@ def test_detail_page_script_handles_delta_events(client, db):
 
     script = response.text[response.text.index("<script>") :]
     assert 'addEventListener("delta"' in script
-    assert ".textContent += data.text" in script
+    assert '(answer.dataset.text || "") + data.text' in script
     # The delta listener comes before the answer listener that replaces its text.
     assert script.index('addEventListener("delta"') < script.index(
         'addEventListener("answer"'
@@ -1030,7 +1031,9 @@ def test_live_pages_load_no_external_script(client, db):
         assert response.status_code == 200
         assert "<script>" in response.text
         assert "/staff/live/events" in response.text
-        assert re.search(r"<script[^>]*\ssrc\s*=", response.text) is None
+        # The only script file is the assistant's own renderer.
+        scripts = re.findall(r'<script[^>]*\ssrc\s*=\s*"([^"]*)"', response.text)
+        assert set(scripts) <= {"/answer.js"}
         # The stylesheet and tab icon are the assistant's own, never fetched elsewhere.
         assert re.findall(r"<link[^>]*>", response.text) == [
             '<link rel="stylesheet" href="/library.css">',
@@ -1173,3 +1176,21 @@ def test_reopening_a_flag_puts_it_back_on_the_panel(client, db, bus):
     assert row["flag_id"] == flag_id
     assert row["session_severity"] == "low"
     assert not [kind for kind, _ in messages if kind == "alarm"]
+
+
+def test_session_detail_draws_answers_with_the_students_renderer(client, db):
+    _sign_in_as(client, db, "librarian")
+    _card(db, "token-14", "14")
+    session_hash = _session(db, "token-14")
+    _ask(db, session_hash, "Period 3", "14", "a question")
+    session_no = db.execute(
+        "SELECT rowid FROM sessions WHERE session_hash = ?", (session_hash,)
+    ).fetchone()[0]
+
+    page = client.get(f"/staff/live/sessions/{session_no}").text
+
+    assert '<script src="/answer.js"></script>' in page
+    assert page.index("/answer.js") < page.index("renderAnswer(element, text)")
+    assert 'class="bubble assistant answer"' in page
+    assert "bookCards(citations, BOOKS_TITLE, recordLink)" in page
+    assert_scripts_parse(page)

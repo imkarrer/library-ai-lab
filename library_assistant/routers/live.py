@@ -37,8 +37,9 @@ from library_assistant.catalog import Catalog
 from library_assistant.config import Settings
 from library_assistant.dependencies import get_catalog, get_settings
 from library_assistant.flags_panel import flags_panel
-from library_assistant.models import Citation
+from library_assistant.models import Citation, books_title
 from library_assistant.oversight import ScreeningState, get_screening_state
+from library_assistant.shelf import author_name, where_to_find
 from library_assistant.staff import LibrarianDep, StandInDep, page
 from library_assistant.watch import is_watching
 
@@ -285,24 +286,17 @@ def _tile_html(tile: SessionTile, timezone: str = "UTC") -> str:
     )
 
 
-def _exchange_html(exchange: Exchange, catalog) -> str:
-    """Render an exchange with citations resolved from the catalog."""
-    citation_html = ""
-    if exchange.citations:
-        citation_html = '<div class="citations">'
-        for citation in exchange.citations:
-            record = catalog.get(citation.record_id)
-            title = record.title if record else citation.record_id
-            citation_html += f'<p><a href="/staff/catalog/record/{citation.record_id}">{html.escape(title)}</a></p>'
-        citation_html += "</div>"
-
+def _exchange_html(exchange: Exchange) -> str:
+    """An exchange as the page first sees it; the page's script draws its answer and
+    books with the Student's own renderer (static/answer.js)."""
+    citations = json.dumps([citation.model_dump() for citation in exchange.citations])
     return (
         f'<div class="exchange" data-transcript-id="{exchange.transcript_id}">'
         f"<p><strong>Asked at:</strong> {html.escape(exchange.asked_at.isoformat())}</p>"
         f"<p><strong>Question:</strong> {html.escape(exchange.question)}</p>"
-        "<p><strong>Answer:</strong> "
-        f'<span class="answer">{html.escape(exchange.answer)}</span></p>'
-        f"{citation_html}"
+        "<p><strong>Answer:</strong></p>"
+        f'<div class="bubble assistant answer" data-citations="{html.escape(citations)}">'
+        f"{html.escape(exchange.answer)}</div>"
         "</div>"
     )
 
@@ -368,6 +362,8 @@ def session_detail(
                                 record_id=record_id,
                                 title=record.title,
                                 call_number=record.call_number,
+                                author=author_name(record.author),
+                                where=where_to_find(record.call_number),
                             )
                         )
                     else:
@@ -500,7 +496,19 @@ __HEARTBEAT__
 DETAIL_SCRIPT = """<script>
 (() => {
   const SESSION_NO = __SESSION_NO__;
+  const BOOKS_TITLE = __BOOKS_TITLE__;
   const exchanges = document.getElementById("exchanges");
+  const recordLink = (citation) =>
+    "/staff/catalog/record/" + encodeURIComponent(citation.record_id);
+  // Each answer keeps its text as written, and is drawn as the Student sees it.
+  const show = (element, text, citations) => {
+    element.dataset.text = text;
+    renderAnswer(element, text);
+    if (citations.length) element.append(bookCards(citations, BOOKS_TITLE, recordLink));
+  };
+  for (const element of exchanges.querySelectorAll(".answer")) {
+    show(element, element.textContent, JSON.parse(element.dataset.citations));
+  }
   const labelled = (label, cls) => {
     const p = document.createElement("p");
     const strong = document.createElement("strong");
@@ -524,8 +532,10 @@ __HEARTBEAT__
     asked.textContent = data.asked_at;
     const [questionP, question] = labelled("Question:");
     question.textContent = data.question;
-    const [answerP] = labelled("Answer:", "answer");
-    div.append(askedP, questionP, answerP);
+    const [answerP] = labelled("Answer:");
+    const answer = document.createElement("div");
+    answer.className = "bubble assistant answer";
+    div.append(askedP, questionP, answerP, answer);
     exchanges.append(div);
   });
   // The answer as it is written: each delta is appended to its exchange's answer,
@@ -535,28 +545,15 @@ __HEARTBEAT__
     if (data.session_no !== SESSION_NO) return;
     const div = find(data.transcript_id);
     if (!div) return;
-    div.querySelector(".answer").textContent += data.text;
+    const answer = div.querySelector(".answer");
+    show(answer, (answer.dataset.text || "") + data.text, []);
   });
   source.addEventListener("answer", (event) => {
     const data = JSON.parse(event.data);
     if (data.session_no !== SESSION_NO) return;
     const div = find(data.transcript_id);
     if (!div) return;
-    div.querySelector(".answer").textContent = data.answer;
-    const old = div.querySelector(".citations");
-    if (old) old.remove();
-    if (!data.citations.length) return;
-    const list = document.createElement("div");
-    list.className = "citations";
-    for (const citation of data.citations) {
-      const p = document.createElement("p");
-      const link = document.createElement("a");
-      link.href = "/staff/catalog/record/" + encodeURIComponent(citation.record_id);
-      link.textContent = citation.title;
-      p.append(link);
-      list.append(p);
-    }
-    div.append(list);
+    show(div.querySelector(".answer"), data.answer, data.citations);
   });
 })();
 </script>""".replace("__HEARTBEAT__", HEARTBEAT_SCRIPT)
@@ -674,7 +671,11 @@ def session_detail_view(
     class_label, card_number, exchanges = session_detail(session_no, db, catalog, clock)
 
     # Build HTML for exchanges
-    exchange_html = "".join(_exchange_html(exchange, catalog) for exchange in exchanges)
+    exchange_html = "".join(_exchange_html(exchange) for exchange in exchanges)
+
+    detail_script = DETAIL_SCRIPT.replace("__SESSION_NO__", str(session_no)).replace(
+        "__BOOKS_TITLE__", json.dumps(books_title(settings.demo))
+    )
 
     # Build page content
     content = (
@@ -684,7 +685,8 @@ def session_detail_view(
         f'<p><a href="/staff/live">← Back to Live view</a></p>'
         f"{flags_panel(db, settings.school_timezone)}"
         f'<div class="exchanges" id="exchanges">{exchange_html}</div>'
-        f"{DETAIL_SCRIPT.replace('__SESSION_NO__', str(session_no))}"
+        '<script src="/answer.js"></script>'
+        f"{detail_script}"
         f'<form method="post" action="/staff/live/sessions/{session_no}/revoke-card">'
         f'<label><input type="checkbox" name="confirm" value="yes" required> '
         f"Yes, revoke card {html.escape(card_number)}</label>"

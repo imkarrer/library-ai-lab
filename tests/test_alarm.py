@@ -949,4 +949,6 @@ def test_staff_pages_load_nothing_external(librarian, setup):
         # The page carries the Alarm, with its chime from the Install itself.
         assert '"/staff/alarm/chime.wav"' in response.text, url
         assert _external_urls(response.text) == [], url
-        assert re.search(r"<script[^>]*\ssrc\s*=", response.text) is None, url
+        # The only script file is the assistant's own renderer.
+        scripts = re.findall(r'<script[^>]*\ssrc\s*=\s*"([^"]*)"', response.text)
+        assert set(scripts) <= {"/answer.js"}, url

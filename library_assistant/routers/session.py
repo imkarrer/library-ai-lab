@@ -48,7 +48,7 @@ from library_assistant.install_settings import (
     OVERSIGHT_DOWN,
     get_setting,
 )
-from library_assistant.models import AskRequest, Citation
+from library_assistant.models import AskRequest, Citation, books_title
 from library_assistant.oversight import (
     OversightUnavailable,
     ScreeningState,
@@ -143,6 +143,7 @@ CHAT_PAGE_HTML = """<!DOCTYPE html>
     // number)" line each, with any By:, Where: and Why: lines under it) become a list of
     // book cards; the overview stays as text.
     const BOOKS_HEADER = "\\n\\nBooks in our library:";
+    const DETAILS = {{ By: "author", Where: "where", Why: "why" }};
     const renderBooks = (bubble, text) => {{
       const at = text.indexOf(BOOKS_HEADER);
       renderAnswer(bubble, at < 0 ? text : text.slice(0, at));
@@ -151,37 +152,10 @@ CHAT_PAGE_HTML = """<!DOCTYPE html>
       for (const line of text.slice(at + BOOKS_HEADER.length).split("\\n")) {{
         const citation = line.match(/^Citation: (.*) \\(([^()]*)\\)$/);
         const detail = line.match(/^(By|Where|Why): (.*)$/);
-        if (citation) citations.push({{ title: citation[1], callNumber: citation[2] }});
-        else if (detail && citations.length) citations.at(-1)[detail[1]] = detail[2];
+        if (citation) citations.push({{ title: citation[1], call_number: citation[2] }});
+        else if (detail && citations.length) citations.at(-1)[DETAILS[detail[1]]] = detail[2];
       }}
-      const books = document.createElement("div");
-      books.className = "books";
-      const heading = document.createElement("p");
-      heading.className = "books-title";
-      heading.textContent = {books_title};
-      books.append(heading);
-      const addLine = (book, className, text) => {{
-        if (!text) return;
-        const line = document.createElement("p");
-        line.className = className;
-        line.textContent = text;
-        book.append(line);
-      }};
-      for (const citation of citations) {{
-        const book = document.createElement("div");
-        book.className = "book";
-        const name = document.createElement("strong");
-        name.textContent = citation.title.replace(/\\s*\\/$/, "");
-        book.append(name);
-        addLine(book, "book-author", citation.By);
-        addLine(book, "book-why", citation.Why);
-        const shelf = document.createElement("span");
-        shelf.textContent = citation.callNumber;
-        book.append(shelf);
-        addLine(book, "book-where", citation.Where);
-        books.append(book);
-      }}
-      bubble.append(books);
+      bubble.append(bookCards(citations, {books_title}));
     }};
     // The last turn moves up into the thread before a new question is asked.
     const thread = document.getElementById("thread");
@@ -546,10 +520,6 @@ router = APIRouter()
 
 # The demo's Catalog is the Library of Congress's juvenile titles, not a school's own
 # shelves (scripts/build_demo_catalog.py), so the demo says so where the books are listed.
-BOOKS_TITLE = "Books in our library"
-DEMO_BOOKS_TITLE = (
-    "Books in our library (for this demo, our library is the Library of Congress)"
-)
 
 
 @router.get("/chat")
@@ -559,7 +529,7 @@ def chat_page(
     """The Student's page: the banner, a question box, and the streamed answer."""
     return HTMLResponse(
         CHAT_PAGE_HTML.format(
-            books_title=json.dumps(DEMO_BOOKS_TITLE if settings.demo else BOOKS_TITLE),
+            books_title=json.dumps(books_title(settings.demo)),
             banner=BANNER_TEXT,
             class_label=html.escape(session.class_label),
             card_number=html.escape(session.card_number),
