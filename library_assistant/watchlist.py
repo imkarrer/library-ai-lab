@@ -16,7 +16,8 @@ Matching is deterministic: no model call, no regex. The file format (decided in 
 lowercase; map 0>o 1>l 3>e 4>a 5>s 7>t @>a $>s; every character that is not a-z becomes a
 space; collapse any run of the same letter to one ("kiiill" and "kill" both become "kil");
 collapse whitespace; strip. A phrase matches when " " + phrase + " " occurs in
-" " + message + " " after both are normalized, so phrases match whole words only.
+" " + message + " " after both are normalized, so phrases match whole words only. A message
+is also tried with each "1" read as "i".
 
 Loading refuses the file with a ValueError naming the entry on an unknown category or
 severity, a duplicate or non-kebab-case id, a missing or empty field, an unknown field, or a
@@ -73,8 +74,13 @@ class Entry:
 
     def matches(self, text: str) -> bool:
         """True when any phrase occurs as whole words in `text`, both normalized."""
-        message = f" {normalize(text)} "
-        return any(f" {normalize(phrase)} " in message for phrase in self.phrases)
+        # "1" stands for "l" in "ki11" and "i" in "su1c1de": read a message both ways.
+        messages = (f" {normalize(text)} ", f" {normalize(text.replace('1', 'i'))} ")
+        return any(
+            f" {normalize(phrase)} " in message
+            for message in messages
+            for phrase in self.phrases
+        )
 
 
 @dataclass(frozen=True)
