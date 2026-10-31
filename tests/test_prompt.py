@@ -193,3 +193,12 @@ def test_none_differs_from_a_reply_that_cant_be_read():
     assert parse_picks(" none.\n", 3) == []
     assert parse_picks("Those all look great!", 3) is None
     assert parse_picks("", 3) is None
+
+
+def test_the_overview_is_told_not_to_invent():
+    assert (
+        "Never make up a name, a scientific name, a date, or a number"
+        in RESEARCH_PROMPT
+    )
+    assert "without naming a winner" in RESEARCH_PROMPT
+    assert "not tables" in RESEARCH_PROMPT
