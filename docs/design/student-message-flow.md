@@ -109,9 +109,12 @@ sequenceDiagram
         AL-->>A: token
         A-->>P: token (the hidden SEARCH line is held back)
     end
-    AL-->>A: SEARCH: snow leopards#59; big cats
-    A->>C: search("snow leopards big cats", k=12)
-    C-->>A: up to 12 candidate Records
+    AL-->>A: SEARCH: snow leopard#59; snow leopards; big cats
+    loop each search term (6 at most), then the Student's own words
+        A->>C: search(term, k=12)
+        C-->>A: Records
+    end
+    A->>A: take from each term's Records in turn: up to 12 candidates
     A->>AL: which of these fit, and why? (not streamed)
     AL-->>A: numbered picks, or NONE
     A-->>P: "Books in our library:" and a Citation per pick (5 at most)

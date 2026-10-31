@@ -2,7 +2,8 @@
 
 The prompt is a short overview of the subject from the model's own knowledge, for 11-to-13-year-olds, plain words,
 honest when unsure, never naming a book as if the library has it. The reply ends with one line exactly
-`SEARCH: term; term; term` (2-4 library subject terms).
+`SEARCH: term; term; term` (3-6 library subject terms, searched one at a time, so they cast a wide net: the
+Catalog's search matches whole words, and "wolf" does not find "wolves").
 
 A second, short prompt shows the model what that search found and has it choose the books that fit and say why. Keyword
 search can't tell red wolves from red barns; the model can. It only ever chooses by number from Records it was given.
@@ -19,8 +20,8 @@ RESEARCH_PROMPT = """You are a helpful librarian. Answer the student's question 
 
 After your answer, end with one last line in exactly this form, and nothing after it:
 SEARCH: term; term; term
-Use 2 to 4 short library subject terms for books on the topic. For example, for a question about what sharks eat:
-SEARCH: sharks; marine animals; food chains"""
+Use 3 to 6 short library subject terms, the most specific first. The search only matches whole words, so give both the singular and plural of the main topic, then broader or related subjects a library would file books under. For example, for a question about what sharks eat:
+SEARCH: shark; sharks; marine animals; food chains"""
 
 
 def build_messages(question: str) -> list[dict]:
@@ -30,6 +31,9 @@ def build_messages(question: str) -> list[dict]:
         {"role": "user", "content": question},
     ]
 
+
+# The most terms searched for one question, however many a model writes.
+MAX_SEARCH_TERMS = 6
 
 # The most books a Student is shown for one question.
 MAX_BOOKS = 5

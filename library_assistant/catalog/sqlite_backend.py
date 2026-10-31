@@ -6,7 +6,7 @@ import re
 import sqlite3
 from collections.abc import Iterable
 
-from library_assistant.catalog import Record
+from library_assistant.catalog import Record, edition_key
 
 _FIELDS = ("id", "title", "author", "subjects", "summary", "call_number")
 
@@ -61,14 +61,6 @@ _COLUMN_WEIGHTS = (0.0, 10.0, 2.0, 5.0, 1.0, 0.0)
 _ROWS_PER_RECORD = 4
 
 
-def _edition_key(record: Record) -> tuple[str, str]:
-    """One key for every edition of a book: its title and author, letters only."""
-    return (
-        re.sub(r"\W+", " ", record.title).strip().lower(),
-        re.sub(r"\W+", " ", record.author).strip().lower(),
-    )
-
-
 class SqliteCatalog:
     """A Catalog backed by a SQLite FTS5 table of Records."""
 
@@ -113,20 +105,25 @@ class SqliteCatalog:
         ]
         if not terms:
             return []
-        match = " OR ".join(f'"{term}"' for term in terms)
+        quoted = [f'"{term}"' for term in terms]
         weights = ", ".join(str(weight) for weight in _COLUMN_WEIGHTS)
-        rows = self._connection.execute(
-            "SELECT id, title, author, subjects, summary, call_number "
-            f"FROM records WHERE records MATCH ? ORDER BY bm25(records, {weights}) "
-            "LIMIT ?",
-            (match, k * _ROWS_PER_RECORD),
-        ).fetchall()
+        # Red wolves, not every red thing: any one word only if no book has them all.
+        rows = []
+        for match in (" AND ".join(quoted), " OR ".join(quoted)):
+            rows = self._connection.execute(
+                "SELECT id, title, author, subjects, summary, call_number "
+                "FROM records WHERE records MATCH ? "
+                f"ORDER BY bm25(records, {weights}) LIMIT ?",
+                (match, k * _ROWS_PER_RECORD),
+            ).fetchall()
+            if rows:
+                break
         records: list[Record] = []
         editions: set[tuple[str, str]] = set()
         for row in rows:
             record = Record(*row)
-            if _edition_key(record) not in editions:
-                editions.add(_edition_key(record))
+            if edition_key(record) not in editions:
+                editions.add(edition_key(record))
                 records.append(record)
         return records[:k]
 
