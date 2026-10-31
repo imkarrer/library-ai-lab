@@ -1,6 +1,15 @@
 """Tests for the research prompt functionality."""
 
-from library_assistant.prompt import RESEARCH_PROMPT, SearchLineFilter, build_messages
+from library_assistant.catalog import Record
+from library_assistant.prompt import (
+    MAX_BOOKS,
+    PICK_PROMPT,
+    RESEARCH_PROMPT,
+    SearchLineFilter,
+    build_messages,
+    build_pick_messages,
+    parse_picks,
+)
 
 
 def test_build_messages_system_and_user():
@@ -130,3 +139,49 @@ def test_a_line_that_only_mentions_search_is_answer_text():
     text = "Search the shelves for more.\n"
     assert f.feed(text) == text
     assert f.finish() == ("", [])
+
+
+def test_the_model_chooses_from_numbered_books_it_is_shown():
+    record = Record(
+        "1", "Wolves /", "Gibbons, Gail,", "Wolves", "x" * 500, "599.77 GIB"
+    )
+    system, user = build_pick_messages("do wolves howl?", [record])
+    assert system == {"role": "system", "content": PICK_PROMPT}
+    assert "do wolves howl?" in user["content"]
+    assert "1. Wolves / Gibbons, Gail," in user["content"]
+    assert "x" * 200 in user["content"] and "x" * 201 not in user["content"]
+
+
+def test_picks_are_read_best_first_in_the_forms_a_model_writes():
+    assert parse_picks("3: Good.\n1. Fine.\n[2]) Also.", 3) == [
+        (2, "Good."),
+        (0, "Fine."),
+        (1, "Also."),
+    ]
+
+
+def test_picks_run_together_on_one_line_are_still_read_apart():
+    # Seen from gpt-oss:20b at low effort. A year in a reason doesn't start a pick.
+    assert parse_picks("1: Set in 1939. Dust storms. 2: About farms.", 2) == [
+        (0, "Set in 1939. Dust storms."),
+        (1, "About farms."),
+    ]
+
+
+def test_a_reason_starts_with_a_capital():
+    assert parse_picks("1: a book about wolves", 1) == [(0, "A book about wolves")]
+
+
+def test_a_number_off_the_list_or_repeated_is_dropped():
+    assert parse_picks("0: No.\n4: No.\n1: Yes.\n1: Again.", 3) == [(0, "Yes.")]
+
+
+def test_only_so_many_books_are_picked():
+    reply = "\n".join(f"{n}: Fits." for n in range(1, 13))
+    assert len(parse_picks(reply, 12)) == MAX_BOOKS
+
+
+def test_none_differs_from_a_reply_that_cant_be_read():
+    assert parse_picks(" none.\n", 3) == []
+    assert parse_picks("Those all look great!", 3) is None
+    assert parse_picks("", 3) is None

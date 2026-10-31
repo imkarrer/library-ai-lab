@@ -30,7 +30,7 @@ from library_assistant.access import (
     get_db,
 )
 from library_assistant.alarms import announce_flag
-from library_assistant.catalog import Catalog
+from library_assistant.catalog import Catalog, Record
 from library_assistant.config import Settings
 from library_assistant.dependencies import (
     HttpClientDep,
@@ -57,8 +57,15 @@ from library_assistant.oversight import (
     screen,
     screening_state,
 )
-from library_assistant.prompt import SearchLineFilter, build_messages
+from library_assistant.prompt import (
+    MAX_BOOKS,
+    SearchLineFilter,
+    build_messages,
+    build_pick_messages,
+    parse_picks,
+)
 from library_assistant.routers.live import LiveBus, get_live_bus
+from library_assistant.shelf import author_name, where_to_find
 from library_assistant.watch import gate_is_open
 from library_assistant.watchlist import Watchlist, normalize
 
@@ -68,6 +75,10 @@ BANNER_TEXT = "This can be wrong, check the source."
 ERROR_TEXT = "Something went wrong. Ask the librarian."
 
 logger = logging.getLogger(__name__)
+
+# Books the search hands the model to choose from. Keyword relevance is rough, so this
+# is well above MAX_BOOKS: a poor match can't push a good one off the list.
+BOOK_CANDIDATES = 12
 
 # How long the probe waits between asking a down Oversight endpoint whether it is back,
 # and the catch-up waits while a Card awaits a verdict.
@@ -124,16 +135,21 @@ CHAT_PAGE_HTML = """<!DOCTYPE html>
     </footer>
   </main>
   <script>
-    // A finished answer's books ("Books in our library:" then one "Citation: Title (call
-    // number)" line each) become a list of book cards; the overview stays as text.
+    // A finished answer's books ("Books in our library:", then a "Citation: Title (call
+    // number)" line each, with any By:, Where: and Why: lines under it) become a list of
+    // book cards; the overview stays as text.
     const BOOKS_HEADER = "\\n\\nBooks in our library:";
     const renderBooks = (bubble) => {{
       const text = bubble.textContent;
       const at = text.indexOf(BOOKS_HEADER);
       if (at < 0) return;
-      const citations = text.slice(at + BOOKS_HEADER.length).split("\\n")
-        .map((line) => line.match(/^Citation: (.*) \\(([^()]*)\\)$/))
-        .filter(Boolean);
+      const citations = [];
+      for (const line of text.slice(at + BOOKS_HEADER.length).split("\\n")) {{
+        const citation = line.match(/^Citation: (.*) \\(([^()]*)\\)$/);
+        const detail = line.match(/^(By|Where|Why): (.*)$/);
+        if (citation) citations.push({{ title: citation[1], callNumber: citation[2] }});
+        else if (detail && citations.length) citations.at(-1)[detail[1]] = detail[2];
+      }}
       bubble.textContent = text.slice(0, at);
       const books = document.createElement("div");
       books.className = "books";
@@ -141,14 +157,25 @@ CHAT_PAGE_HTML = """<!DOCTYPE html>
       heading.className = "books-title";
       heading.textContent = {books_title};
       books.append(heading);
-      for (const [, title, callNumber] of citations) {{
+      const addLine = (book, className, text) => {{
+        if (!text) return;
+        const line = document.createElement("p");
+        line.className = className;
+        line.textContent = text;
+        book.append(line);
+      }};
+      for (const citation of citations) {{
         const book = document.createElement("div");
         book.className = "book";
         const name = document.createElement("strong");
-        name.textContent = title.replace(/\\s*\\/$/, "");
+        name.textContent = citation.title.replace(/\\s*\\/$/, "");
+        book.append(name);
+        addLine(book, "book-author", citation.By);
+        addLine(book, "book-why", citation.Why);
         const shelf = document.createElement("span");
-        shelf.textContent = callNumber;
-        book.append(name, shelf);
+        shelf.textContent = citation.callNumber;
+        book.append(shelf);
+        addLine(book, "book-where", citation.Where);
         books.append(book);
       }}
       bubble.append(books);
@@ -604,6 +631,37 @@ async def ask(
         raise
 
 
+async def _pick_books(
+    http_client: httpx.AsyncClient,
+    settings: Settings,
+    question: str,
+    records: list[Record],
+) -> list[tuple[Record, str]]:
+    """The `records` that fit `question`, each with why, best first.
+
+    A model that fails or answers in some other form costs the reasons, not the books:
+    the search's own top books are shown without them.
+    """
+    body: dict[str, object] = {
+        "model": settings.openai_model,
+        "messages": build_pick_messages(question, records),
+        "stream": False,
+    }
+    if settings.openai_reasoning_effort:
+        body["reasoning_effort"] = settings.openai_reasoning_effort
+    picks = None
+    try:
+        response = await http_client.post("/chat/completions", json=body)
+        response.raise_for_status()
+        reply = response.json()["choices"][0]["message"]["content"]
+        picks = parse_picks(reply, len(records))
+    except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError) as error:
+        logger.warning("choosing books failed: %s", type(error).__name__)
+    if picks is None:
+        return [(record, "") for record in records[:MAX_BOOKS]]
+    return [(records[index], why) for index, why in picks]
+
+
 def _answer(
     request: AskRequest,
     session: Session,
@@ -766,21 +824,29 @@ def _answer(
             search_query = " ".join(search_terms) if search_terms else request.question
 
             # Now search the catalog
-            records = catalog.search(search_query, k=4)
+            records = catalog.search(search_query, k=BOOK_CANDIDATES)
+            picked = (
+                await _pick_books(http_client, settings, request.question, records)
+                if records
+                else []
+            )
             citations = [
                 Citation(
                     record_id=record.id,
                     title=record.title,
                     call_number=record.call_number,
+                    author=author_name(record.author),
+                    where=where_to_find(record.call_number),
+                    why=why,
                 )
-                for record in records
+                for record, why in picked
             ]
 
             # Yield the citations
-            if records:
+            if citations:
                 yield "\n\nBooks in our library:"
                 for citation in citations:
-                    yield "\n" + citation.line()
+                    yield "\n" + "\n".join(citation.lines())
             else:
                 yield "\n\nThe library's catalog has nothing on this yet. Ask the librarian."
 

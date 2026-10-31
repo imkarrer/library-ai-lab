@@ -954,6 +954,20 @@ main.chat {
   font-family: ui-monospace, Menlo, monospace;
 }
 
+.book p {
+  margin: 0;
+}
+
+.book-author,
+.book-where {
+  color: var(--ink-muted);
+  font-size: 0.85em;
+}
+
+.book-why {
+  margin: 0.2em 0;
+}
+
 .composer {
   display: flex;
   gap: 0.5rem;

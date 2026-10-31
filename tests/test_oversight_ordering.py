@@ -222,7 +222,7 @@ async def test_both_lanes_start_same_instant(client, lanes):
                 lanes.oversight_release.set()
 
         assert result["response"].status_code == 200
-    assert lanes.answer_calls == 1
+    assert lanes.answer_calls == 2  # the overview, then choosing books
     assert lanes.oversight_calls == 1
 
 
@@ -374,6 +374,6 @@ def test_oversight_off_sends_only_answer_lane(client, lanes):
     response = test_client.post("/ask", json={"question": "a book about bulls?"})
 
     assert response.status_code == 200
-    assert lanes.answer_calls == 1
+    assert lanes.answer_calls == 2  # the overview, then choosing books
     assert lanes.oversight_calls == 0
     assert _in_flight == set()

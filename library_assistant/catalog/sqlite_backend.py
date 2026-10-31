@@ -52,6 +52,23 @@ _FILLER_WORDS = frozenset(
 )
 
 
+# How much each column counts in a match, in _FIELDS order: a word in the title or the
+# subject headings says what a book is about, one in the summary only that it comes up.
+_COLUMN_WEIGHTS = (0.0, 10.0, 2.0, 5.0, 1.0, 0.0)
+
+# Editions of one book share a title and author: rows fetched per Record returned, so
+# the duplicates dropped still leave `k`.
+_ROWS_PER_RECORD = 4
+
+
+def _edition_key(record: Record) -> tuple[str, str]:
+    """One key for every edition of a book: its title and author, letters only."""
+    return (
+        re.sub(r"\W+", " ", record.title).strip().lower(),
+        re.sub(r"\W+", " ", record.author).strip().lower(),
+    )
+
+
 class SqliteCatalog:
     """A Catalog backed by a SQLite FTS5 table of Records."""
 
@@ -97,12 +114,21 @@ class SqliteCatalog:
         if not terms:
             return []
         match = " OR ".join(f'"{term}"' for term in terms)
+        weights = ", ".join(str(weight) for weight in _COLUMN_WEIGHTS)
         rows = self._connection.execute(
             "SELECT id, title, author, subjects, summary, call_number "
-            "FROM records WHERE records MATCH ? ORDER BY rank LIMIT ?",
-            (match, k),
+            f"FROM records WHERE records MATCH ? ORDER BY bm25(records, {weights}) "
+            "LIMIT ?",
+            (match, k * _ROWS_PER_RECORD),
         ).fetchall()
-        return [Record(*row) for row in rows]
+        records: list[Record] = []
+        editions: set[tuple[str, str]] = set()
+        for row in rows:
+            record = Record(*row)
+            if _edition_key(record) not in editions:
+                editions.add(_edition_key(record))
+                records.append(record)
+        return records[:k]
 
     def get(self, id: str) -> Record | None:
         row = self._connection.execute(

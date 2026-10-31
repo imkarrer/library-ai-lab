@@ -3,12 +3,17 @@
 The prompt is a short overview of the subject from the model's own knowledge, for 11-to-13-year-olds, plain words,
 honest when unsure, never naming a book as if the library has it. The reply ends with one line exactly
 `SEARCH: term; term; term` (2-4 library subject terms).
+
+A second, short prompt shows the model what that search found and has it choose the books that fit and say why. Keyword
+search can't tell red wolves from red barns; the model can. It only ever chooses by number from Records it was given.
 """
 
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+
+from library_assistant.catalog import Record
 
 RESEARCH_PROMPT = """You are a helpful librarian. Answer the student's question using only your own knowledge, not the records. For 11-to-13-year-olds, use plain words. If you're not sure, say so. Never mention a book as if it's in our library.
 
@@ -24,6 +29,61 @@ def build_messages(question: str) -> list[dict]:
         {"role": "system", "content": RESEARCH_PROMPT},
         {"role": "user", "content": question},
     ]
+
+
+# The most books a Student is shown for one question.
+MAX_BOOKS = 5
+
+PICK_PROMPT = f"""You help a student aged 11 to 13 choose books from a school library. You are given their question and a numbered list of books from the library's catalog. Choose up to {MAX_BOOKS} books that would really help with the question, best first. Leave out any book that only shares a word with the question but is about something else.
+
+Go only by the title, subjects, and summary you are given. You have not read these books, so never add details that are not there, and never say how good or easy a book is.
+
+For each book you choose, write one line in exactly this form:
+3: one short sentence in plain words on what this book is about
+Use the book's number from the list. Write nothing else. If no book fits, write only:
+NONE"""
+
+_PICK_LINE = re.compile(r"\s*\[?(\d+)\]?\s*[:.)]\s*(\S.*)")
+# A model sometimes runs its picks together on one line: "1: A book. 2: Another."
+_RUN_TOGETHER_PICK = re.compile(r"(?<=[.!?])\s+(?=\d+:\s)")
+
+# Enough of a Record for the model to judge it, and no more: every book costs prompt.
+_DESCRIPTION_CHARS = 200
+
+
+def build_pick_messages(question: str, records: list[Record]) -> list[dict]:
+    """Build the messages asking the model to choose among `records`."""
+    books = "\n".join(
+        f"{number}. {record.title} {record.author} "
+        f"Subjects: {record.subjects[:_DESCRIPTION_CHARS]} "
+        f"Summary: {record.summary[:_DESCRIPTION_CHARS]}"
+        for number, record in enumerate(records, start=1)
+    )
+    return [
+        {"role": "system", "content": PICK_PROMPT},
+        {"role": "user", "content": f"Question: {question}\n\nBooks:\n{books}"},
+    ]
+
+
+def parse_picks(reply: str, count: int) -> list[tuple[int, str]] | None:
+    """The (0-based index, reason) pairs in a reply about `count` books, best first.
+
+    [] means the model said no book fits. None means the reply can't be read, so the
+    caller falls back on the search's own order. A number outside the list is dropped:
+    the model can only choose a book it was shown.
+    """
+    if reply.strip().upper().rstrip(".") == "NONE":
+        return []
+    picks: dict[int, str] = {}
+    for line in _RUN_TOGETHER_PICK.sub("\n", reply).splitlines():
+        match = _PICK_LINE.fullmatch(line.strip())
+        if match is None:
+            continue
+        index = int(match.group(1)) - 1
+        if 0 <= index < count and index not in picks:
+            why = match.group(2).strip()
+            picks[index] = why[0].upper() + why[1:]
+    return list(picks.items())[:MAX_BOOKS] or None
 
 
 # "SEARCH:" as asked, and "SEARCH;", a slip a small model makes (qwen3.5:4b, lib-30v).

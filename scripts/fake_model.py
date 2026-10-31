@@ -5,6 +5,8 @@ It answers the two requests the assistant makes, on the OpenAI-style API both La
 
 - The Answer lane (streamed): a short overview naming the question's subject, then the
   `SEARCH:` line the Catalog search reads (library_assistant/prompt.py).
+- Choosing books (not streamed, recognised by its system prompt): the first few books on
+  the list, each with a reason, in the numbered form the assistant reads.
 - The Oversight Lane (not streamed, recognised by Oversight's system prompt): a Verdict from
   keyword rules, so a test can raise a Flag of a chosen category and severity on purpose.
 
@@ -32,6 +34,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from library_assistant.oversight import _SYSTEM_PROMPT as OVERSIGHT_PROMPT
+from library_assistant.prompt import MAX_BOOKS, PICK_PROMPT
 
 # (phrases, category, severity): first match wins, most serious first.
 VERDICT_RULES: list[tuple[tuple[str, ...], str, str]] = [
@@ -103,6 +106,15 @@ def answer_text(question: str) -> str:
     )
 
 
+def picks_text(books_prompt: str) -> str:
+    """Choose the first books on a numbered list, in order."""
+    numbers = re.findall(r"^(\d+)\. ", books_prompt, re.MULTILINE)
+    return "\n".join(
+        f"{number}: The fake model thinks this book fits."
+        for number in numbers[:MAX_BOOKS]
+    )
+
+
 def verdict(question: str) -> dict:
     lowered = question.lower()
     for phrases, category, severity in VERDICT_RULES:
@@ -140,7 +152,7 @@ def build_app(delay_ms: int) -> FastAPI:
             return JSONResponse(
                 {"choices": [{"message": {"role": "assistant", "content": content}}]}
             )
-        text = answer_text(question)
+        text = picks_text(question) if system == PICK_PROMPT else answer_text(question)
         if not body.get("stream"):
             return JSONResponse(
                 {"choices": [{"message": {"role": "assistant", "content": text}}]}

@@ -99,8 +99,10 @@ _Avoid_: connector, plugin, integration
 
 **Grounded answer**:
 A research reply in two parts: an overview of the subject from what the model knows, which
-can be wrong, then Records from the Catalog found with the model's search terms, each with a
-Citation, to check it against. The Records come from the Catalog, never from the model.
+can be wrong, then Records from the Catalog found with the model's search terms and chosen
+by the model from what that search returned, each with a Citation, to check it against. The
+Records come from the Catalog, never from the model; the reason given beside one is the
+model's, and can be wrong too.
 
 **Citation**:
 A reference in a Grounded answer to the Record it came from.

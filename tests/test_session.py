@@ -31,7 +31,13 @@ from library_assistant.catalog.sqlite_backend import SqliteCatalog
 from library_assistant.config import Settings
 from library_assistant.dependencies import get_catalog, get_settings
 from library_assistant.install_settings import SUPERVISION_MODE, set_setting
-from library_assistant.routers.session import BANNER_TEXT, ERROR_TEXT, _in_flight
+from library_assistant.prompt import MAX_BOOKS
+from library_assistant.routers.session import (
+    BANNER_TEXT,
+    BOOK_CANDIDATES,
+    ERROR_TEXT,
+    _in_flight,
+)
 from library_assistant.staff import create_account
 
 REGISTRATION_KEY = "s3cret-registration-key"
@@ -290,7 +296,7 @@ def test_question_is_recorded_on_arrival(client, monkeypatch):
     )
     test_client.post("/ask", json={"question": "a book about bulls?"})
 
-    assert seen_by_model == [("Period 3", "14", "a book about bulls?", "")]
+    assert seen_by_model[0] == ("Period 3", "14", "a book about bulls?", "")
 
 
 def test_answer_is_filled_in_after_stream(client, model_calls):
@@ -420,8 +426,7 @@ def _model_request_body(test_client, monkeypatch) -> dict:
     )
     _sign_in(test_client)
     assert test_client.post("/ask", json={"question": "bulls?"}).status_code == 200
-    [body] = sent
-    return body
+    return sent[0]
 
 
 def test_reasoning_effort_is_sent_when_set(client, settings, monkeypatch):
@@ -475,6 +480,153 @@ def test_answer_cites_books_from_a_real_sqlite_catalog(
     assert "Books in our library:" in response.text
     assert "Clifford the big red dog" in response.text
     assert "SEARCH" not in response.text
+
+
+def _records(count: int) -> list[Record]:
+    return [
+        dataclasses.replace(
+            RECORD, id=f"id-{n}", title=f"Book {n}", call_number=f"599.77 B{n:02}"
+        )
+        for n in range(1, count + 1)
+    ]
+
+
+class ManyBooksCatalog(FakeCatalog):
+    def __init__(self, count: int) -> None:
+        self.asked_for: list[int] = []
+        self.count = count
+
+    def search(self, query: str, k: int) -> list[Record]:
+        self.asked_for.append(k)
+        return _records(self.count)[:k]
+
+
+def _model_picks(monkeypatch, reply: str | None) -> list[dict]:
+    """The model writes an overview, then `reply` when asked to choose books; with
+    None the choosing call fails. Returns the JSON of every call."""
+    sent: list[dict] = []
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        sent.append(body)
+        if body["stream"]:
+            return httpx.Response(
+                200,
+                content=b'data: {"choices":[{"delta":{"content":"Wolves howl."}}]}\n\n'
+                b"data: [DONE]\n\n",
+                headers={"content-type": "text/event-stream"},
+            )
+        if reply is None:
+            raise httpx.ConnectError("model server down")
+        return httpx.Response(200, json={"choices": [{"message": {"content": reply}}]})
+
+    monkeypatch.setattr(
+        httpx.AsyncHTTPTransport, "handle_async_request", handle_async_request
+    )
+    return sent
+
+
+def test_a_good_book_far_down_the_search_can_still_be_chosen(client, monkeypatch):
+    """Keyword ranking is rough: the model sees more than a Student will, so red barns
+    high on the list don't push red wolves off it."""
+    test_client, _ = client
+    catalog = ManyBooksCatalog(20)
+    app.dependency_overrides[get_catalog] = lambda: catalog
+    sent = _model_picks(monkeypatch, "11: Tells how red wolves live.")
+    _sign_in(test_client)
+
+    response = test_client.post("/ask", json={"question": "red wolves?"})
+
+    assert catalog.asked_for == [BOOK_CANDIDATES] and BOOK_CANDIDATES > MAX_BOOKS
+    assert "Book 11" in sent[1]["messages"][1]["content"]
+    assert "Citation: Book 11 (599.77 B11)\n" in response.text
+    assert "Why: Tells how red wolves live." in response.text
+    assert "Book 1 " not in response.text
+
+
+def test_a_student_is_told_the_author_and_where_to_walk(client, monkeypatch):
+    test_client, _ = client
+    app.dependency_overrides[get_catalog] = lambda: ManyBooksCatalog(1)
+    _model_picks(monkeypatch, "1: It is about wolves.")
+    _sign_in(test_client)
+
+    response = test_client.post("/ask", json={"question": "wolves?"})
+
+    assert (
+        "Citation: Book 1 (599.77 B01)\n"
+        "By: Munro Leaf\n"
+        "Where: Nonfiction, the 500s (science, animals, and math): "
+        "find 599.77, then B01\n"
+        "Why: It is about wolves."
+    ) in response.text
+
+
+def test_a_book_the_model_never_saw_cannot_be_shown(client, monkeypatch):
+    test_client, db = client
+    app.dependency_overrides[get_catalog] = lambda: ManyBooksCatalog(2)
+    _model_picks(monkeypatch, "99: An invented book.\n2: A real one.")
+    _sign_in(test_client)
+
+    response = test_client.post("/ask", json={"question": "wolves?"})
+
+    assert "invented" not in response.text
+    assert "Citation: Book 2 " in response.text
+    assert db.execute("SELECT citations FROM transcripts").fetchone() == ("id-2",)
+
+
+def test_when_no_book_fits_the_student_is_told_so(client, monkeypatch):
+    test_client, _ = client
+    app.dependency_overrides[get_catalog] = lambda: ManyBooksCatalog(3)
+    _model_picks(monkeypatch, "NONE")
+    _sign_in(test_client)
+
+    response = test_client.post("/ask", json={"question": "red barns?"})
+
+    assert "Citation:" not in response.text
+    assert "nothing on this yet" in response.text
+
+
+@pytest.mark.parametrize("reply", [None, "Sure! Those are lovely books."])
+def test_a_failed_choice_still_shows_the_top_books_without_reasons(
+    client, monkeypatch, reply
+):
+    test_client, _ = client
+    app.dependency_overrides[get_catalog] = lambda: ManyBooksCatalog(20)
+    _model_picks(monkeypatch, reply)
+    _sign_in(test_client)
+
+    response = test_client.post("/ask", json={"question": "wolves?"})
+
+    assert response.text.count("Citation:") == MAX_BOOKS
+    assert "Why:" not in response.text
+    assert "Wolves howl." in response.text
+
+
+def test_no_candidates_means_no_choosing_call(client, monkeypatch):
+    test_client, _ = client
+    app.dependency_overrides[get_catalog] = lambda: ManyBooksCatalog(0)
+    sent = _model_picks(monkeypatch, "1: never asked")
+    _sign_in(test_client)
+
+    response = test_client.post("/ask", json={"question": "wolves?"})
+
+    assert len(sent) == 1
+    assert "nothing on this yet" in response.text
+
+
+def test_choosing_books_uses_the_configured_reasoning_effort(
+    client, settings, monkeypatch
+):
+    test_client, _ = client
+    app.dependency_overrides[get_settings] = lambda: dataclasses.replace(
+        settings, openai_reasoning_effort="low"
+    )
+    sent = _model_picks(monkeypatch, "1: It fits.")
+    _sign_in(test_client)
+
+    test_client.post("/ask", json={"question": "bulls?"})
+
+    assert [body["reasoning_effort"] for body in sent] == ["low", "low"]
 
 
 def test_model_error_inside_the_stream_tells_the_student(client, monkeypatch):
@@ -678,8 +830,9 @@ async def test_second_message_while_in_flight_is_409_one_moment(client, held_mod
             assert _one_moment(await _ask(device))
         assert first["response"].status_code == 200
 
-    # The second message was neither recorded nor sent to the model.
-    assert held_model.calls == 1
+    # The second message was neither recorded nor sent to the model: the two calls
+    # are the first message's overview and its choice of books.
+    assert held_model.calls == 2
     assert db.execute("SELECT count(*) FROM transcripts").fetchone()[0] == 1
 
 
@@ -702,7 +855,7 @@ async def test_same_card_second_session_also_409(client, held_model):
         async with _first_message_in_flight(phone, held_model) as first:
             assert _one_moment(await _ask(laptop))
         assert first["response"].status_code == 200
-    assert held_model.calls == 1
+    assert held_model.calls == 2  # the overview, then choosing books
 
 
 @pytest.mark.anyio

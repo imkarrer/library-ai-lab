@@ -97,6 +97,37 @@ def test_search_ignores_question_filler_words():
     ] == [FERDINAND_ID]
 
 
+def _book(id: str, title: str, subjects: str = "", summary: str = "") -> Record:
+    return Record(id, title, "Author, An,", subjects, summary, "599 AUT")
+
+
+def test_a_word_in_the_title_or_subjects_outranks_one_in_the_summary():
+    catalog = SqliteCatalog(sqlite3.connect(":memory:"))
+    catalog.load_records(
+        [
+            _book("summary", "Farm life", summary="A wolf story about wolves wolves."),
+            _book("subject", "Forest hunters", subjects="Wolves"),
+            _book("title", "Wolves"),
+        ]
+    )
+    assert [r.id for r in catalog.search("wolves", k=3)][-1] == "summary"
+
+
+def test_editions_of_one_book_take_one_place():
+    catalog = SqliteCatalog(sqlite3.connect(":memory:"))
+    catalog.load_records(
+        [
+            _book("first", "Wolves /"),
+            _book("second", "Wolves."),
+            _book("third", "Wolves"),
+            _book("other", "Wolves of the north"),
+        ]
+    )
+    found = catalog.search("wolves", k=2)
+    assert len(found) == 2
+    assert {r.title for r in found} != {"Wolves /", "Wolves."}
+
+
 def test_get_returns_record_by_id():
     catalog = _load_catalog()
     record = catalog.get(RUBEN_WOLFE_ID)
