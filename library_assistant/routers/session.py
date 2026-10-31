@@ -137,14 +137,15 @@ CHAT_PAGE_HTML = """<!DOCTYPE html>
       <a href="/about">What happens to what I type</a>
     </footer>
   </main>
+  <script src="/answer.js"></script>
   <script>
     // A finished answer's books ("Books in our library:", then a "Citation: Title (call
     // number)" line each, with any By:, Where: and Why: lines under it) become a list of
     // book cards; the overview stays as text.
     const BOOKS_HEADER = "\\n\\nBooks in our library:";
-    const renderBooks = (bubble) => {{
-      const text = bubble.textContent;
+    const renderBooks = (bubble, text) => {{
       const at = text.indexOf(BOOKS_HEADER);
+      renderAnswer(bubble, at < 0 ? text : text.slice(0, at));
       if (at < 0) return;
       const citations = [];
       for (const line of text.slice(at + BOOKS_HEADER.length).split("\\n")) {{
@@ -153,7 +154,6 @@ CHAT_PAGE_HTML = """<!DOCTYPE html>
         if (citation) citations.push({{ title: citation[1], callNumber: citation[2] }});
         else if (detail && citations.length) citations.at(-1)[detail[1]] = detail[2];
       }}
-      bubble.textContent = text.slice(0, at);
       const books = document.createElement("div");
       books.className = "books";
       const heading = document.createElement("p");
@@ -269,17 +269,19 @@ CHAT_PAGE_HTML = """<!DOCTYPE html>
       // Stream the response as today
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
+      let shown = "";
       try {{
         for (;;) {{
           const {{ done, value }} = await reader.read();
           if (done) break;
-          answer.textContent += decoder.decode(value, {{ stream: true }});
+          shown += decoder.decode(value, {{ stream: true }});
+          renderBooks(answer, shown);
         }}
       }} catch (error) {{
         // The connection dropped mid-answer: say so, and let the Student ask again.
-        answer.textContent += (answer.textContent ? "\\n\\n" : "") + ERROR_TEXT;
+        shown += (shown ? "\\n\\n" : "") + ERROR_TEXT;
+        renderBooks(answer, shown);
       }}
-      renderBooks(answer);
       // Re-enable Ask button after successful stream; the box is cleared for the next one.
       questionInput.value = "";
       questionInput.disabled = false;
