@@ -958,6 +958,19 @@ main.chat {
   margin: 0;
 }
 
+.notice {
+  background: var(--brass-tint);
+  border: 1px solid var(--rule);
+  border-left: 4px solid var(--brass);
+  border-radius: 8px;
+  padding: 0.6em 0.9em;
+}
+
+.catalog-note {
+  color: var(--ink-muted);
+  font-size: 0.9em;
+}
+
 .book-author,
 .book-where {
   color: var(--ink-muted);

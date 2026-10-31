@@ -20,15 +20,33 @@ _DEWEY_SECTIONS = {
 
 _DEWEY_RE = re.compile(r"^(\d)\d\d(\.\d+)?$")
 
+# What schools put on a spine for the three shelves that aren't Dewey numbers. 92 and 920
+# are biography by Dewey, and a school shelves them with B.
+_SCHOOL_LABELS = {
+    "E": "E",
+    "EASY": "E",
+    "FIC": "FIC",
+    "FICTION": "FIC",
+    "F": "FIC",
+    "B": "B",
+    "BIO": "B",
+    "BIOG": "B",
+    "BIOGRAPHY": "B",
+    "92": "B",
+    "920": "B",
+}
+
 
 def where_to_find(call_number: str) -> str:
     """Where `call_number` sits in a school library, or "" if it is not a school one."""
-    shelf, _, letters = call_number.partition(" ")
-    if shelf == "E":
+    shelf, _, letters = call_number.strip().partition(" ")
+    letters = letters.strip()
+    kind = _SCHOOL_LABELS.get(shelf.upper())
+    if kind == "E":
         return f"Picture books, under {letters}" if letters else "Picture books"
-    if shelf == "FIC":
+    if kind == "FIC":
         return f"Fiction, under {letters} for the author" if letters else "Fiction"
-    if shelf == "B":
+    if kind == "B":
         return (
             f"Biographies, under {letters} for the person" if letters else "Biographies"
         )

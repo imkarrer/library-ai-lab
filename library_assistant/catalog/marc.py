@@ -1,8 +1,9 @@
 """MARC -> Record mapping and the target-audience filter.
 
-Reads MARCXML (the LoC open-access distribution's native format), not binary
-MARC. `target_audience` is pure and used by both the fixture loader and
-`scripts/build_demo_catalog.py` so the filter is tested without a network.
+Reads MARCXML (the LoC open-access distribution's native format), and for a
+school's own export binary MARC as well (`read_export`). `target_audience` is
+pure and used by both the fixture loader and `scripts/build_demo_catalog.py` so
+the filter is tested without a network.
 """
 
 from __future__ import annotations
@@ -10,8 +11,11 @@ from __future__ import annotations
 import gzip
 import re
 from collections.abc import Iterator
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from typing import BinaryIO
 from xml.etree import ElementTree as ET
+
+from pymarc import MARCReader
 
 from library_assistant.catalog import Record
 
@@ -26,6 +30,7 @@ def _tag(name: str) -> str:
 class MarcRecord:
     """One <record> from a MARCXML file, kept close to the wire format."""
 
+    leader: str = ""
     control_fields: dict[str, str] = field(default_factory=dict)
     data_fields: list[tuple[str, list[tuple[str, str]]]] = field(default_factory=list)
 
@@ -56,7 +61,7 @@ def _iter_records(source) -> Iterator[MarcRecord]:
     for _, element in ET.iterparse(source, events=("end",)):
         if element.tag != _tag("record"):
             continue
-        marc_record = MarcRecord()
+        marc_record = MarcRecord(leader=element.findtext(_tag("leader")) or "")
         for control_field in element.findall(_tag("controlfield")):
             tag = control_field.get("tag", "")
             marc_record.control_fields[tag] = control_field.text or ""
@@ -69,6 +74,44 @@ def _iter_records(source) -> Iterator[MarcRecord]:
             marc_record.data_fields.append((tag, subfields))
         yield marc_record
         element.clear()
+
+
+class NotMarc(ValueError):
+    """A file that is neither binary MARC nor MARCXML."""
+
+
+def read_export(source: BinaryIO) -> Iterator[MarcRecord]:
+    """Stream a library system's export, binary MARC or MARCXML by its first bytes.
+
+    A binary record too damaged to read comes back empty, so it can be counted.
+    """
+    start = source.read(64).removeprefix(b"\xef\xbb\xbf").lstrip()
+    source.seek(0)
+    if start.startswith(b"<"):
+        try:
+            yield from _iter_records(source)
+        except ET.ParseError as error:
+            raise NotMarc("not well-formed XML") from error
+    elif start[:5].isdigit():
+        yield from _iter_binary(source)
+    else:
+        raise NotMarc("starts like neither binary MARC nor MARCXML")
+
+
+def _iter_binary(source: BinaryIO) -> Iterator[MarcRecord]:
+    # to_unicode decodes each record by its leader, UTF-8 or the older MARC-8.
+    for record in MARCReader(source, to_unicode=True, utf8_handling="replace"):
+        if record is None:
+            yield MarcRecord()
+            continue
+        marc_record = MarcRecord(leader=str(record.leader))
+        for marc_field in record.fields:
+            if marc_field.is_control_field():
+                marc_record.control_fields[marc_field.tag] = marc_field.data
+            else:
+                subfields = [(sub.code, sub.value) for sub in marc_field.subfields]
+                marc_record.data_fields.append((marc_field.tag, subfields))
+        yield marc_record
 
 
 # Books 008/22 (target audience): Preschool, Primary, Pre-adolescent,
@@ -143,6 +186,38 @@ def school_call_number(marc_record: MarcRecord) -> str | None:
 def is_shelf_ready(marc_record: MarcRecord) -> bool:
     """A juvenile book with a call number a school librarian would recognize."""
     return is_juvenile(marc_record) and school_call_number(marc_record) is not None
+
+
+# Leader/06, the type of record: language material, manuscript language material.
+_BOOK_TYPES = frozenset("at")
+
+
+def is_book(marc_record: MarcRecord) -> bool:
+    """Not a DVD, a kit, or a projector: school libraries catalog those too."""
+    return marc_record.leader[6:7] in _BOOK_TYPES
+
+
+def holding_call_number(marc_record: MarcRecord) -> str | None:
+    """The call number the school itself shelves this book under, or None.
+
+    From the first copy's holding: 852 ($k prefix, $h class, $i item, $m suffix), or the
+    952 $o that Koha uses. Only those subfields are read: a holding also carries barcodes
+    and prices, which have no place in a Record.
+    """
+    for tag, subfields in marc_record.data_fields:
+        if tag == "852":
+            parts = [value for code in "khim" for c, value in subfields if c == code]
+            if parts:
+                return " ".join(part.strip() for part in parts)
+    koha = marc_record.subfields("952", "o")
+    return koha[0].strip() if koha else None
+
+
+def to_school_record(marc_record: MarcRecord) -> Record:
+    """`to_record`, with the school's own call number where the export has one."""
+    record = to_record(marc_record)
+    call_number = holding_call_number(marc_record)
+    return replace(record, call_number=call_number) if call_number else record
 
 
 def to_record(marc_record: MarcRecord) -> Record:

@@ -86,7 +86,9 @@ Ending Sessions early, for one Card or a whole Batch.
 ## Conversation
 
 **Catalog**:
-The school's own index of its collection, wherever and however it is deployed.
+The school's own index of its collection, wherever and however it is deployed. The assistant
+searches a copy, loaded whole from the library system's MARC export; the library system stays
+the record of what the library owns.
 _Avoid_: database, OPAC (unless naming a specific product)
 
 **Record**:

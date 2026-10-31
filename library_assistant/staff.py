@@ -134,6 +134,7 @@ _SECTION_OF_TITLE = {
     "Registration keys": "/staff/keys",
     "New registration key": "/staff/keys",
     "Holds": "/staff/holds",
+    "Catalog": "/staff/catalog",
     "Install settings": "/staff/settings",
     "IT kit": "/staff/settings",
     "Staff": "/staff",
@@ -153,6 +154,7 @@ def nav_links(account: StaffAccount) -> list[tuple[str, str]]:
             ("Accounts", "/staff/accounts"),
             ("Keys", "/staff/keys"),
             ("Holds", "/staff/holds"),
+            ("Catalog", "/staff/catalog"),
             ("Settings", "/staff/settings"),
         ]
     return links
@@ -166,6 +168,7 @@ _HOME_CARD_TEXT = {
     "/staff/accounts": "Add Teachers and Counselors; grant Stand-in.",
     "/staff/keys": "Registration keys, and each Teacher's Minting page.",
     "/staff/holds": "Keep an exchange past the Purge for a records request.",
+    "/staff/catalog": "Load your library's books from your library system.",
     "/staff/settings": "Supervision mode, Watch grace, the Alarm chime.",
     "/staff/supportive-replies-preview": "What a Student sees instead of an answer.",
     "/staff/it-kit": "HTTPS for Chromebooks: what district IT needs, filled in.",
