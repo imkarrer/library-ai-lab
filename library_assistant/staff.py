@@ -173,6 +173,7 @@ _HOME_CARD_TEXT = {
     "/staff/settings": "Supervision mode, Watch grace, the Alarm chime.",
     "/staff/supportive-replies-preview": "What a Student sees instead of an answer.",
     "/staff/it-kit": "HTTPS for Chromebooks: what district IT needs, filled in.",
+    "/staff/lessons": "Slides and student handouts for the AI literacy unit.",
 }
 
 
@@ -521,6 +522,7 @@ def staff_home(
         f"<span>{_HOME_CARD_TEXT.get(href, '')}</span></a>"
         for label, href in [
             *nav_links(account),
+            ("Lessons", "/staff/lessons"),
             ("Supportive reply preview", "/staff/supportive-replies-preview"),
             *([("IT kit", "/staff/it-kit")] if account.role == "librarian" else []),
         ]

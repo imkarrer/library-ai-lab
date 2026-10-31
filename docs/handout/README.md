@@ -42,7 +42,12 @@ flox activate -- make clean
 Run `make check` on the machine that prints: the fonts are local, so a page that fits on one
 machine can spill on another.
 
-The PDF is not committed: build it fresh before printing.
+The PDFs here are not committed: build them fresh before printing. `./stack materials` from the
+repo root builds and checks everything without starting the assistant.
+
+The pipeline builds every document on each pull request, on a Mac so the fonts match, and keeps
+the result as a downloadable artifact on the run. On `main`, it also commits changed lessons to
+`library_assistant/static/materials/`, and staff download them at `/staff/lessons`.
 
 **Before printing:** fill in "Get in touch" on page 4, and check "Where things stand" is still
 true. Everything the handout claims has to be true on the day it's handed out.
