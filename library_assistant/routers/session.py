@@ -606,6 +606,23 @@ async def ask(
         raise
 
 
+def _model_request(
+    settings: Settings, messages: list[dict], stream: bool
+) -> dict[str, object]:
+    """The Answer lane's request. A low temperature and a fixed seed mean the same
+    question gets the same answer, so a change to search can be measured."""
+    body: dict[str, object] = {
+        "model": settings.openai_model,
+        "messages": messages,
+        "stream": stream,
+        "temperature": settings.openai_temperature,
+        "seed": settings.openai_seed,
+    }
+    if settings.openai_reasoning_effort:
+        body["reasoning_effort"] = settings.openai_reasoning_effort
+    return body
+
+
 def _repeats_title(why: str, record: Record) -> bool:
     """A reason that only says the title back tells a Student nothing."""
     words = [re.findall(r"\w+", text.lower()) for text in (why, record.title)]
@@ -624,13 +641,9 @@ async def _pick_books(
     A model that fails or answers in some other form costs the reasons, not the books:
     the search's own top books are shown without them.
     """
-    body: dict[str, object] = {
-        "model": settings.openai_model,
-        "messages": build_pick_messages(question, overview, records),
-        "stream": False,
-    }
-    if settings.openai_reasoning_effort:
-        body["reasoning_effort"] = settings.openai_reasoning_effort
+    body = _model_request(
+        settings, build_pick_messages(question, overview, records), stream=False
+    )
     picks = None
     try:
         response = await http_client.post("/chat/completions", json=body)
@@ -755,13 +768,7 @@ def _answer(
             # The response's 200 is already sent, so a model server that is down or
             # drops the stream cannot become an error status: the Student is told in
             # the answer instead, and the log names the error class, never the question.
-            body: dict[str, object] = {
-                "model": settings.openai_model,
-                "messages": messages,
-                "stream": True,
-            }
-            if settings.openai_reasoning_effort:
-                body["reasoning_effort"] = settings.openai_reasoning_effort
+            body = _model_request(settings, messages, stream=True)
             try:
                 async with http_client.stream(
                     "POST", "/chat/completions", json=body
