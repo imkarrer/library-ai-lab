@@ -108,6 +108,35 @@ def parse_sysctl_memsize(text: str) -> float:
     return int(text.strip()) / (1024**3)
 
 
+def detect_amd_gpus(drm: Path = Path("/sys/class/drm")) -> list[dict]:
+    """AMD GPUs under `drm`. A card's vendor and VRAM files are in its device folder."""
+    gpus: list[dict] = []
+    try:
+        for card_dir in drm.glob("card*"):
+            device = card_dir / "device"
+            if (device / "vendor").exists():
+                try:
+                    vendor_id = (device / "vendor").read_text().strip()
+                    # AMD vendor ID is 0x1002
+                    if vendor_id.startswith("0x1002") or vendor_id == "1002":
+                        amdgpu_info = parse_amdgpu_sysfs(device)
+                        if amdgpu_info:
+                            gpus.append(
+                                {
+                                    "type": "amd",
+                                    "name": card_dir.name,
+                                    "memory_gb": amdgpu_info["total"],
+                                    "status": "ok",
+                                    "stderr": None,
+                                }
+                            )
+                except (OSError, ValueError):
+                    pass
+    except (OSError, ValueError):
+        pass
+    return gpus
+
+
 def detect() -> HardwareReport:
     """Detect hardware configuration and return a HardwareReport.
 
@@ -190,30 +219,7 @@ def detect() -> HardwareReport:
                 }
             )
 
-    # Detect AMD GPUs via sysfs
-    try:
-        # Look for AMDGPU devices
-        for card_dir in Path("/sys/class/drm").glob("card*"):
-            if (card_dir / "device" / "vendor").exists():
-                try:
-                    vendor_id = (card_dir / "device" / "vendor").read_text().strip()
-                    # AMD vendor ID is 0x1002
-                    if vendor_id.startswith("0x1002") or vendor_id == "1002":
-                        amdgpu_info = parse_amdgpu_sysfs(card_dir)
-                        if amdgpu_info:
-                            accelerators.append(
-                                {
-                                    "type": "amd",
-                                    "name": card_dir.name,
-                                    "memory_gb": amdgpu_info["total"],
-                                    "status": "ok",
-                                    "stderr": None,
-                                }
-                            )
-                except (OSError, ValueError):
-                    pass
-    except (OSError, ValueError):
-        pass
+    accelerators.extend(detect_amd_gpus())
 
     # Determine pool size
     pool_gb = ram_gb  # Default to RAM if no accelerators

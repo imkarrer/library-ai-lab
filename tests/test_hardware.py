@@ -9,6 +9,7 @@ from library_assistant import hardware
 from library_assistant.hardware import (
     HardwareReport,
     detect,
+    detect_amd_gpus,
     parse_amdgpu_sysfs,
     parse_meminfo,
     parse_nvidia_smi_csv,
@@ -85,6 +86,27 @@ def test_parse_amdgpu_sysfs_success(tmp_path):
     assert result is not None
     assert abs(result["total"] - 16.0) < 0.001
     assert abs(result["used"] - 1.0) < 0.001
+
+
+def test_an_amd_card_is_found_from_the_real_sysfs_layout(tmp_path):
+    """The kernel keeps vendor and VRAM files in cardN/device/, and lists the card's
+    connectors beside it. A flat fixture once hid that detection looked one level up."""
+    device = tmp_path / "card0" / "device"
+    device.mkdir(parents=True)
+    (device / "vendor").write_text("0x1002\n")
+    (device / "mem_info_vram_total").write_text("17179869184\n")
+    (tmp_path / "card0-HDMI-A-1").mkdir()
+    [gpu] = detect_amd_gpus(tmp_path)
+    assert (gpu["type"], gpu["name"]) == ("amd", "card0")
+    assert abs(gpu["memory_gb"] - 16.0) < 0.001
+
+
+def test_another_vendors_card_is_not_taken_for_amd(tmp_path):
+    device = tmp_path / "card0" / "device"
+    device.mkdir(parents=True)
+    (device / "vendor").write_text("0x10de\n")
+    (device / "mem_info_vram_total").write_text("17179869184\n")
+    assert detect_amd_gpus(tmp_path) == []
 
 
 def test_parse_sysctl_memsize():
