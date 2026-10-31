@@ -134,7 +134,7 @@ you can adapt with them:
 - a retention policy that explains why one school day is enough
 - an insert for your acceptable-use policy
 - an escalation protocol that walks adults through what to do with a flag
-- an AI literacy unit for grades 6 to 8, where students follow citations to the shelf, catch
+- an AI literacy unit for middle and high school, where students follow citations to the shelf, catch
   the AI making mistakes, and learn that adults can see what they ask
 
 ---

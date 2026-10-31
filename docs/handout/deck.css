@@ -113,6 +113,10 @@ section table th {
   margin-top: 0.4em;
 }
 
+.cards.two {
+  grid-template-columns: repeat(2, 1fr);
+}
+
 .cards > div {
   padding: 18px 22px;
   font-size: 23px;
