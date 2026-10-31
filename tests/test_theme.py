@@ -14,8 +14,9 @@ from library_assistant.alarm_banner import ALARM_SCRIPT
 from library_assistant.app import app
 from library_assistant.mint import mint_cards, qr_sheet_html, roster_sheet_html
 from library_assistant.routers.about import ABOUT_PATH
-from library_assistant.routers.session import CHAT_PAGE_HTML
+from library_assistant.routers.session import BANNER_TEXT, CHAT_PAGE_HTML
 from library_assistant.staff import PAGE_HTML
+from library_assistant.supportive_replies import DEFAULT_REPLY_TEMPLATES
 from library_assistant.theme import FAVICON_PATH, STATIC_DIR, THEME_PATH, theme_css
 
 REPO = Path(__file__).resolve().parent.parent
@@ -148,6 +149,37 @@ def test_the_it_sheets_are_built_with_the_handouts_look(doc):
     source = (REPO / "docs/templates" / doc).read_text()
     assert source.startswith("---\nmarp: true\ntheme: handout\n")
     assert f"../templates/{doc}" in (REPO / "docs/handout/Makefile").read_text()
+
+
+@pytest.mark.parametrize("lesson", range(1, 7))
+def test_each_lesson_has_a_deck_and_a_handout_in_the_build(lesson):
+    """A teacher leads from the deck, and each student keeps the handout."""
+    folder = REPO / "docs/curriculum"
+    deck = (folder / f"lesson-{lesson}-deck.md").read_text()
+    handout = (folder / f"lesson-{lesson}-handout.md").read_text()
+    assert deck.startswith("---\nmarp: true\ntheme: deck\n")
+    assert handout.startswith("---\nmarp: true\ntheme: handout\n")
+    assert f"Lesson {lesson}" in deck and f"Lesson {lesson}" in handout
+    assert "../curriculum/lesson-*.md" in (REPO / "docs/handout/Makefile").read_text()
+
+
+@pytest.mark.parametrize("doc", ["lesson-1-deck.md", "lesson-1-handout.md"])
+def test_lesson_one_quotes_the_banner_word_for_word(doc):
+    assert BANNER_TEXT in (REPO / "docs/curriculum" / doc).read_text()
+
+
+@pytest.mark.parametrize("doc", ["lesson-4-deck.md", "lesson-4-handout.md"])
+def test_lesson_four_gives_the_numbers_the_supportive_replies_give(doc):
+    text = (REPO / "docs/curriculum" / doc).read_text()
+    for number in ("988", "1-800-422-4453", "911"):
+        assert number in " ".join(DEFAULT_REPLY_TEMPLATES.values())
+        assert number in text
+
+
+def test_the_unit_is_not_written_for_one_age():
+    for doc in (REPO / "docs/curriculum").glob("*.md"):
+        text = doc.read_text().lower()
+        assert "grades 6" not in text and "middle schoolers" not in text
 
 
 def test_stylesheet_is_revalidated_so_an_update_shows_at_once():

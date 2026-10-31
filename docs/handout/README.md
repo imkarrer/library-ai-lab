@@ -1,6 +1,6 @@
-# Librarian handout, demo deck, and IT sheets
+# Librarian handout, decks, IT sheets, and lessons
 
-Two documents in one look:
+Every document here shares one look:
 
 - [`demo-deck.md`](demo-deck.md), nine 16:9 slides that lead into the live demo, styled by
   [`deck.css`](deck.css). Its "Meet the cast" slide introduces the people `./stack up` seeds
@@ -12,6 +12,10 @@ Two documents in one look:
   [`it-https-rollout.md`](../templates/it-https-rollout.md) (optional HTTPS, one
   certificate upload in Google Admin). The assistant's IT kit page fills in the HTTPS one
   for a given Mac.
+- Each lesson of the AI literacy unit, kept with the teacher's guide in
+  [`docs/curriculum/`](../curriculum/ai-literacy-unit.md): `lesson-N-deck.md`, slides to teach
+  from with what to say in the speaker notes, and `lesson-N-handout.md`, a two-sided sheet
+  each student keeps. Blanks on the front match the words in bold on the slides.
 - The handout, below.
 
 The handout is a four-page, US Letter take-home summary for school librarians at a talk or
@@ -42,3 +46,6 @@ The PDF is not committed: build it fresh before printing.
 
 **Before printing:** fill in "Get in touch" on page 4, and check "Where things stand" is still
 true. Everything the handout claims has to be true on the day it's handed out.
+
+**Before teaching a lesson:** a school counselor reviews Lesson 4's deck and handout, and the
+AI Use Tier names in Lesson 5 match your district's. Change either source if not, and rebuild.

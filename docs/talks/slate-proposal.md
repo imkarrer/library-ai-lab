@@ -100,7 +100,7 @@ Participants will be able to:
 |---|---|
 | Format | 60-minute concurrent session |
 | Track | LPD (Leadership & PD). DATL is the fallback if the reviewers see it as an instructional session |
-| Grade range | 6-12. The unit and the reference library are middle school; the design is not grade-specific |
+| Grade range | 6-12. The reference library is middle school; the unit and the design are not grade-specific |
 | Experience level | Novice. No technical background needed |
 | Audience codes | LMS, SA, DA, IT, CI |
 | Equipment | Projector and screen with HDMI, power at the front, one table. **No venue Wi-Fi needed.** The demo brings its own offline network |

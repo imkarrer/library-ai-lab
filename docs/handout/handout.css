@@ -119,3 +119,25 @@ footer {
 .box p, .quote p {
   margin: 0;
 }
+
+/* the lesson handouts (docs/curriculum): room to write on paper */
+
+.blank {
+  display: inline-block;
+  min-width: 7em;
+  border-bottom: 1px solid var(--ink);
+}
+
+.write {
+  height: 2em;
+  border-bottom: 1px solid var(--rule);
+}
+
+.sheet table {
+  width: 100%;
+}
+
+.sheet td {
+  height: 3.6em;
+  vertical-align: top;
+}

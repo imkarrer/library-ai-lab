@@ -1,15 +1,22 @@
 # Check the Source: an AI literacy unit for the Library Assistant
 
-A six-lesson unit for grades 6-8, taught in 45-minute library periods, alongside a class's
-first supervised use of the Library Assistant. Students learn what a language model is and is
+A six-lesson unit for middle and high school students, taught in 45-minute library periods,
+alongside a class's first supervised use of the Library Assistant. Students learn what a language model is and is
 not, why it can be confidently wrong, and how a Citation lets them check it against a real
 book on a real shelf. They also learn, honestly and without scare tactics, what the assistant
 knows about them and who can see what they type.
 
-**Status: draft for review.** Written for a working middle school librarian to review, change,
-and teach. Nothing here has been taught yet. Items marked `[VERIFY]` need a person to confirm
+**Status: draft for review.** Written for a working school librarian to review, change, and
+teach. Nothing here has been taught yet. Items marked `[VERIFY]` need a person to confirm
 them before use. Vocabulary follows [`CONTEXT.md`](../../CONTEXT.md); in student-facing text
 the terms are explained the first time they appear.
+
+**Slides and handouts.** Each lesson has a slide deck to teach from, with what to say in the
+speaker notes, and a two-sided handout each student keeps: notes to fill in on the front, the
+group sheet and a review on the back. The sources are `lesson-N-deck.md` and
+`lesson-N-handout.md` in this folder, and [`docs/handout/`](../handout/README.md) builds them.
+Exit tickets stay on separate half-sheets, so you can collect them and students keep the
+handout.
 
 ---
 
@@ -46,6 +53,23 @@ types, one reads the answer aloud, one follows the Citation, one goes to the she
 
 If a group shares a Card, the Teacher records the whole group against that Card number in the
 Roster.
+
+### Middle school and high school
+
+The lessons work for both. The facts in Lesson 4 stay the same at every age. Everything else
+can be adjusted:
+
+| Lesson | Middle school | High school |
+|---|---|---|
+| 1 | Teach as written | Ask what the model could not have read, and how that shapes what it says |
+| 2 | Trace each Citation to the shelf | Also judge each book: how old is it, who wrote it, and is it a good source for this claim? |
+| 3 | Audit dates, names, and simple facts | Also audit causes and interpretations, and decide which source to trust when two disagree |
+| 4 | Teach as written | Teach as written, then compare with the privacy terms of a tool students use at home |
+| 5 | Use the short assignment cards | Use real assignments from their classes, and add your school's citation style |
+| 6 | Climb the three rungs | Add a rung: ask one question two ways, and explain what each wording assumes |
+
+On a block schedule, teach one lesson with more time for the hands-on part, or two in one
+block.
 
 ### Where this sits with DPI guidance
 
@@ -88,9 +112,10 @@ adopted by the State Superintendent in 2025 and published December 2025
 [standards document, .docx](https://dpi.wi.gov/media/27176)). They replace the 2017 ITL
 standards. The 2025 document has no grade bands. Each performance indicator has three
 progression levels, Exploring (`.e`), Developing (`.d`), and Implementing (`.i`), and the
-district decides which level fits which grade. This unit targets **Developing** for grades
-6-8. `[VERIFY]` that your district has adopted the 2025 ITL standards (local adoption is
-voluntary in Wisconsin) and agrees that Developing is the right level for your grades.
+district decides which level fits which grade. This unit quotes **Developing**, a likely fit
+for middle school; a high school may teach to **Implementing** instead. `[VERIFY]` that your
+district has adopted the 2025 ITL standards (local adoption is voluntary in Wisconsin), and
+check the level it expects for your grades.
 
 | Code | Wisconsin ITL 2025 performance indicator (quoted) | Lessons |
 |---|---|---|
@@ -230,7 +255,7 @@ Item 3 tells you who is ready for Lesson 2 and who needs the Record idea retaugh
   good at next words. Ask what it would need to *know* something.
 - **Personal details in questions.** Watch the Live view during step 5. If a student types a
   full name or other identifying detail, it is a teaching moment, not a discipline one.
-- **Testing the edges.** Middle schoolers will try to make it say something rude or silly.
+- **Testing the edges.** Students will try to make it say something rude or silly.
   Expect it and redirect. If a message is about hurting themselves or someone else, or about
   being hurt, follow the escalation protocol. Treat it as real until the counselor says
   otherwise, even if the student says they were joking.
@@ -316,7 +341,7 @@ Hand each student a printed answer with two Citations (prepared from your Catalo
   are different questions, and the assistant can't answer the second one.
 - **Runners wandering.** Give runners a time limit per trip; the relay works better with a
   steady pace than with long searches.
-- **Readers' advisory answers.** "Books like *Wonder*" answers are opinions built from Records
+- **Readers' advisory answers.** "Books like *[a title they know]*" answers are opinions built from Records
   (subjects, summaries). They can be checked for *does this book exist here and is it about
   what it says*, not for *will I like it*.
 
@@ -633,7 +658,7 @@ hosted on DPI's site, is one Wisconsin example), teach those instead.
 Adapted from DPI's copy-ready disclosure box
 ([Policy & Governance](https://dpi.wi.gov/imt/ai-guidance/administrators/policy);
 [Ethical Use in the Classroom](https://dpi.wi.gov/imt/ai-guidance/educators/ethical-use)),
-with the wording simplified for grades 6-8:
+with the wording simplified:
 
 > **AI use:** I used ______ (tool) to ______ (what for) on ______ (date). I kept ______ and
 > changed ______. I checked it by ______.
@@ -776,8 +801,6 @@ Lakes, the moon landing.
 - **Trying to break it.** Some students will test whether they can make it say anything. Name it:
   a prompt that tricks the assistant isn't a strong prompt, and what they type can be seen by the
   adult on Watch (Lesson 4).
-- **Older students.** For high school, add a rung where students compare two answers to the same
-  question asked in different ways, and explain which assumptions each wording built in.
 
 ---
 
