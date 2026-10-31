@@ -1,6 +1,6 @@
-# Builds the librarian handout, the demo deck, the Planet Nix talk deck, and the two sheets
-# for district IT (the network request and the HTTPS rollout, in ../templates). Run inside
-# this directory's Flox environment:
+# Builds the librarian handout, the demo deck, the Planet Nix talk deck, the two sheets for
+# district IT (the network request and the HTTPS rollout, in ../templates), and each lesson's
+# deck and student handout (../curriculum). Run inside this directory's Flox environment:
 #
 #   flox activate -- make          # every document into build/, as .pdf and .html
 #   flox activate -- make serve    # live preview at http://localhost:8080
@@ -19,6 +19,10 @@ TALK    := planet-nix-deck.md
 IT_DOCS := ../templates/it-network-request.md ../templates/it-https-rollout.md
 IT_HTML  = $(patsubst ../templates/%.md,$(BUILD)/%.html,$(IT_DOCS))
 IT_PDF   = $(patsubst ../templates/%.md,$(BUILD)/%.pdf,$(IT_DOCS))
+# Each lesson of the AI literacy unit: slides to teach from and a sheet each student keeps.
+LESSON_DOCS := $(wildcard ../curriculum/lesson-*.md)
+LESSON_HTML  = $(patsubst ../curriculum/%.md,$(BUILD)/%.html,$(LESSON_DOCS))
+LESSON_PDF   = $(patsubst ../curriculum/%.md,$(BUILD)/%.pdf,$(LESSON_DOCS))
 BUILD   := build
 PALETTE := ../../library_assistant/static/palette.css
 COMPONENTS := ../../library_assistant/static/components.css
@@ -34,8 +38,8 @@ endif
 
 all: check-marp html pdf
 
-html: check-marp $(BUILD)/librarian-handout.html $(BUILD)/demo-deck.html $(BUILD)/planet-nix-deck.html $(IT_HTML)
-pdf: check-marp $(BUILD)/librarian-handout.pdf $(BUILD)/demo-deck.pdf $(BUILD)/planet-nix-deck.pdf $(IT_PDF)
+html: check-marp $(BUILD)/librarian-handout.html $(BUILD)/demo-deck.html $(BUILD)/planet-nix-deck.html $(IT_HTML) $(LESSON_HTML)
+pdf: check-marp $(BUILD)/librarian-handout.pdf $(BUILD)/demo-deck.pdf $(BUILD)/planet-nix-deck.pdf $(IT_PDF) $(LESSON_PDF)
 
 DEPS := $(DOC) handout.css $(PALETTE) $(COMPONENTS) .marprc.yml
 TALK_DEPS := $(TALK) deck.css $(PALETTE) $(COMPONENTS) .marprc.yml
@@ -79,6 +83,14 @@ $(BUILD)/%.html: ../templates/%.md $(IT_DEPS)
 $(BUILD)/%.pdf: ../templates/%.md $(IT_DEPS)
 	$(MARP) --config-file .marprc.yml $< --pdf -o $@
 
+LESSON_DEPS := handout.css deck.css $(PALETTE) $(COMPONENTS) .marprc.yml
+
+$(BUILD)/%.html: ../curriculum/%.md $(LESSON_DEPS)
+	$(MARP) --config-file .marprc.yml $< -o $@
+
+$(BUILD)/%.pdf: ../curriculum/%.md $(LESSON_DEPS)
+	$(MARP) --config-file .marprc.yml $< --pdf -o $@
+
 # Live preview at http://localhost:8080 with reload on save.
 #
 # Do not pass `.` to --watch. After `flox activate`, `.flox/run` is a symlink into the Nix
@@ -91,7 +103,7 @@ serve: check-marp
 	@ln -sfn ../$(DOC) $(SERVE_ROOT)/$(DOC)
 	@ln -sfn ../$(DECK) $(SERVE_ROOT)/$(DECK)
 	@ln -sfn ../$(TALK) $(SERVE_ROOT)/$(TALK)
-	@for doc in $(IT_DOCS); do ln -sfn ../$$doc $(SERVE_ROOT)/$$(basename $$doc); done
+	@for doc in $(IT_DOCS) $(LESSON_DOCS); do ln -sfn ../$$doc $(SERVE_ROOT)/$$(basename $$doc); done
 	$(MARP) --config-file .marprc.yml --server --watch $(SERVE_ROOT)
 
 watch: check-marp
@@ -103,7 +115,7 @@ check: check-marp
 	@./check-overflow.sh $(DOC)
 	@./check-overflow.sh $(DECK)
 	@./check-overflow.sh $(TALK)
-	@for doc in $(IT_DOCS); do ./check-overflow.sh $$doc || exit 1; done
+	@for doc in $(IT_DOCS) $(LESSON_DOCS); do ./check-overflow.sh $$doc || exit 1; done
 
 clean:
 	rm -rf $(BUILD) $(SERVE_ROOT)
