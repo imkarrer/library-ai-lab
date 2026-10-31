@@ -15,6 +15,9 @@ from library_assistant.shelf import author_name, where_to_find
         ),
         ("973 ADL", "Nonfiction, the 900s (history and geography): find 973, then ADL"),
         ("FIC", "Fiction"),
+        ("Fic Paulsen", "Fiction, under Paulsen for the author"),
+        ("EASY SEU", "Picture books, under SEU"),
+        ("92 LIN", "Biographies, under LIN for the person"),
     ],
 )
 def test_a_school_call_number_says_where_to_walk(call_number, where):
