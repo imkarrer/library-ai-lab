@@ -153,7 +153,7 @@ def test_a_common_word_cannot_fill_the_list_when_each_term_searches_alone():
         [_book(f"animal-{n}", f"Animals {n}") for n in range(10)]
         + [_book("wolf", "Wolves of Yellowstone")]
     )
-    found = search_each(catalog, ["wolves", "animals"], k=3)
+    found = search_each(catalog, ["wolves", "animals"], "wolves", k=3)
     assert found[0].id == "wolf"
     assert len(found) == 3
 
@@ -167,7 +167,7 @@ def test_each_term_takes_a_turn_in_order():
             for n in (1, 2)
         ]
     )
-    found = search_each(catalog, ["dogs", "cats"], k=4)
+    found = search_each(catalog, ["dogs", "cats"], "?", k=4)
     assert [r.title.split()[0] for r in found] == ["dogs", "cats", "dogs", "cats"]
 
 
@@ -176,11 +176,28 @@ def test_an_edition_two_terms_find_takes_one_place():
     catalog.load_records(
         [_book("first", "Wolves /"), _book("second", "Wolves.", "wolf")]
     )
-    assert len(search_each(catalog, ["wolves", "wolf"], k=5)) == 1
+    assert len(search_each(catalog, ["wolves", "wolf"], "?", k=5)) == 1
 
 
 def test_no_terms_find_nothing():
-    assert search_each(SqliteCatalog(sqlite3.connect(":memory:")), [], k=5) == []
+    catalog = SqliteCatalog(sqlite3.connect(":memory:"))
+    assert search_each(catalog, [], "?", k=5) == []
+
+
+def test_a_paired_term_cannot_drift_off_the_subject():
+    catalog = SqliteCatalog(sqlite3.connect(":memory:"))
+    catalog.load_records([_book("cave", "Exploring caves"), _book("ant", "Ants")])
+    assert catalog.search_strict("ants caves", k=5) == []
+    assert [r.id for r in search_each(catalog, ["ants", "ants caves"], "?", k=5)] == [
+        "ant"
+    ]
+
+
+def test_the_students_own_words_may_still_match_loosely_and_come_last():
+    catalog = SqliteCatalog(sqlite3.connect(":memory:"))
+    catalog.load_records([_book("ant", "Ants"), _book("rare", "Rarest birds")])
+    found = search_each(catalog, ["ants"], "rarest ants?", k=5)
+    assert [r.id for r in found] == ["ant", "rare"]
 
 
 def test_get_returns_record_by_id():
