@@ -110,9 +110,11 @@ sequenceDiagram
         A-->>P: token (the hidden SEARCH line is held back)
     end
     AL-->>A: SEARCH: snow leopards#59; big cats
-    A->>C: search("snow leopards big cats", k=4)
-    C-->>A: Records
-    A-->>P: "Books in our library:" and a Citation per Record
+    A->>C: search("snow leopards big cats", k=12)
+    C-->>A: up to 12 candidate Records
+    A->>AL: which of these fit, and why? (not streamed)
+    AL-->>A: numbered picks, or NONE
+    A-->>P: "Books in our library:" and a Citation per pick (5 at most)
     A->>DB: finish_exchange: overview, Citations
     A->>A: release the Card (in a finally, so an error or a hang-up releases it too)
     P-->>S: overview, then books, under "This can be wrong, check the source."

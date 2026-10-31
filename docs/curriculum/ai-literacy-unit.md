@@ -175,7 +175,9 @@ Students will be able to:
      already knows. That part can be wrong and has no Citations: it is the model talking.
      Then **Books in our library**: real books from *our library's Catalog* that match the
      question, each with a **Citation** (title and call number) taken straight from the
-     Catalog, so none of them is made up. (Lesson 2 is all about these.) If the library has
+     Catalog, so none of them is made up. The model picks which books to show and adds one
+     line on what each is about. That line is the model talking too, so check it against the
+     book. (Lesson 2 is all about these.) If the library has
      nothing, it says so: "The library's catalog has nothing on this yet."
    - It runs on a computer in this building. Your questions don't go to a company on the
      internet.

@@ -21,6 +21,7 @@ from library_assistant.config import Settings
 from library_assistant.dependencies import get_catalog, get_settings, get_watchlist
 from library_assistant.install_settings import SUPERVISION_MODE, set_setting
 from library_assistant.routers.live import LiveBus, get_live_bus, live_events
+from library_assistant.shelf import author_name, where_to_find
 from library_assistant.staff import (
     STAFF_SESSION_COOKIE,
     StaffAccount,
@@ -816,6 +817,9 @@ def test_answer_event_published_after_finish(asking_client, db, bus):
                 "record_id": RECORD.id,
                 "title": RECORD.title,
                 "call_number": RECORD.call_number,
+                "author": author_name(RECORD.author),
+                "where": where_to_find(RECORD.call_number),
+                "why": "",
             }
         ],
     }

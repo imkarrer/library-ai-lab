@@ -469,10 +469,13 @@ that never leaves the Teacher's laptop."*
    far, and the next answer streams in as it is written.
 
 Say, while it streams: *"Two parts. First an overview from what the model knows, which can be
-wrong. Then the Records from our own Catalog, each with a Citation, found by the model's search
-terms: that's the part to check the overview against. The books come from the Catalog, never
-from the model."* On the phone, the second part follows "Books in our library:". If the
-Catalog has nothing, the Student is told "The library's catalog has nothing on this yet. Ask
+wrong. Then the Records from our own Catalog, each with a Citation: that's the part to check
+the overview against. The search finds up to 12 books, and the model chooses the ones that
+really fit and says why, a few seconds after the overview. It can only choose from what the
+search found. The books come from the Catalog, never from the model; only the reason is the
+model's. And under each one, where to walk in the library."* On the phone, the second part
+follows "Books in our library:". If the search finds nothing, or the model says none of it
+fits, the Student is told "The library's catalog has nothing on this yet. Ask
 the librarian."
 
 
