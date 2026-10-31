@@ -73,7 +73,7 @@ Emergency: **911**.
 
 ## 1. What this protocol is for, and what it is not
 
-Middle school Students sometimes tell a chatbot what they will not tell an adult. The Library
+Students sometimes tell a chatbot what they will not tell an adult. The Library
 Assistant is designed so that, when they do, an adult finds out and can help. It does this in
 two ways:
 

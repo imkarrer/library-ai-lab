@@ -30,10 +30,10 @@ Lesson 4 tells teachers never to do. So:
 
 ## Default texts
 
-Written for 11-to-13-year-olds: short sentences, no clinical words, nothing that blames the
+Written for Students: short sentences, no clinical words, nothing that blames the
 Student, and an honest line that an adult may check in, because Lesson 4 promises Students
 that. A rough Flesch-Kincaid estimate puts each at about grade 4 (80-96 words), so a weak
-reader in grade 6 can manage them. They are drafts. The reference deployment's counselor
+reader can manage them. They are drafts. The reference deployment's counselor
 should review them before the pilot, as section 7 of the escalation protocol expects.
 
 **Self-harm**

@@ -76,7 +76,7 @@ review it. Every flag shows the phrase that triggered it.
 | a lower-concern phrase | the normal answer | a flag in the Flag queue |
 | a serious phrase | a supportive reply instead of an answer, pointing them to a counselor or another adult they trust, and to the 988 line for self-harm | a flag, plus an alarm on your screen (a banner and a chime) that shows the class and card number but not the student's words |
 
-We wrote the supportive replies for 11-to-13-year-olds, with a different one for each kind
+We wrote the supportive replies for students, with a different one for each kind
 of concern. The flags tell you who needs an adult. Someone still follows up in person, using
 your school's own escalation steps.
 

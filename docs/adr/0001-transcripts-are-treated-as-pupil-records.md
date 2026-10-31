@@ -11,7 +11,7 @@ tied to a Student and holds even pseudonymous transcripts only briefly (ADR-0002
 Treating transcripts as pupil records also matters for the Purge: if they were ordinary public
 records, Wis. Stat. 19.21 would require keeping them far longer. COPPA reaches only operators
 acting for commercial purposes, so it does not reach a school-run, non-commercial Install,
-which is a structural advantage over commercial chatbots for 11-to-13-year-olds; keep it that
+which is a structural advantage over commercial chatbots for students; keep it that
 way by never adding a commercial operator to the loop. The reasoning and citations are in
 `docs/templates/compliance/ferpa-analysis.md`.
 
