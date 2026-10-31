@@ -1,6 +1,6 @@
 # Check the Source: an AI literacy unit for the Library Assistant
 
-A five-lesson unit for grades 6-8, taught in 45-minute library periods, alongside a class's
+A six-lesson unit for grades 6-8, taught in 45-minute library periods, alongside a class's
 first supervised use of the Library Assistant. Students learn what a language model is and is
 not, why it can be confidently wrong, and how a Citation lets them check it against a real
 book on a real shelf. They also learn, honestly and without scare tactics, what the assistant
@@ -74,9 +74,11 @@ your Catalog. Reduces, not removes: that gap is what Lesson 3 is about.
 | 3 | Catch it being wrong | Use Question, Check, Compare, Decide to sort overview claims into checked, wrong, and not in our books | Answer audit against the shelf |
 | 4 | Who sees what I type? | Say what the Card is, what the assistant does not know, who can see questions, and what happens to a worrying message | Scenario sort, no assistant needed |
 | 5 | Using AI on assignments | Read an assignment's AI Use Tier and write an honest disclosure line | Tier sort; disclosure for their Lesson 3 work |
+| 6 | Ask it well | Tell a weak prompt from a strong one, and improve a prompt in steps | Prompt ladder |
 
 If you only get four periods, fold Lesson 5 into the last 15 minutes of Lesson 4 and hand the
-Tier sort to the classroom teacher.
+Tier sort to the classroom teacher. Lesson 6 works anywhere after Lesson 3, and it's the
+natural one to teach just before a research project.
 
 ### Standards
 
@@ -678,6 +680,104 @@ specifics ("found it on the shelf at 551.21").
   The tiers and the disclosure line apply to all of them. What's different about the Library
   Assistant is that it cites your Catalog and keeps nothing past the school day; other tools may
   not do either.
+
+---
+
+## Lesson 6: Ask it well
+
+When web search was new, finding things was a skill. People learned which words to use, and
+librarians taught it. Asking an AI is the same kind of skill. A student who can sharpen a
+question gets a better answer, better books, and a better sense of what they actually want to
+know. This lesson also reinforces Lesson 3: a strong prompt gets a better answer, not a
+guaranteed true one.
+
+### Objectives
+
+Students will be able to:
+
+- Tell a weak prompt from a strong one, and say why.
+- Improve a prompt using the four parts: subject, specific question, purpose, and limits.
+- Change a prompt when it isn't working, instead of accepting the first answer.
+- Explain why a strong prompt still needs checking.
+
+### Materials
+
+- Projector with the assistant on the staff demo Card.
+- One Card per group of 4-5.
+- "Prompt ladder" worksheet (one per group): columns for *prompt*, *what the overview gave us*,
+  *best book*, *what we changed next*.
+- A topic list from a current assignment, or the topics below.
+
+Before class, try the examples on your own Catalog and swap out any that don't work. They were
+tried on the demo Catalog, which isn't your collection. `[VERIFY]`
+
+### Plan (45 minutes)
+
+1. **Hook (5 min).** Ask: *"If you walked up to me and said 'space', what would I do?"* You'd ask
+   what they want to know about space. Say: *"The assistant usually doesn't ask. It guesses.
+   Today you learn to stop making it guess."* Mention that early web searchers had to learn this
+   too, and that it was treated as a skill worth teaching.
+
+2. **Weak and strong (10 min).** Run a pair on the projector and compare both parts of the
+   answer.
+
+   | Weak | Strong | What usually changes |
+   |---|---|---|
+   | tell me about space | How do astronauts sleep on the International Space Station? | The overview answers one question, not a definition of space |
+   | climate | How does warming ocean water hurt coral reefs? | The books move from climate in general to coral |
+   | help with my report | I'm writing a report on the Dust Bowl. What caused it, and how did it change farming? | The assistant has something to work with, and the books are on the subject |
+   | who is best president | Which U.S. presidents do historians rank highest, and why do they disagree? | An opinion question becomes one that can be researched |
+
+3. **The four parts (7 min).** Put these on the board. A strong prompt doesn't need all four, but
+   it needs more than one.
+
+   - **Subject:** exactly what it's about. "Gray wolves", not "animals".
+   - **Specific question:** what you want to know. "What do they eat in winter?"
+   - **Purpose:** why you're asking. "For a report", "to compare two sides".
+   - **Limits:** what you want back. "Three causes", "in short sentences".
+
+   Then the habits that go with them:
+
+   - Use the words a book would use. "Coral bleaching" finds more than "why reefs look dead".
+   - Ask one thing at a time, then follow up.
+   - If the first answer misses, change the prompt. A prompt is a draft.
+   - Leave out personal details. Your question doesn't need your name or anyone else's (Lesson 4).
+
+4. **Prompt ladder (18 min).** Each group picks a topic and climbs three rungs: a one-word prompt,
+   then a specific question, then a version with a purpose or limits. For each rung they record
+   the worksheet columns. Then they go to the shelf and check one claim from their best answer
+   against their best book, as in Lesson 3.
+
+5. **Debrief (5 min).** Ask: *"Which rung changed the most? Did a stronger prompt ever make things
+   worse? Was your best answer also true?"* Point out that a very narrow question can find fewer
+   books. That's normal: go one step broader for books, and narrower for the answer.
+
+Suggested topics: gray wolves, volcanoes, the Civil War, the Dust Bowl, coral reefs, the Great
+Lakes, the moon landing.
+
+### Formative check
+
+1. Rewrite "dogs" as a strong prompt about something you actually want to know.
+2. Which is stronger, and why? (a) "tell me everything about Rome" (b) "Why did people in ancient
+   Rome build aqueducts?"
+3. True or false, and explain: "If I write a great prompt, I don't need to check the answer."
+
+### What to watch for
+
+- **Strong means true.** It doesn't. A sharper question can still get an invented name or date,
+  said more confidently. If a group's best answer fails the shelf check, celebrate it.
+- **Longer means stronger.** Extra words aren't the point. Specific beats long.
+- **Opinion and "best" questions.** The assistant may say nobody can know, and that's a good
+  answer. Show students how to turn it into a question about evidence or what different people
+  think.
+- **Asking it to recommend a book.** The overview comes from the model's memory, so a book it
+  names there may not be in your library. Only Books in our library are real Records. Recommendation
+  results can be mixed even with a strong prompt, so teach this as a place to ask you.
+- **Trying to break it.** Some students will test whether they can make it say anything. Name it:
+  a prompt that tricks the assistant isn't a strong prompt, and what they type can be seen by the
+  adult on Watch (Lesson 4).
+- **Older students.** For high school, add a rung where students compare two answers to the same
+  question asked in different ways, and explain which assumptions each wording built in.
 
 ---
 
