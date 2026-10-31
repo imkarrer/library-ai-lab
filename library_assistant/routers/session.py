@@ -643,16 +643,17 @@ async def _pick_books(
     http_client: httpx.AsyncClient,
     settings: Settings,
     question: str,
+    overview: str,
     records: list[Record],
 ) -> list[tuple[Record, str]]:
-    """The `records` that fit `question`, each with why, best first.
+    """The `records` that fit `question` and its `overview`, each with why, best first.
 
     A model that fails or answers in some other form costs the reasons, not the books:
     the search's own top books are shown without them.
     """
     body: dict[str, object] = {
         "model": settings.openai_model,
-        "messages": build_pick_messages(question, records),
+        "messages": build_pick_messages(question, overview, records),
         "stream": False,
     }
     if settings.openai_reasoning_effort:
@@ -832,14 +833,21 @@ def _answer(
                 yield remaining_text
 
             # If no search terms, search with the original question
-            # The Student's own words too: a model's terms can miss the very subject
-            # asked about ("dust storm", never "dust bowl").
-            queries = [*search_terms[:MAX_SEARCH_TERMS], request.question]
-
             # Now search the catalog
-            records = search_each(catalog, queries, k=BOOK_CANDIDATES)
+            records = search_each(
+                catalog,
+                search_terms[:MAX_SEARCH_TERMS],
+                request.question,
+                k=BOOK_CANDIDATES,
+            )
             picked = (
-                await _pick_books(http_client, settings, request.question, records)
+                await _pick_books(
+                    http_client,
+                    settings,
+                    request.question,
+                    "".join(shown_parts),
+                    records,
+                )
                 if records
                 else []
             )

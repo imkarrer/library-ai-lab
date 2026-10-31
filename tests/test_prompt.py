@@ -118,7 +118,7 @@ def test_prompt_asks_for_the_search_line_the_filter_reads():
     for line in example:
         terms = SearchLineFilter()
         terms.feed(line + "\n")
-        assert 2 <= len(terms.finish()[1]) <= 4
+        assert 2 <= len(terms.finish()[1]) <= 6
 
 
 def test_search_line_without_a_final_newline_is_held_back():
@@ -145,11 +145,19 @@ def test_the_model_chooses_from_numbered_books_it_is_shown():
     record = Record(
         "1", "Wolves /", "Gibbons, Gail,", "Wolves", "x" * 500, "599.77 GIB"
     )
-    system, user = build_pick_messages("do wolves howl?", [record])
+    system, user = build_pick_messages(
+        "do wolves howl?", "They howl at night.", [record]
+    )
     assert system == {"role": "system", "content": PICK_PROMPT}
     assert "do wolves howl?" in user["content"]
+    assert "They howl at night." in user["content"]
     assert "1. Wolves / Gibbons, Gail," in user["content"]
     assert "x" * 200 in user["content"] and "x" * 201 not in user["content"]
+
+
+def test_the_search_terms_stay_on_the_subject():
+    assert "pair the main subject" in RESEARCH_PROMPT
+    assert "at most one broader subject" in RESEARCH_PROMPT
 
 
 def test_picks_are_read_best_first_in_the_forms_a_model_writes():

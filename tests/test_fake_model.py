@@ -67,7 +67,7 @@ def test_answer_lane_streams_openai_chunks():
 
 def test_choosing_books_answers_in_the_form_the_assistant_reads():
     records = [Record(str(n), f"Book {n}", "", "", "", "599 BOO") for n in range(1, 9)]
-    messages = build_pick_messages("wolves?", records)
+    messages = build_pick_messages("wolves?", "They howl.", records)
     reply = TestClient(build_app(0)).post(
         "/v1/chat/completions", json={"messages": messages, "stream": False}
     )

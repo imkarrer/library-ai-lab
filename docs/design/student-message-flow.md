@@ -115,7 +115,8 @@ sequenceDiagram
         C-->>A: Records
     end
     A->>A: take from each term's Records in turn: up to 12 candidates
-    A->>AL: which of these fit, and why? (not streamed)
+    Note over A: a term matches all its words or nothing; the Student's words may match loosely
+    A->>AL: given the overview, which of these fit, and why? (not streamed)
     AL-->>A: numbered picks, or NONE
     A-->>P: "Books in our library:" and a Citation per pick (5 at most)
     A->>DB: finish_exchange: overview, Citations
