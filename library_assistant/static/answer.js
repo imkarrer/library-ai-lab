@@ -1,6 +1,7 @@
-// A model writes Markdown, and a Student shouldn't have to read it. This turns an answer
-// into paragraphs, headings, lists, and tables. It builds elements and sets their text,
-// never HTML, so nothing a model writes can run as markup.
+// A model writes Markdown, and nobody should have to read it. This turns an answer into
+// paragraphs, headings, lists, and tables, and its Citations into book cards, the same on
+// the Student's chat page and on the staff Session detail. It builds elements and sets
+// their text, never HTML, so nothing a model writes can run as markup.
 
 const TABLE_RULE = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
 const HEADING = /^#{1,6}\s+(.*)$/;
@@ -145,6 +146,45 @@ function renderAnswer(element, text) {
       element.append(addInline(document.createElement(tag), block.text));
     }
   }
+}
+
+// `linkFor`, on staff pages, makes each title a link to its Record.
+function bookCards(citations, title, linkFor) {
+  const books = document.createElement("div");
+  books.className = "books";
+  const heading = document.createElement("p");
+  heading.className = "books-title";
+  heading.textContent = title;
+  books.append(heading);
+  const addLine = (book, className, text) => {
+    if (!text) return;
+    const line = document.createElement("p");
+    line.className = className;
+    line.textContent = text;
+    book.append(line);
+  };
+  for (const citation of citations) {
+    const book = document.createElement("div");
+    book.className = "book";
+    const name = document.createElement("strong");
+    name.textContent = citation.title.replace(/\s*\/$/, "");
+    if (linkFor) {
+      const link = document.createElement("a");
+      link.href = linkFor(citation);
+      link.append(name);
+      book.append(link);
+    } else {
+      book.append(name);
+    }
+    addLine(book, "book-author", citation.author);
+    addLine(book, "book-why", citation.why);
+    const shelf = document.createElement("span");
+    shelf.textContent = citation.call_number;
+    book.append(shelf);
+    addLine(book, "book-where", citation.where);
+    books.append(book);
+  }
+  return books;
 }
 
 if (typeof module !== "undefined") module.exports = { answerBlocks, inlineParts };
