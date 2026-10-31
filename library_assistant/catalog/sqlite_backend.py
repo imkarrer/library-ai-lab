@@ -25,10 +25,13 @@ _FILLER_WORDS = frozenset(
         "books",
         "can",
         "do",
+        "did",
+        "does",
         "find",
         "for",
         "give",
         "have",
+        "how",
         "i",
         "in",
         "is",
@@ -40,13 +43,21 @@ _FILLER_WORDS = frozenset(
         "on",
         "or",
         "recommend",
+        "s",
         "show",
         "some",
         "something",
         "the",
         "to",
         "want",
+        "was",
+        "were",
         "what",
+        "when",
+        "where",
+        "which",
+        "who",
+        "why",
         "with",
         "you",
     ]
@@ -107,6 +118,13 @@ class SqliteCatalog:
         self._connection.commit()
 
     def search(self, query: str, k: int) -> list[Record]:
+        # Red wolves, not every red thing: any one word only if no book has them all.
+        return self.search_strict(query, k) or self._matching(query, " OR ", k)
+
+    def search_strict(self, query: str, k: int) -> list[Record]:
+        return self._matching(query, " AND ", k)
+
+    def _matching(self, query: str, joiner: str, k: int) -> list[Record]:
         # A Student's question is not FTS5 syntax: quote each word so punctuation,
         # quotes, and words like AND or NEAR are matched as text, never parsed.
         terms = [
@@ -116,19 +134,14 @@ class SqliteCatalog:
         ]
         if not terms:
             return []
-        quoted = [f'"{term}"' for term in terms]
+        match = joiner.join(f'"{term}"' for term in terms)
         weights = ", ".join(str(weight) for weight in _COLUMN_WEIGHTS)
-        # Red wolves, not every red thing: any one word only if no book has them all.
-        rows = []
-        for match in (" AND ".join(quoted), " OR ".join(quoted)):
-            rows = self._connection.execute(
-                "SELECT id, title, author, subjects, summary, call_number "
-                "FROM records WHERE records MATCH ? "
-                f"ORDER BY bm25(records, {weights}) LIMIT ?",
-                (match, k * _ROWS_PER_RECORD),
-            ).fetchall()
-            if rows:
-                break
+        rows = self._connection.execute(
+            "SELECT id, title, author, subjects, summary, call_number "
+            f"FROM records WHERE records MATCH ? ORDER BY bm25(records, {weights}) "
+            "LIMIT ?",
+            (match, k * _ROWS_PER_RECORD),
+        ).fetchall()
         records: list[Record] = []
         editions: set[tuple[str, str]] = set()
         for row in rows:

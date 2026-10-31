@@ -2,8 +2,9 @@
 
 The prompt is a short overview of the subject from the model's own knowledge, for 11-to-13-year-olds, plain words,
 honest when unsure, never naming a book as if the library has it. The reply ends with one line exactly
-`SEARCH: term; term; term` (3-6 library subject terms, searched one at a time, so they cast a wide net: the
-Catalog's search matches whole words, and "wolf" does not find "wolves").
+`SEARCH: term; term; term` (3-6 library subject terms, searched one at a time: the Catalog's search matches
+whole words, so "wolf" does not find "wolves", and they stay on the subject, since a broad term takes the same
+turns as a narrow one).
 
 A second, short prompt shows the model what that search found and has it choose the books that fit and say why. Keyword
 search can't tell red wolves from red barns; the model can. It only ever chooses by number from Records it was given.
@@ -20,8 +21,8 @@ RESEARCH_PROMPT = """You are a helpful librarian. Answer the student's question 
 
 After your answer, end with one last line in exactly this form, and nothing after it:
 SEARCH: term; term; term
-Use 3 to 6 short library subject terms, the most specific first. The search only matches whole words, so give both the singular and plural of the main topic, then broader or related subjects a library would file books under. For example, for a question about what sharks eat:
-SEARCH: shark; sharks; marine animals; food chains"""
+Use 3 to 6 short library subject terms. The search only matches whole words, and a book must hold every word of a term. Start with the main subject alone, singular then plural. Then pair the main subject with the specific things your answer talks about. Add at most one broader subject, last. For example, for a question about what sharks eat:
+SEARCH: shark; sharks; sharks fish; sharks coral reefs; marine animals"""
 
 
 def build_messages(question: str) -> list[dict]:
@@ -38,7 +39,7 @@ MAX_SEARCH_TERMS = 6
 # The most books a Student is shown for one question.
 MAX_BOOKS = 5
 
-PICK_PROMPT = f"""You help a student aged 11 to 13 choose books from a school library. You are given their question and a numbered list of books from the library's catalog. Choose up to {MAX_BOOKS} books that would really help with the question, best first. Leave out any book that only shares a word with the question but is about something else.
+PICK_PROMPT = f"""You help a student aged 11 to 13 choose books from a school library. You are given their question and a numbered list of books from the library's catalog. You also see the answer they were just given. Choose up to {MAX_BOOKS} books that would really help with the question, best first. A book must be about the student's own subject; prefer books on the things the answer talks about, and take a book on a broader subject only if nothing closer fits. Leave out any book that only shares a word with the question but is about something else.
 
 Go only by the title, subjects, and summary you are given. You have not read these books, so never add details that are not there, and never say how good or easy a book is.
 
@@ -53,9 +54,12 @@ _RUN_TOGETHER_PICK = re.compile(r"(?<=[.!?])\s+(?=\d+:\s)")
 
 # Enough of a Record for the model to judge it, and no more: every book costs prompt.
 _DESCRIPTION_CHARS = 200
+_OVERVIEW_CHARS = 1000
 
 
-def build_pick_messages(question: str, records: list[Record]) -> list[dict]:
+def build_pick_messages(
+    question: str, overview: str, records: list[Record]
+) -> list[dict]:
     """Build the messages asking the model to choose among `records`."""
     books = "\n".join(
         f"{number}. {record.title} {record.author} "
@@ -65,7 +69,12 @@ def build_pick_messages(question: str, records: list[Record]) -> list[dict]:
     )
     return [
         {"role": "system", "content": PICK_PROMPT},
-        {"role": "user", "content": f"Question: {question}\n\nBooks:\n{books}"},
+        {
+            "role": "user",
+            "content": f"Question: {question}\n\n"
+            f"Answer they were given: {overview[:_OVERVIEW_CHARS]}\n\n"
+            f"Books:\n{books}",
+        },
     ]
 
 
