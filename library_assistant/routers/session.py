@@ -12,6 +12,7 @@ import hashlib
 import html
 import json
 import logging
+import re
 import sqlite3
 from collections.abc import Awaitable, Callable
 from datetime import datetime
@@ -30,7 +31,7 @@ from library_assistant.access import (
     get_db,
 )
 from library_assistant.alarms import announce_flag
-from library_assistant.catalog import Catalog, Record
+from library_assistant.catalog import Catalog, Record, search_each
 from library_assistant.config import Settings
 from library_assistant.dependencies import (
     HttpClientDep,
@@ -59,6 +60,7 @@ from library_assistant.oversight import (
 )
 from library_assistant.prompt import (
     MAX_BOOKS,
+    MAX_SEARCH_TERMS,
     SearchLineFilter,
     build_messages,
     build_pick_messages,
@@ -631,6 +633,12 @@ async def ask(
         raise
 
 
+def _repeats_title(why: str, record: Record) -> bool:
+    """A reason that only says the title back tells a Student nothing."""
+    words = [re.findall(r"\w+", text.lower()) for text in (why, record.title)]
+    return words[0] == words[1]
+
+
 async def _pick_books(
     http_client: httpx.AsyncClient,
     settings: Settings,
@@ -659,7 +667,10 @@ async def _pick_books(
         logger.warning("choosing books failed: %s", type(error).__name__)
     if picks is None:
         return [(record, "") for record in records[:MAX_BOOKS]]
-    return [(records[index], why) for index, why in picks]
+    return [
+        (records[index], "" if _repeats_title(why, records[index]) else why)
+        for index, why in picks
+    ]
 
 
 def _answer(
@@ -821,10 +832,12 @@ def _answer(
                 yield remaining_text
 
             # If no search terms, search with the original question
-            search_query = " ".join(search_terms) if search_terms else request.question
+            # The Student's own words too: a model's terms can miss the very subject
+            # asked about ("dust storm", never "dust bowl").
+            queries = [*search_terms[:MAX_SEARCH_TERMS], request.question]
 
             # Now search the catalog
-            records = catalog.search(search_query, k=BOOK_CANDIDATES)
+            records = search_each(catalog, queries, k=BOOK_CANDIDATES)
             picked = (
                 await _pick_books(http_client, settings, request.question, records)
                 if records

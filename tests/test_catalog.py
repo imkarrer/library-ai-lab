@@ -2,7 +2,7 @@ import dataclasses
 import sqlite3
 from pathlib import Path
 
-from library_assistant.catalog import Record
+from library_assistant.catalog import Record, search_each
 from library_assistant.catalog.marc import (
     MarcRecord,
     is_shelf_ready,
@@ -126,6 +126,61 @@ def test_editions_of_one_book_take_one_place():
     found = catalog.search("wolves", k=2)
     assert len(found) == 2
     assert {r.title for r in found} != {"Wolves /", "Wolves."}
+
+
+def test_books_with_every_word_shut_out_books_with_only_one():
+    catalog = SqliteCatalog(sqlite3.connect(":memory:"))
+    catalog.load_records(
+        [
+            _book("barn", "Red barns"),
+            _book("wolf", "Wolves"),
+            _book("red-wolf", "Saving the red wolves"),
+        ]
+    )
+    assert [r.id for r in catalog.search("red wolves", k=5)] == ["red-wolf"]
+
+
+def test_with_no_book_holding_every_word_any_word_will_do():
+    catalog = SqliteCatalog(sqlite3.connect(":memory:"))
+    catalog.load_records([_book("barn", "Red barns"), _book("wolf", "Wolves")])
+    found = {r.id for r in catalog.search("red wolves", k=5)}
+    assert found == {"barn", "wolf"}
+
+
+def test_a_common_word_cannot_fill_the_list_when_each_term_searches_alone():
+    catalog = SqliteCatalog(sqlite3.connect(":memory:"))
+    catalog.load_records(
+        [_book(f"animal-{n}", f"Animals {n}") for n in range(10)]
+        + [_book("wolf", "Wolves of Yellowstone")]
+    )
+    found = search_each(catalog, ["wolves", "animals"], k=3)
+    assert found[0].id == "wolf"
+    assert len(found) == 3
+
+
+def test_each_term_takes_a_turn_in_order():
+    catalog = SqliteCatalog(sqlite3.connect(":memory:"))
+    catalog.load_records(
+        [
+            _book(f"{word}-{n}", f"{word} {n}")
+            for word in ("dogs", "cats")
+            for n in (1, 2)
+        ]
+    )
+    found = search_each(catalog, ["dogs", "cats"], k=4)
+    assert [r.title.split()[0] for r in found] == ["dogs", "cats", "dogs", "cats"]
+
+
+def test_an_edition_two_terms_find_takes_one_place():
+    catalog = SqliteCatalog(sqlite3.connect(":memory:"))
+    catalog.load_records(
+        [_book("first", "Wolves /"), _book("second", "Wolves.", "wolf")]
+    )
+    assert len(search_each(catalog, ["wolves", "wolf"], k=5)) == 1
+
+
+def test_no_terms_find_nothing():
+    assert search_each(SqliteCatalog(sqlite3.connect(":memory:")), [], k=5) == []
 
 
 def test_get_returns_record_by_id():
