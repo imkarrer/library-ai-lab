@@ -19,7 +19,7 @@ time and ordered per Session", below). Where it runs:
 - **Not configured, or the box can't hold both models**: the Watchlist alone.
 
 High-severity Flags, from either source, return a Supportive reply rather than a refusal,
-since a refusal teaches a 12-year-old not to say it again. A Supportive reply can only come
+since a refusal teaches a Student not to say it again. A Supportive reply can only come
 from the Watchlist, because Oversight's verdict can land after the answer has streamed. The Counselor role is optional:
 the Librarian can work the Flag queue and escalate by hand. The product and its docs describe
 flagging as help for the adults' duty of care, never as a substitute for it.

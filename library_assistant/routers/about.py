@@ -1,6 +1,6 @@
 """The Student's "What happens to what I type" page (lib-bns).
 
-Plain language for a middle schooler, drawn from Lesson 4 of the AI literacy unit
+Plain language for a Student, drawn from Lesson 4 of the AI literacy unit
 (docs/curriculum/ai-literacy-unit.md) and kept true to the design: the Card holds no name
 (ADR-0002), questions are deleted at the end of the school day unless an adult is following
 up or the school must keep them (ADR-0003), nothing leaves the school (ADR-0006), and a
