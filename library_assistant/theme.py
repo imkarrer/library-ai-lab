@@ -17,8 +17,12 @@ from fastapi.responses import Response
 
 STATIC_DIR = Path(__file__).parent / "static"
 THEME_PATH = "/library.css"
+FAVICON_PATH = "/favicon.svg"
 # Goes in every page's <head>.
-THEME_LINK = f'<link rel="stylesheet" href="{THEME_PATH}">'
+THEME_LINK = (
+    f'<link rel="stylesheet" href="{THEME_PATH}">\n'
+    f'<link rel="icon" href="{FAVICON_PATH}" type="image/svg+xml">'
+)
 
 router = APIRouter()
 
@@ -28,6 +32,16 @@ def theme_css() -> str:
     return "\n".join(
         (STATIC_DIR / name).read_text(encoding="utf-8")
         for name in ("palette.css", "components.css", "library.css")
+    )
+
+
+@router.get(FAVICON_PATH)
+def favicon() -> Response:
+    """The tab icon: a card in a book's pocket."""
+    return Response(
+        (STATIC_DIR / "favicon.svg").read_text(encoding="utf-8"),
+        media_type="image/svg+xml",
+        headers={"Cache-Control": "no-cache"},
     )
 
 

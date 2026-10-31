@@ -52,6 +52,8 @@ ALARM_SCRIPT = """<script>
     }
     return link;
   };
+  // The tab goes back to this when the last Alarm is dealt with.
+  const restingIcon = icon().href;
   // The favicon while an Alarm is open, drawn here so nothing is fetched.
   const redDot = () => {
     const canvas = document.createElement("canvas");
@@ -65,7 +67,7 @@ ALARM_SCRIPT = """<script>
   };
   const update = () => {
     document.title = open.size ? "(" + open.size + ") Alarm - " + title : title;
-    icon().href = open.size ? redDot() : "data:,";
+    icon().href = open.size ? redDot() : restingIcon;
     if (open.size && config.chime_on && config.repeat_seconds > 0) {
       if (repeat === null) repeat = setInterval(play, config.repeat_seconds * 1000);
     } else if (repeat !== null) {
