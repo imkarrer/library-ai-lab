@@ -1031,9 +1031,10 @@ def test_live_pages_load_no_external_script(client, db):
         assert "<script>" in response.text
         assert "/staff/live/events" in response.text
         assert re.search(r"<script[^>]*\ssrc\s*=", response.text) is None
-        # The one stylesheet is the assistant's own (/library.css), never fetched.
+        # The stylesheet and tab icon are the assistant's own, never fetched elsewhere.
         assert re.findall(r"<link[^>]*>", response.text) == [
-            '<link rel="stylesheet" href="/library.css">'
+            '<link rel="stylesheet" href="/library.css">',
+            '<link rel="icon" href="/favicon.svg" type="image/svg+xml">',
         ]
 
 
