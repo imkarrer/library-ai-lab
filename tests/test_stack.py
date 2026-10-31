@@ -228,3 +228,28 @@ def test_status_offers_install_only_where_a_browser_will(config, installable):
     assert hint.startswith("Install") is installable
     if not installable:
         assert "--https" in hint
+
+
+def test_materials_builds_without_starting_anything(tmp_path):
+    """`./stack materials` runs make in the handout's environment and needs no server."""
+    log = tmp_path / "calls"
+    flox = tmp_path / "flox"
+    flox.write_text(f'#!/bin/sh\npwd > "{log}"\necho "$@" >> "{log}"\n')
+    flox.chmod(0o755)
+    state = tmp_path / "state"
+    subprocess.run(
+        [
+            sys.executable,
+            str(REPO / "scripts/stack.py"),
+            "--state",
+            str(state),
+            "materials",
+        ],
+        env={"PATH": f"{tmp_path}:/usr/bin:/bin"},
+        check=True,
+        capture_output=True,
+    )
+    cwd, command = log.read_text().splitlines()
+    assert cwd.endswith("docs/handout")
+    assert command.endswith("-- make all check")
+    assert not state.exists()

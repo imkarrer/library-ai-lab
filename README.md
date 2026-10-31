@@ -31,6 +31,7 @@ One command runs the whole stack on this machine (`scripts/stack.py`):
 ./stack down         # stop everything `up` started (Ctrl-C-safe: it is all in the background)
 ./stack seed         # the demo cast, settings, and the Teacher's offline Minting page (idempotent)
 ./stack clear        # down, then delete the stack's database and files
+./stack materials    # build the decks and handouts into docs/handout/build; starts nothing
 ```
 
 Every `up` makes sure the demo cast exists, each username starting with its role: Ms.
