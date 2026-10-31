@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import sqlite3
 from collections.abc import Iterable
+from dataclasses import astuple, dataclass
 
 from library_assistant.catalog import Record, edition_key
 
@@ -59,6 +60,16 @@ _COLUMN_WEIGHTS = (0.0, 10.0, 2.0, 5.0, 1.0, 0.0)
 # Editions of one book share a title and author: rows fetched per Record returned, so
 # the duplicates dropped still leave `k`.
 _ROWS_PER_RECORD = 4
+
+
+@dataclass(frozen=True)
+class CatalogImport:
+    """One load of a school's export: when, by whom, and how much of it was kept."""
+
+    loaded_at: str
+    loaded_by: str
+    books: int
+    left_out: int
 
 
 class SqliteCatalog:
@@ -126,6 +137,33 @@ class SqliteCatalog:
                 editions.add(edition_key(record))
                 records.append(record)
         return records[:k]
+
+    def count(self) -> int:
+        return self._connection.execute("SELECT count(*) FROM records").fetchone()[0]
+
+    def record_import(self, last_import: CatalogImport) -> None:
+        """Note where these Records came from, in the file they came with."""
+        self._connection.execute(
+            "CREATE TABLE IF NOT EXISTS catalog_import "
+            "(loaded_at TEXT, loaded_by TEXT, books INTEGER, left_out INTEGER)"
+        )
+        self._connection.execute(
+            "INSERT INTO catalog_import VALUES (?, ?, ?, ?)", astuple(last_import)
+        )
+        self._connection.commit()
+
+    def last_import(self) -> CatalogImport | None:
+        """The school export this Catalog was loaded from; None for any other Catalog."""
+        try:
+            row = self._connection.execute(
+                "SELECT loaded_at, loaded_by, books, left_out FROM catalog_import"
+            ).fetchone()
+        except sqlite3.OperationalError:
+            return None
+        return CatalogImport(*row) if row else None
+
+    def close(self) -> None:
+        self._connection.close()
 
     def get(self, id: str) -> Record | None:
         row = self._connection.execute(

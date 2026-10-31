@@ -117,6 +117,9 @@ Do this at home, online, on the M5 Pro. Everything here downloads; nothing after
    flox activate -- python3 scripts/build_demo_catalog.py --dest catalog.db --fresh
    ```
 
+   This is the demo's Catalog only. A real school loads its own on the **Catalog** page
+   (README, "A school's own Catalog"), and doing that here replaces this one.
+
    When it finishes, check it answers a search:
 
    ```bash

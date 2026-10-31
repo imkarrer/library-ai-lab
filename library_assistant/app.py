@@ -18,6 +18,7 @@ from library_assistant.purge import purge_loop, run_if_due
 from library_assistant.registration_cors import RegistrationCorsMiddleware
 from library_assistant.routers.about import router as about_router
 from library_assistant.routers.alarms import router as alarms_router
+from library_assistant.routers.catalog_import import router as catalog_import_router
 from library_assistant.routers.flags import router as flags_router
 from library_assistant.routers.holds import router as holds_router
 from library_assistant.routers.it_kit import router as it_kit_router
@@ -113,6 +114,7 @@ app.include_router(staff_router)
 app.include_router(live_router)
 app.include_router(flags_router)
 app.include_router(holds_router)
+app.include_router(catalog_import_router)
 app.include_router(install_settings_router)
 app.include_router(watch_router)
 app.include_router(alarms_router)

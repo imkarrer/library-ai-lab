@@ -81,6 +81,14 @@ This repo is public, which is right for the code, the templates, and the reasoni
 Templates and legal reasoning belong here; filled-in versions belong in a
 district-controlled store.
 
+## A school's own Catalog
+
+A Librarian signs in, opens **Catalog**, and loads the library system's MARC export (binary
+MARC or MARCXML). The load replaces the whole Catalog in one step, so a withdrawn book goes
+too, and Students keep searching the old one until the new one is in. It keeps books only,
+under the school's own call numbers (852, or Koha's 952), and it doesn't keep the file. See
+the [addendum to ADR-0005](docs/adr/0005-catalog-behind-an-adapter.md).
+
 ## Demo Catalog
 
 The shipped Catalog adapter is SQLite over MARC
