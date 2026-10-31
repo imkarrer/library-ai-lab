@@ -617,6 +617,16 @@ def status(state: Path) -> None:
         _say("  Nothing running. `./stack up` starts it.")
 
 
+def materials() -> None:
+    """Build the decks, handouts, and sheets without starting anything."""
+    handout = REPO / "docs" / "handout"
+    command = ["flox", "activate", "-d", str(handout), "--", "make", "all", "check"]
+    result = subprocess.run(command, cwd=handout, check=False)
+    if result.returncode != 0:
+        sys.exit(result.returncode)
+    _say(f"Built into {handout / 'build'}")
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="stack", description=__doc__.splitlines()[0])
     parser.add_argument(
@@ -648,6 +658,7 @@ def main(argv: list[str] | None = None) -> None:
         ("seed", "accounts, settings, Minting page"),
         ("clear", "stop, then delete the stack's files"),
         ("status", "what is running"),
+        ("materials", "build the decks and handouts; starts nothing"),
     ):
         commands.add_parser(name, help=text)
     args = parser.parse_args(argv)
@@ -662,6 +673,8 @@ def main(argv: list[str] | None = None) -> None:
         seed(state)
     elif args.command == "clear":
         clear(state)
+    elif args.command == "materials":
+        materials()
     else:
         status(state)
 

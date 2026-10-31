@@ -21,3 +21,39 @@ jobs:
         uses: flox/activate-action@v2
         with:
           command: bash scripts/check.sh
+
+  # The decks and handouts. On a Mac because their fonts are local (palette.css): a Linux
+  # runner would set them in other fonts, and a page that fits here could spill there.
+  materials:
+    needs: test
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Flox
+        uses: flox/install-flox-action@v2
+
+      - name: Build and check
+        run: flox activate -d docs/handout -- make all check
+
+      - name: Keep the build
+        uses: actions/upload-artifact@v4
+        with:
+          name: materials
+          path: docs/handout/build/
+
+      # GITHUB_TOKEN's push starts no new run, so this can't loop.
+      - name: Publish changed lessons
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          flox activate -d docs/handout -- make publish
+          git add library_assistant/static/materials
+          git diff --cached --quiet && exit 0
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Publish lesson materials"
+          git pull --rebase origin main
+          git push origin HEAD:main

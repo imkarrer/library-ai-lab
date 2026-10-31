@@ -34,7 +34,7 @@ ifneq ($(_resolved_chrome),)
   export CHROME_PATH := $(_resolved_chrome)
 endif
 
-.PHONY: all html pdf watch serve check check-marp clean
+.PHONY: all html pdf watch serve check check-marp clean publish
 
 all: check-marp html pdf
 
@@ -116,6 +116,10 @@ check: check-marp
 	@./check-overflow.sh $(DECK)
 	@./check-overflow.sh $(TALK)
 	@for doc in $(IT_DOCS) $(LESSON_DOCS); do ./check-overflow.sh $$doc || exit 1; done
+
+# Copies changed lessons into the app, for the pipeline to commit (.github/workflows/ci.yml).
+publish: all
+	python3 ../../scripts/publish_materials.py
 
 clean:
 	rm -rf $(BUILD) $(SERVE_ROOT)
