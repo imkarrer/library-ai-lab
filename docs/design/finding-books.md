@@ -95,3 +95,36 @@ is a yes or no with an order.
 - **No stemming, and no matching on meaning.**
 - **Word matching favors what's in the record.** Many records have no summary, so the model
   judges those by title and subjects alone.
+
+## Tried and dropped: an encyclopedia
+
+We tested giving the answer model passages from a local copy of Simple English Wikipedia
+(285,000 articles, 561 MB) to reduce wrong facts. We dropped it on 2026-10-31. To keep it,
+wrong claims had to fall by about half and the first word had to arrive less than 2 seconds
+later. It missed both.
+
+The test used 80 fact questions with the real model, once with passages and once without. A
+separate reviewer scored the pairs blind.
+
+| | Without | With |
+|---|---|---|
+| Fully correct | 76 | 73 |
+| Partly correct | 2 | 4 |
+| Wrong | 2 | 3 |
+| Wrong claims | 12 | 9 |
+| First word, median | 0.6 s | 2.8 s |
+
+- **Passages can mislead the model.** Asked for Wisconsin's state bird, it read the mourning
+  dove article and answered "mourning dove". Without passages it said the robin, which is
+  right. It also lost the stapes and Benito Juárez, and added Lake Huron to Wisconsin's Great
+  Lakes.
+- **It helped where nobody knows the answer.** With passages it stopped naming a rarest
+  penguin and a rarest ant. The prompt rule against inventing facts already catches most of
+  these.
+- **Finding the right article mattered most.** The model guessed three article titles, then
+  we took each article's opening and its best passages. That found the fact on 73 of 80
+  questions, against 63 for plain word search. The same idea may help book search.
+
+These questions are ours, and they are short and factual. Real research questions ask for
+explanations, and the test doesn't measure those. Rerun it when we have real student
+questions.
