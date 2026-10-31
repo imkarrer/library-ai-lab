@@ -10,15 +10,38 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from library_assistant.alarm_banner import ALARM_SCRIPT
 from library_assistant.app import app
 from library_assistant.mint import mint_cards, qr_sheet_html, roster_sheet_html
 from library_assistant.routers.about import ABOUT_PATH
 from library_assistant.routers.session import CHAT_PAGE_HTML
 from library_assistant.staff import PAGE_HTML
-from library_assistant.theme import STATIC_DIR, THEME_PATH, theme_css
+from library_assistant.theme import FAVICON_PATH, STATIC_DIR, THEME_PATH, theme_css
 
 REPO = Path(__file__).resolve().parent.parent
 LINK = f'<link rel="stylesheet" href="{THEME_PATH}">'
+
+
+def test_the_favicon_needs_no_session_and_fetches_nothing():
+    response = TestClient(app).get(FAVICON_PATH)
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("image/svg+xml")
+    assert "href" not in response.text
+
+
+@pytest.mark.parametrize("path", ["/about", "/staff/login", "/staff/setup"])
+def test_a_page_shows_the_favicon(path):
+    response = TestClient(app).get(path)
+    assert f'<link rel="icon" href="{FAVICON_PATH}"' in response.text
+
+
+@pytest.mark.parametrize("page", [CHAT_PAGE_HTML, PAGE_HTML])
+def test_student_and_staff_pages_link_the_favicon(page):
+    assert f'<link rel="icon" href="{FAVICON_PATH}"' in page
+
+
+def test_the_tab_gets_its_icon_back_after_the_last_alarm():
+    assert "open.size ? redDot() : restingIcon" in ALARM_SCRIPT
 
 
 def test_stylesheet_needs_no_session_and_carries_the_palette():
