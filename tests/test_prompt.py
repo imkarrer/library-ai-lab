@@ -202,3 +202,9 @@ def test_the_overview_is_told_not_to_invent():
     )
     assert "without naming a winner" in RESEARCH_PROMPT
     assert "not tables" in RESEARCH_PROMPT
+
+
+def test_the_overview_never_gives_methods_and_points_to_help():
+    assert "never give methods, amounts, or instructions" in RESEARCH_PROMPT
+    assert "school counselor" in RESEARCH_PROMPT
+    assert "988" in RESEARCH_PROMPT
