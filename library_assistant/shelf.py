@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-# Dewey's ten hundreds, in words a 12-year-old would use.
+# Dewey's ten hundreds, in everyday words.
 _DEWEY_SECTIONS = {
     "0": "computers and general knowledge",
     "1": "the mind and big ideas",

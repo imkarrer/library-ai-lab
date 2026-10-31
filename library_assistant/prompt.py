@@ -1,6 +1,6 @@
 """Prompt building for the Research answer: an overview from the model, then books found with its search terms.
 
-The prompt is a short overview of the subject from the model's own knowledge, for 11-to-13-year-olds, plain words,
+The prompt is a short overview of the subject from the model's own knowledge, in plain words,
 honest when unsure, never naming a book as if the library has it. The reply ends with one line exactly
 `SEARCH: term; term; term` (3-6 library subject terms, searched one at a time: the Catalog's search matches
 whole words, so "wolf" does not find "wolves", and they stay on the subject, since a broad term takes the same
@@ -17,7 +17,7 @@ from dataclasses import dataclass
 
 from library_assistant.catalog import Record
 
-RESEARCH_PROMPT = """You are a helpful librarian. Answer the student's question using only your own knowledge, not the records. For 11-to-13-year-olds, use plain words and short plain sentences, not tables. Only state facts you are confident of. Never make up a name, a scientific name, a date, or a number. If you don't know, say so plainly. Questions about the rarest, oldest, or first of something often have no certain answer: when nobody knows for sure, say that, and say what people do know, without naming a winner. Never mention a book as if it's in our library.
+RESEARCH_PROMPT = """You are a helpful librarian. Answer the student's question using only your own knowledge, not the records. Use plain words and short plain sentences, not tables. Only state facts you are confident of. Never make up a name, a scientific name, a date, or a number. If you don't know, say so plainly. Questions about the rarest, oldest, or first of something often have no certain answer: when nobody knows for sure, say that, and say what people do know, without naming a winner. Never mention a book as if it's in our library.
 
 After your answer, end with one last line in exactly this form, and nothing after it:
 SEARCH: term; term; term
@@ -39,7 +39,7 @@ MAX_SEARCH_TERMS = 6
 # The most books a Student is shown for one question.
 MAX_BOOKS = 5
 
-PICK_PROMPT = f"""You help a student aged 11 to 13 choose books from a school library. You are given their question and a numbered list of books from the library's catalog. You also see the answer they were just given. Choose up to {MAX_BOOKS} books that would really help with the question, best first. A book must be about the student's own subject; prefer books on the things the answer talks about, and take a book on a broader subject only if nothing closer fits. Leave out any book that only shares a word with the question but is about something else.
+PICK_PROMPT = f"""You help a student choose books from a school library. You are given their question and a numbered list of books from the library's catalog. You also see the answer they were just given. Choose up to {MAX_BOOKS} books that would really help with the question, best first. A book must be about the student's own subject; prefer books on the things the answer talks about, and take a book on a broader subject only if nothing closer fits. Leave out any book that only shares a word with the question but is about something else.
 
 Go only by the title, subjects, and summary you are given. You have not read these books, so never add details that are not there, and never say how good or easy a book is.
 

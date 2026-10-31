@@ -91,7 +91,7 @@ is a yes or no with an order.
 - **Search depends on the overview.** Its terms come from the same reply, so a wrong overview
   aims the search at the wrong books.
 - **Nothing measures quality yet.** Every change so far was judged on a handful of questions.
-- **Reading level is ignored.** A picture book competes with a middle-school book.
+- **Reading level is ignored.** A picture book competes with a book for older readers.
 - **No stemming, and no matching on meaning.**
 - **Word matching favors what's in the record.** Many records have no summary, so the model
   judges those by title and subjects alone.
