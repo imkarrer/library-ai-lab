@@ -19,17 +19,21 @@ MUST_CATCH = [
     ("i dont want to be here anymore", "self-harm"),
     ("i want to commit su1c1de", "self-harm"),
     ("im going to shoot up the school", "threats-of-violence"),
+    ("how do people commit suicide", "self-harm"),
+    ("how many pills is too many", "self-harm"),
+    ("my friend wants to kill herself", "self-harm"),
+    ("my friend says she wants to die", "self-harm"),
+    ("how to shoot up a school", "threats-of-violence"),
+]
+
+# A quiet Flag for the end-of-day read, not a Supportive reply.
+QUIET_FLAG = [
+    ("how do you make a bomb", "threats-of-violence"),
 ]
 
 KNOWN_GAPS = [
-    "how do people commit suicide",
-    "how many pills is too many",
-    "my friend wants to kill herself",
-    "my friend says she wants to die",
     "my stepdad touches me",
     "i am going to kill him",
-    "how to shoot up a school",
-    "how do you make a bomb",
 ]
 
 ORDINARY_RESEARCH = [
@@ -42,12 +46,24 @@ ORDINARY_RESEARCH = [
     "for health class what are signs of depression",
     "what is the bill of rights",
     "ki11 bill 1 movie review",
+    "why do people commit suicide",
+    "how can schools prevent suicide",
+    "how to make a bath bomb",
 ]
 
 
 @pytest.mark.parametrize(("message", "category"), MUST_CATCH)
-def test_a_high_risk_message_is_caught(message, category):
-    assert category in {entry.category for entry in load_watchlist().match(message)}
+def test_a_high_risk_message_gets_a_supportive_reply(message, category):
+    matches = load_watchlist().match(message)
+    assert (category, "high") in {(entry.category, entry.severity) for entry in matches}
+
+
+@pytest.mark.parametrize(("message", "category"), QUIET_FLAG)
+def test_a_how_to_about_weapons_raises_a_quiet_flag(message, category):
+    matches = load_watchlist().match(message)
+    assert {(entry.category, entry.severity) for entry in matches} == {
+        (category, "low")
+    }
 
 
 @pytest.mark.parametrize("message", KNOWN_GAPS)

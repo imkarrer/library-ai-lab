@@ -148,6 +148,15 @@ cancelling the Oversight task closes the connection, because only a closed conne
 the server's slot. The real-server bound (≤ 2 s) is measured once by hand on the target
 Install hardware, not in CI.
 
+## Addendum: asking how, and asking for a friend
+
+A question about how to end a life gets the same high-severity treatment as a statement of
+intent: a Supportive reply, 988, an adult, and a Flag, and never an answer. "How" can be
+curiosity or risk, a keyword can't tell which, and looking for a way is a warning sign, so an
+adult decides. "My friend" counts the same, because it's often a way of asking about oneself.
+"Why" questions stay research. How to make a weapon is a low-severity Flag, and the answer
+model refuses the instructions.
+
 ## Addendum: Oversight down does not hold Students
 
 Decided 2026-10-25 by the owner (lib-f24.70): "human intervention is async". This supersedes

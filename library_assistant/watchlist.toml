@@ -9,8 +9,10 @@
 # How to read it:
 # - severity "high" means an adult must see it today, and the Student gets the Supportive
 #   reply for the entry's category (ADR-0011) instead of an answer. High entries are written
-#   in the first person or with clear intent, so report research ("books about suicide
-#   prevention", "how did Hitler die", "To Kill a Mockingbird") does not raise them.
+#   in the first person, with clear intent, as a question about how to do it, or about a
+#   friend, which is often a way of asking about oneself. Report research ("books about
+#   suicide prevention", "why do people commit suicide", "how did Hitler die", "To Kill a
+#   Mockingbird") does not raise them.
 # - severity "low" raises a silent Flag for the end-of-day read. Low entries cast wider and
 #   will catch some jokes and hyperbole; the adult reading the exchange decides.
 # - Phrases match whole words after normalize(): case, accents, repeated letters ("kiiill")
@@ -18,7 +20,7 @@
 #   so "don't" and "dont" are different phrases and both are listed.
 # - must_match and must_not_match are checked every time the file loads: a near miss in
 #   must_not_match is a promise that it does not fire.
-version = "2026-10-29.1"
+version = "2026-10-31.1"
 
 # ---------------------------------------------------------------------------------------
 # self-harm
@@ -213,18 +215,53 @@ phrases = [
   "painless way to die", "painless ways to die", "easiest way to die",
   "quickest way to die", "jump in front of a car",
   "jump in front of a train",
+  "how do people commit suicide", "how do you commit suicide", "how do i commit suicide",
+  "how to commit suicide", "ways to commit suicide", "how do people kill themselves",
+  "how do you kill yourself", "how to kill yourself", "ways to kill yourself",
+  "how many pills is too many", "how to overdose", "how do you overdose",
+  "how do people overdose",
 ]
 must_match = [
+  "how do people commit suicide",
+  "how many pills is too many",
   "how many pills does it take to die",
   "whats the most painless way to die",
   "im going to take all my pills tonight",
   "i want to hang myself",
 ]
 must_not_match = [
+  "why do people commit suicide",
+  "how can schools prevent suicide",
+  "what should you do if someone has an overdose",
   "how many pills should I take for a headache",
   "Romeo takes poison, so how did Juliet die",
   "the picture is hanging on my wall",
   "what is the easiest way to draw a dragon",
+]
+
+[[entries]]
+id = "self-harm-a-friend"
+category = "self-harm"
+severity = "high"
+phrases = [
+  "my friend wants to die", "my friend wants to kill herself",
+  "my friend wants to kill himself", "my friend wants to kill themselves",
+  "my friend is going to kill herself", "my friend is going to kill himself",
+  "friend says she wants to die", "friend says he wants to die",
+  "friend said she wants to die", "friend said he wants to die",
+  "my friend is suicidal", "my friend cuts herself", "my friend cuts himself",
+  "my friend is cutting herself", "my friend is cutting himself",
+  "my sister wants to die", "my brother wants to die",
+]
+must_match = [
+  "my friend wants to kill herself",
+  "my friend says she wants to die",
+  "i think my friend is suicidal",
+]
+must_not_match = [
+  "my friend wants to borrow Romeo and Juliet",
+  "my character wants to die in my story",
+  "my friend is reading a book about suicide prevention",
 ]
 
 [[entries]]
@@ -636,7 +673,7 @@ severity = "high"
 phrases = [
   "shoot up the school", "shoot up this school", "shoot up our school", "shoot up the class",
   "shoot up the cafeteria", "shooting up the school", "shoot everyone at school",
-  "shoot everyone tomorrow",
+  "shoot everyone tomorrow", "how to shoot up a school",
   "blow up the school", "blow up this school", "bomb the school", "bomb this school",
   "there's a bomb in", "theres a bomb in", "i have a bomb", "i made a bomb",
   "planting a bomb", "stab everyone", "i want to stab", "i wanna stab",
@@ -653,6 +690,25 @@ must_not_match = [
   "a book about the atomic bomb for history",
   "how do you shoot a basketball",
   "why did Brutus stab Caesar",
+]
+
+[[entries]]
+id = "threats-how-to-make-a-weapon"
+category = "threats-of-violence"
+severity = "low"
+phrases = [
+  "how to make a bomb", "how do you make a bomb", "how do i make a bomb", "how to build a bomb",
+  "how do you build a bomb", "how to make a pipe bomb", "how to make a gun",
+  "how do you make a gun",
+]
+must_match = [
+  "how do you make a bomb",
+  "how to build a bomb at home",
+]
+must_not_match = [
+  "how to make a bath bomb",
+  "how did scientists build the atomic bomb",
+  "how were the first guns made",
 ]
 
 [[entries]]
