@@ -31,7 +31,7 @@ from library_assistant.catalog.sqlite_backend import SqliteCatalog
 from library_assistant.config import Settings
 from library_assistant.dependencies import get_catalog, get_settings
 from library_assistant.install_settings import SUPERVISION_MODE, set_setting
-from library_assistant.prompt import MAX_BOOKS
+from library_assistant.prompt import MAX_BOOKS, MAX_SEARCH_TERMS
 from library_assistant.routers.session import (
     BANNER_TEXT,
     BOOK_CANDIDATES,
@@ -544,6 +544,70 @@ def test_a_good_book_far_down_the_search_can_still_be_chosen(client, monkeypatch
     assert "Book 1 " not in response.text
 
 
+def _model_writes_search_terms(monkeypatch, line: bytes) -> None:
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        if not json.loads(request.content)["stream"]:
+            return httpx.Response(
+                200, json={"choices": [{"message": {"content": "1: It fits."}}]}
+            )
+        return httpx.Response(
+            200,
+            content=b'data: {"choices":[{"delta":{"content":"' + line + b'"}}]}\n\n'
+            b"data: [DONE]\n\n",
+            headers={"content-type": "text/event-stream"},
+        )
+
+    monkeypatch.setattr(
+        httpx.AsyncHTTPTransport, "handle_async_request", handle_async_request
+    )
+
+
+class SearchesSeen(FakeCatalog):
+    def __init__(self) -> None:
+        self.queries: list[str] = []
+
+    def search(self, query: str, k: int) -> list[Record]:
+        self.queries.append(query)
+        return [RECORD]
+
+
+def test_each_of_the_models_terms_is_its_own_search(client, monkeypatch):
+    test_client, _ = client
+    catalog = SearchesSeen()
+    app.dependency_overrides[get_catalog] = lambda: catalog
+    _model_writes_search_terms(monkeypatch, b"SEARCH: wolf; wolves; canids")
+    _sign_in(test_client)
+
+    test_client.post("/ask", json={"question": "do wolves howl?"})
+
+    assert catalog.queries == ["wolf", "wolves", "canids", "do wolves howl?"]
+
+
+def test_a_model_cannot_run_a_question_into_endless_searches(client, monkeypatch):
+    test_client, _ = client
+    catalog = SearchesSeen()
+    app.dependency_overrides[get_catalog] = lambda: catalog
+    terms = "; ".join(f"term{n}" for n in range(30)).encode()
+    _model_writes_search_terms(monkeypatch, b"SEARCH: " + terms)
+    _sign_in(test_client)
+
+    test_client.post("/ask", json={"question": "do wolves howl?"})
+
+    assert len(catalog.queries) == MAX_SEARCH_TERMS + 1  # and the Student's words
+
+
+def test_with_no_terms_the_students_own_words_are_searched(client, monkeypatch):
+    test_client, _ = client
+    catalog = SearchesSeen()
+    app.dependency_overrides[get_catalog] = lambda: catalog
+    _model_writes_search_terms(monkeypatch, b"Wolves howl.")
+    _sign_in(test_client)
+
+    test_client.post("/ask", json={"question": "do wolves howl?"})
+
+    assert catalog.queries == ["do wolves howl?"]
+
+
 def test_a_student_is_told_the_author_and_where_to_walk(client, monkeypatch):
     test_client, _ = client
     app.dependency_overrides[get_catalog] = lambda: ManyBooksCatalog(1)
@@ -559,6 +623,18 @@ def test_a_student_is_told_the_author_and_where_to_walk(client, monkeypatch):
         "find 599.77, then B01\n"
         "Why: It is about wolves."
     ) in response.text
+
+
+def test_a_reason_that_only_repeats_the_title_is_dropped(client, monkeypatch):
+    test_client, _ = client
+    app.dependency_overrides[get_catalog] = lambda: ManyBooksCatalog(1)
+    _model_picks(monkeypatch, "1: Book 1.")
+    _sign_in(test_client)
+
+    response = test_client.post("/ask", json={"question": "wolves?"})
+
+    assert "Citation: Book 1 " in response.text
+    assert "Why:" not in response.text
 
 
 def test_a_book_the_model_never_saw_cannot_be_shown(client, monkeypatch):
