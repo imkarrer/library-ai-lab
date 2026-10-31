@@ -18,6 +18,7 @@ from fastapi.responses import Response
 STATIC_DIR = Path(__file__).parent / "static"
 THEME_PATH = "/library.css"
 FAVICON_PATH = "/favicon.svg"
+ANSWER_SCRIPT_PATH = "/answer.js"
 # Goes in every page's <head>.
 THEME_LINK = (
     f'<link rel="stylesheet" href="{THEME_PATH}">\n'
@@ -32,6 +33,16 @@ def theme_css() -> str:
     return "\n".join(
         (STATIC_DIR / name).read_text(encoding="utf-8")
         for name in ("palette.css", "components.css", "library.css")
+    )
+
+
+@router.get(ANSWER_SCRIPT_PATH)
+def answer_script() -> Response:
+    """Turns a model's Markdown into something a Student can read."""
+    return Response(
+        (STATIC_DIR / "answer.js").read_text(encoding="utf-8"),
+        media_type="text/javascript",
+        headers={"Cache-Control": "no-cache"},
     )
 
 
