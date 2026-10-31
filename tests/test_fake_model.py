@@ -5,8 +5,14 @@ import json
 from fake_model import answer_text, build_app, verdict
 from fastapi.testclient import TestClient
 
+from library_assistant.catalog import Record
 from library_assistant.oversight import _SYSTEM_PROMPT, _parse_verdict
-from library_assistant.prompt import RESEARCH_PROMPT, SearchLineFilter
+from library_assistant.prompt import (
+    RESEARCH_PROMPT,
+    SearchLineFilter,
+    build_pick_messages,
+    parse_picks,
+)
 
 
 def test_answer_ends_with_a_search_line_the_filter_reads():
@@ -57,3 +63,13 @@ def test_answer_lane_streams_openai_chunks():
     assert events[-1] == "[DONE]"
     text = "".join(json.loads(e)["choices"][0]["delta"]["content"] for e in events[:-1])
     assert text == answer_text("tell me about sharks")
+
+
+def test_choosing_books_answers_in_the_form_the_assistant_reads():
+    records = [Record(str(n), f"Book {n}", "", "", "", "599 BOO") for n in range(1, 9)]
+    messages = build_pick_messages("wolves?", records)
+    reply = TestClient(build_app(0)).post(
+        "/v1/chat/completions", json={"messages": messages, "stream": False}
+    )
+    content = reply.json()["choices"][0]["message"]["content"]
+    assert [index for index, _ in parse_picks(content, 8)] == [0, 1, 2, 3, 4]

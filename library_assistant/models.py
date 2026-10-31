@@ -12,9 +12,17 @@ class Citation(BaseModel):
     record_id: str
     title: str
     call_number: str
+    author: str = ""
+    where: str = ""
+    why: str = ""
 
     def line(self) -> str:
         return f"Citation: {self.title} ({self.call_number})"
+
+    def lines(self) -> list[str]:
+        """The Citation as the chat page reads it: its line, then what is known of it."""
+        details = (("By", self.author), ("Where", self.where), ("Why", self.why))
+        return [self.line()] + [f"{name}: {text}" for name, text in details if text]
 
 
 class AskRequest(BaseModel):

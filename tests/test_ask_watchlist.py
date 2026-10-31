@@ -226,7 +226,7 @@ def test_low_severity_flags_and_answers(client, model_calls, catalog):
     assert response.status_code == 200
     assert "Try Ferdinand" in response.text
     assert SUPPORTIVE_REPLY not in response.text
-    assert len(model_calls) == 1
+    assert len(model_calls) == 2  # the overview, then choosing books
     assert catalog.searches != []
     assert db.execute("SELECT count(*) FROM flags").fetchone()[0] == 1
     assert _in_flight == set()
@@ -264,7 +264,7 @@ def test_no_match_raises_no_flag(client, model_calls):
 
     assert response.status_code == 200
     assert db.execute("SELECT count(*) FROM flags").fetchone()[0] == 0
-    assert len(model_calls) == 1
+    assert len(model_calls) == 2  # the overview, then choosing books
 
 
 def test_same_message_again_is_a_repeat_and_still_gets_the_reply(client, model_calls):
