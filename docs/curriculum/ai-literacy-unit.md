@@ -809,7 +809,7 @@ Lakes, the moon landing.
 
 ### What the assistant is good at, honestly
 
-From the project's planning notes (bead lib-0ov; `docs/plan.md` at commit `68abceb`, "Quality
+From the project's planning notes (bead lib-0ov; `docs/plan.md` at commit `2266484`, "Quality
 versus a frontier model, honestly"):
 
 - **Catalog search and readers' advisory:** about as good as the large commercial assistants,
