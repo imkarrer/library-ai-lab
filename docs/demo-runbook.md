@@ -592,6 +592,35 @@ one was missed (ADR-0003). To show it ran, after the talk (tab 3):
 sqlite3 "$LIBRARY_ASSISTANT_DB" "SELECT ran_at, deleted, kept_for_flags FROM purge_runs ORDER BY ran_at DESC LIMIT 3; SELECT count(*) FROM transcripts;"
 ```
 
+## One computer: no phones, no Wi-Fi
+
+Everything above also runs on the laptop alone, with no volunteers. Start the stack without
+`--lan`:
+
+```
+./stack down && ./stack up
+```
+
+Three browser tabs play the three people. A browser keeps one staff sign-in per address, and
+this laptop answers to two, so use both:
+
+| Tab | Who | Address |
+|---|---|---|
+| 1 | Ms. Overdue: Live view, press Start watch | `http://127.0.0.1:8000/staff/live` |
+| 2 | Mr. Pop-Quiz: Make Cards | `http://localhost:8000/staff/mint/` |
+| 3 | A Student | Opened from tab 2 |
+
+1. In tab 2, press **Make Cards**. It shows a red note that Cards won't open on a phone. That
+   is true here and does no harm, so carry on.
+2. Under the QR code, click **Open this Card on this computer**. A laptop can't scan its own
+   screen, so this is tab 3, the Student's chat, signed in with that Card.
+3. Ask in tab 3 and watch tab 1, side by side. A Flag and the Alarm work as in Steps 8 to 10.
+4. For Dr. Hugsworth, sign out of tab 2 and sign in there as the Counselor.
+
+To try one question without any of this, open **Test** in the Librarian's menu (`/staff/test`).
+It needs no Card and no Watch, and it says what would happen in class instead of raising a Flag.
+Don't use it to show the Live view or an Alarm: it never reaches them.
+
 ## Recovery
 
 ### The model server is down
@@ -638,6 +667,9 @@ on `/staff/settings`:
   Live view says "Sessions are paused." with **Resume Sessions** for an adult to override.
 
 ### A phone cannot reach the laptop
+
+If `./stack status` says the assistant is "not answering", the laptop has changed networks and
+the assistant is still listening on the old address: `./stack down && ./stack up --lan`.
 
 Work down the list:
 

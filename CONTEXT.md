@@ -169,6 +169,11 @@ queue, from Start watch until End watch, sign-out, or a missed heartbeat. In Liv
 mode, Student Sessions start and continue only while at least one Watch is on.
 _Avoid_: shift, duty, monitoring, online
 
+**Test page**:
+Where a Librarian or Stand-in asks the assistant with no Card and no Watch (`/staff/test`). It
+shows what a Student would get and what would happen in class. It is not a Session: nothing is
+saved, and it raises no Flag or Alarm.
+
 **Supervision mode**:
 The Librarian's setting for when Students may chat: Live (only while someone is on Watch, the
 default), Periodic review (any time, with the Flag queue reviewed on a set interval), or Off.

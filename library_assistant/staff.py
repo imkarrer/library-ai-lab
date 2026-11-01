@@ -147,7 +147,11 @@ def nav_links(account: StaffAccount) -> list[tuple[str, str]]:
     the /staff home, so a role never sees a link it would be refused."""
     links: list[tuple[str, str]] = []
     if account.role == "librarian" or account.is_stand_in:
-        links += [("Live view", "/staff/live"), ("Flags", "/staff/flags")]
+        links += [
+            ("Live view", "/staff/live"),
+            ("Flags", "/staff/flags"),
+            ("Test", "/staff/test"),
+        ]
     if account.role == "counselor":
         links.append(("Escalated Flags", "/staff/counselor"))
     if account.role == "librarian":
@@ -165,6 +169,7 @@ def nav_links(account: StaffAccount) -> list[tuple[str, str]]:
 _HOME_CARD_TEXT = {
     "/staff/live": "Start watch, and see every Session and open Flag as it happens.",
     "/staff/flags": "Every open Flag: Acknowledge, export, Escalate, and close.",
+    "/staff/test": "Ask it yourself, with no Card and no Watch. Nothing is saved.",
     "/staff/counselor": "The Flags Escalated to you, to resolve and close.",
     "/staff/accounts": "Add Teachers and Counselors; grant Stand-in.",
     "/staff/keys": "Registration keys, and each Teacher's Minting page.",

@@ -318,3 +318,12 @@ def test_reply_uses_the_installs_counselor_line(client, model_calls):
     response = test_client.post("/ask", json={"question": HIGH_QUESTION})
 
     assert "Ms. Rivera in Room 12" in response.text
+
+
+def test_the_student_page_has_no_staff_test_panel(client) -> None:
+    # The chat page's template is shared with the staff test page.
+    test_client, _ = client
+    page = test_client.get("/chat").text
+    assert "/staff/test" not in page
+    assert '"/ask"' in page
+    assert "End session" in page
