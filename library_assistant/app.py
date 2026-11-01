@@ -25,6 +25,7 @@ from library_assistant.routers.it_kit import router as it_kit_router
 from library_assistant.routers.lessons import router as lessons_router
 from library_assistant.routers.live import router as live_router
 from library_assistant.routers.session import router as session_router
+from library_assistant.routers.staff_test import router as staff_test_router
 from library_assistant.routers.watch import router as watch_router
 from library_assistant.staff import StaffSignInRequired, sign_in_required_handler
 from library_assistant.staff import router as staff_router
@@ -122,6 +123,7 @@ app.include_router(alarms_router)
 app.include_router(theme_router)
 app.include_router(it_kit_router)
 app.include_router(lessons_router)
+app.include_router(staff_test_router)
 app.include_router(mint_app_router)
 app.add_exception_handler(StaffSignInRequired, sign_in_required_handler)
 # The only access log: route template, status, duration (ADR-0003 addendum).

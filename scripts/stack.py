@@ -599,6 +599,10 @@ def status(state: Path) -> None:
 
     if config and _read_pid(state, "assistant"):
         _say(
+            f"  Test page:     {base_url(config)}/staff/test  "
+            f"(as {DEMO_CAST[0].name}; no Card, no Watch, nothing saved)"
+        )
+        _say(
             f"  Make Cards:    {base_url(config)}/staff/mint/  "
             f"(as {DEMO_CAST[1].name}; {install_hint(config)})"
         )

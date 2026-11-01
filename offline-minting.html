@@ -221,6 +221,7 @@
                         <button id="handed-out-btn">Handed out, next Card</button>
                         <button id="prev-btn" class="secondary">Back</button>
                     </div>
+                    <p class="hint"><a id="handout-open" target="_blank" rel="noopener noreferrer">Open this Card on this computer</a></p>
                 </div>
             </div>
             <div id="handout-done" class="success hidden">Every Card is handed out. Keep the Roster below.</div>
@@ -3168,6 +3169,7 @@ ${sheetHtml}
             const row = data.rosterRows[index];
             document.getElementById('handout-qr').innerHTML =
                 generateQRCodeSVG(signInUrl(data.base, card.token));
+            document.getElementById('handout-open').href = signInUrl(data.base, card.token);
             document.getElementById('handout-count').textContent =
                 `Card ${card.cardNumber} of ${total}`;
             document.getElementById('handout-who').textContent = row.students || `Card ${card.cardNumber}`;

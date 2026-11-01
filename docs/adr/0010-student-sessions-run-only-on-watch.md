@@ -240,3 +240,21 @@ flag and its resolution." Escalating a Flag hands it to the Counselor for good.
 Escalation is still only the Librarian's to start (ADR-0004), and still needs a word in
 person for anything urgent: the Counselor hears the Alarm only on an open Counselor page.
 
+## Amendment: the staff test page
+
+Decided 2026-11-01 by the owner: the Librarian "needs to have their own mode of interacting with
+the ai so they can test it without needing to scan a qr code or be on watch". The Librarian or a
+Stand-in can ask on `/staff/test`, signed in, with no Card and nobody on Watch.
+
+This does not open the gate, because a test is not a Student Session. It stays outside the rules
+above for these reasons:
+
+- **Only the adults who can hold a Watch reach it.** A Card reaches none of it.
+- **It keeps nothing.** No Session, no transcript, no Flag, no Live view event. It needs no
+  Purge (ADR-0003), and a Card-to-Student link cannot arise (ADR-0002).
+- **It runs the Student's code.** The same answer stream, Watchlist, Supportive reply, and
+  Oversight, so a test shows what a Student would get. Beside the answer it says what would
+  happen in class, in place of raising the Flag.
+
+The cost: a Student using a signed-in staff computer would get the Supportive reply but raise no
+Flag. Staff sign-in is the boundary here, as it is for the Flag queue.
