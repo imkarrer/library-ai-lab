@@ -299,17 +299,17 @@ def test_the_marker_is_released_after_each_answer(harness) -> None:
         ("post", "/staff/test/check"),
     ],
 )
-def test_a_student_or_a_counselor_cannot_reach_it(harness, method, path) -> None:
+def test_a_card_holder_cannot_reach_it(harness, method, path) -> None:
     client, _, _ = harness
     kwargs = {"json": {"question": "bulls?"}} if method == "post" else {}
     # No staff sign-in at all: this is where a Card holder stands.
     assert getattr(client, method)(path, **kwargs).status_code == 401
-    sign_in(client, "counselor")
-    assert getattr(client, method)(path, **kwargs).status_code == 403
 
 
-@pytest.mark.parametrize("username", ["librarian", "teacher", "stand-in"])
-def test_who_can_test_finds_the_link_and_gets_an_answer(harness, username) -> None:
+@pytest.mark.parametrize("username", ["librarian", "teacher", "stand-in", "counselor"])
+def test_any_staff_member_can_test_finds_the_link_and_gets_an_answer(
+    harness, username
+) -> None:
     client, _, _ = harness
     sign_in(client, username)
     assert 'href="/staff/test"' in client.get("/staff").text
@@ -319,10 +319,10 @@ def test_who_can_test_finds_the_link_and_gets_an_answer(harness, username) -> No
     assert check.status_code == 200
 
 
-def test_a_counselor_gets_no_link(harness) -> None:
+def test_the_page_asks_staff_to_use_it_sparingly(harness) -> None:
     client, _, _ = harness
-    sign_in(client, "counselor")
-    assert 'href="/staff/test"' not in client.get("/staff").text
+    sign_in(client, "teacher")
+    assert "Use this sparingly" in client.get("/staff/test").text
 
 
 def test_the_minting_page_links_the_card_on_screen() -> None:

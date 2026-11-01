@@ -617,7 +617,7 @@ this laptop answers to two, so use both:
 3. Ask in tab 3 and watch tab 1, side by side. A Flag and the Alarm work as in Steps 8 to 10.
 4. For Dr. Hugsworth, sign out of tab 2 and sign in there as the Counselor.
 
-To try one question without any of this, open **Test** in the Librarian's or Teacher's menu (`/staff/test`).
+To try one question without any of this, open **Test** in any staff member's menu (`/staff/test`).
 It needs no Card and no Watch, and it says what would happen in class instead of raising a Flag.
 Don't use it to show the Live view or an Alarm: it never reaches them.
 
