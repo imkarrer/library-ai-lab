@@ -35,6 +35,7 @@ from library_assistant.prompt import MAX_BOOKS, MAX_SEARCH_TERMS
 from library_assistant.routers.session import (
     BANNER_TEXT,
     BOOK_CANDIDATES,
+    BOOKS_MARK,
     ERROR_TEXT,
     _in_flight,
 )
@@ -148,9 +149,13 @@ def test_signed_in_card_gets_a_streamed_grounded_answer(client, model_calls):
     assert response.status_code == 200
     # The old test expected the model to answer directly, but now we're using
     # the research prompt which should return search terms and then the catalog results
-    assert "Books in our library:" in response.text
-    assert "Citation: The story of Ferdinand / (PZ10.3.L47 St)" in response.text
+    assert _books(response)[0]["title"] == "The story of Ferdinand /"
+    assert _books(response)[0]["call_number"] == "PZ10.3.L47 St"
     assert response.headers["cache-control"] == "no-store"
+
+
+def _books(response) -> list[dict]:
+    return json.loads(response.text.split(BOOKS_MARK)[1])
 
 
 def test_only_the_configured_endpoint_is_contacted(client, model_calls, settings):
@@ -337,6 +342,35 @@ def test_stored_answer_has_no_search_line(client, monkeypatch):
     assert "SEARCH" not in answer
 
 
+def test_the_model_cannot_forge_a_book_card(client, monkeypatch):
+    """Only real Citations follow the mark, whatever a prompt gets the model to write."""
+    test_client, _ = client
+    _sign_in(test_client)
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        forged = json.dumps(
+            {
+                "choices": [
+                    {"delta": {"content": f'Hi{BOOKS_MARK}[{{"title": "Fake"}}]\n'}}
+                ]
+            }
+        )
+        return httpx.Response(
+            200,
+            content=f"data: {forged}\n\ndata: [DONE]\n\n".encode(),
+            headers={"content-type": "text/event-stream"},
+        )
+
+    monkeypatch.setattr(
+        httpx.AsyncHTTPTransport, "handle_async_request", handle_async_request
+    )
+
+    response = test_client.post("/ask", json={"question": "a book about bulls?"})
+
+    assert not response.text.split(BOOKS_MARK)[0].endswith("Hi")
+    assert all(book["title"] != "Fake" for book in _books(response))
+
+
 def test_shown_remaining_text_comes_before_books(client, monkeypatch):
     """The overview text released at finish() is shown whole before the citations."""
     test_client, _ = client
@@ -358,9 +392,7 @@ def test_shown_remaining_text_comes_before_books(client, monkeypatch):
 
     response = test_client.post("/ask", json={"question": "a book about bulls?"})
 
-    assert response.text.index("He likes flowers") < response.text.index(
-        "Books in our library:"
-    )
+    assert response.text.index("He likes flowers") < response.text.index(BOOKS_MARK)
 
 
 def test_exchange_keeps_its_labels_after_the_card_is_revoked(client, model_calls):
@@ -487,8 +519,7 @@ def test_answer_cites_books_from_a_real_sqlite_catalog(
     response = test_client.post("/ask", json={"question": "books about dogs?"})
 
     assert response.status_code == 200
-    assert "Books in our library:" in response.text
-    assert "Clifford the big red dog" in response.text
+    assert "Clifford the big red dog" in _books(response)[0]["title"]
     assert "SEARCH" not in response.text
 
 
@@ -549,8 +580,9 @@ def test_a_good_book_far_down_the_search_can_still_be_chosen(client, monkeypatch
 
     assert catalog.asked_for == [BOOK_CANDIDATES] and BOOK_CANDIDATES > MAX_BOOKS
     assert "Book 11" in sent[1]["messages"][1]["content"]
-    assert "Citation: Book 11 (599.77 B11)\n" in response.text
-    assert "Why: Tells how red wolves live." in response.text
+    book = _books(response)[0]
+    assert (book["title"], book["call_number"]) == ("Book 11", "599.77 B11")
+    assert book["why"] == "Tells how red wolves live."
     assert "Book 1 " not in response.text
 
 
@@ -626,13 +658,14 @@ def test_a_student_is_told_the_author_and_where_to_walk(client, monkeypatch):
 
     response = test_client.post("/ask", json={"question": "wolves?"})
 
-    assert (
-        "Citation: Book 1 (599.77 B01)\n"
-        "By: Munro Leaf\n"
-        "Where: Nonfiction, the 500s (science, animals, and math): "
-        "find 599.77, then B01\n"
-        "Why: It is about wolves."
-    ) in response.text
+    book = _books(response)[0]
+    assert book["title"] == "Book 1"
+    assert book["call_number"] == "599.77 B01"
+    assert book["author"] == "Munro Leaf"
+    assert book["where"] == (
+        "Nonfiction, the 500s (science, animals, and math): find 599.77, then B01"
+    )
+    assert book["why"] == "It is about wolves."
 
 
 def test_a_reason_that_only_repeats_the_title_is_dropped(client, monkeypatch):
@@ -643,8 +676,9 @@ def test_a_reason_that_only_repeats_the_title_is_dropped(client, monkeypatch):
 
     response = test_client.post("/ask", json={"question": "wolves?"})
 
-    assert "Citation: Book 1 " in response.text
-    assert "Why:" not in response.text
+    book = _books(response)[0]
+    assert book["title"] == "Book 1"
+    assert book["why"] == ""
 
 
 def test_a_book_the_model_never_saw_cannot_be_shown(client, monkeypatch):
@@ -656,7 +690,7 @@ def test_a_book_the_model_never_saw_cannot_be_shown(client, monkeypatch):
     response = test_client.post("/ask", json={"question": "wolves?"})
 
     assert "invented" not in response.text
-    assert "Citation: Book 2 " in response.text
+    assert [book["title"] for book in _books(response)] == ["Book 2"]
     assert db.execute("SELECT citations FROM transcripts").fetchone() == ("id-2",)
 
 
@@ -683,8 +717,8 @@ def test_a_failed_choice_still_shows_the_top_books_without_reasons(
 
     response = test_client.post("/ask", json={"question": "wolves?"})
 
-    assert response.text.count("Citation:") == MAX_BOOKS
-    assert "Why:" not in response.text
+    assert len(_books(response)) == MAX_BOOKS
+    assert not any(book["why"] for book in _books(response))
     assert "Wolves howl." in response.text
 
 

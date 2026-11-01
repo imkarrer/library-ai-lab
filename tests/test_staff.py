@@ -572,3 +572,11 @@ def test_a_wrong_password_shows_in_the_cards_alert(client, db):
         '<div class="auth-message" role="alert"><p>Wrong username or password.</p></div>'
         in response.text
     )
+
+
+def test_a_counselor_cannot_get_a_registration_key(client, db):
+    create_account(db, "counselor", "correct horse", "counselor")
+    client.post(
+        "/staff/login", data={"username": "counselor", "password": "correct horse"}
+    )
+    assert client.post("/staff/key/rotate").status_code == 403
