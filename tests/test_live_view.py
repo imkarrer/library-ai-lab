@@ -8,6 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 from page_scripts import assert_scripts_parse
 from registration_helpers import batch_cards
+from staff_helpers import sign_in_as
 
 from library_assistant.access import (
     SESSION_COOKIE,
@@ -24,7 +25,6 @@ from library_assistant.install_settings import SUPERVISION_MODE, set_setting
 from library_assistant.routers.live import LiveBus, get_live_bus, live_events
 from library_assistant.shelf import author_name, where_to_find
 from library_assistant.staff import (
-    STAFF_SESSION_COOKIE,
     StaffAccount,
     create_account,
     deactivate_account,
@@ -105,20 +105,8 @@ def _ask(db, session_hash, class_label, card_number, question, asked_at=NOW):
     db.commit()
 
 
-def _sign_in_as(client, db, role) -> TestClient:
-    create_account(db, f"{role}-account", "correct horse", role)
-    response = client.post(
-        "/staff/login",
-        data={"username": f"{role}-account", "password": "correct horse"},
-        follow_redirects=False,
-    )
-    assert response.status_code == 303
-    client.cookies.set(STAFF_SESSION_COOKIE, response.cookies[STAFF_SESSION_COOKIE])
-    return client
-
-
 def test_tile_per_active_session_with_label_and_card(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     _card(db, "token-14", "14", class_label="Period 3")
     session_hash = _session(db, "token-14")
     _ask(db, session_hash, "Period 3", "14", "what do snow leopards eat?")
@@ -132,7 +120,7 @@ def test_tile_per_active_session_with_label_and_card(client, db):
 
 
 def test_tile_shows_registering_teacher_even_once_deactivated(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     teacher_id = create_account(db, "ms-alvarez", "correct horse", "teacher")
     _card(
         db,
@@ -151,7 +139,7 @@ def test_tile_shows_registering_teacher_even_once_deactivated(client, db):
 
 
 def test_expired_or_revoked_session_has_no_tile(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     _card(db, "token-expired", "15", expires_at=NOW - timedelta(hours=1))
     _session(db, "token-expired")
     # Revoked: no Card row at all for this Session's token.
@@ -164,7 +152,7 @@ def test_expired_or_revoked_session_has_no_tile(client, db):
 
 
 def test_tiles_most_recent_activity_first(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     _card(db, "token-older", "1")
     older_hash = _session(db, "token-older", started_at=NOW - timedelta(minutes=10))
     _ask(
@@ -193,7 +181,7 @@ def test_tiles_most_recent_activity_first(client, db):
 
 
 def test_latest_question_truncated(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     _card(db, "token-14", "14")
     session_hash = _session(db, "token-14")
     long_question = "why " * 30
@@ -211,7 +199,7 @@ def _main_html(page: str) -> str:
 
 
 def test_overview_has_no_forms(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     _card(db, "token-14", "14")
     session_hash = _session(db, "token-14")
     _ask(db, session_hash, "Period 3", "14", "a question")
@@ -228,7 +216,7 @@ def test_overview_has_no_forms(client, db):
 
 
 def test_page_has_no_token_or_hash(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     _card(db, "token-14", "14")
     session_hash = _session(db, "token-14")
     _ask(db, session_hash, "Period 3", "14", "a question")
@@ -244,7 +232,7 @@ def test_page_has_no_token_or_hash(client, db):
 
 def test_tile_shows_high_when_any_open_high_flag(client, db):
     """Test that a tile shows 'flag-high' when there's an open high-severity flag."""
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     _card(db, "token-14", "14")
     session_hash = _session(db, "token-14")
     _ask(db, session_hash, "Period 3", "14", "a question")
@@ -277,7 +265,7 @@ def test_tile_shows_high_when_any_open_high_flag(client, db):
 
 def test_tile_shows_low_when_only_low(client, db):
     """Test that a tile shows 'flag-low' when there's an open low-severity flag."""
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     _card(db, "token-14", "14")
     session_hash = _session(db, "token-14")
     _ask(db, session_hash, "Period 3", "14", "a question")
@@ -316,7 +304,7 @@ def _tiles_html(page: str) -> str:
 
 def test_closed_flags_do_not_mark(client, db):
     """Test that closed flags do not affect the tile marker."""
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     _card(db, "token-14", "14")
     session_hash = _session(db, "token-14")
     _ask(db, session_hash, "Period 3", "14", "a question")
@@ -358,7 +346,7 @@ def test_closed_flags_do_not_mark(client, db):
 
 def test_no_flag_no_marker(client, db):
     """Test that a tile has no flag marker when no open flags exist."""
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     _card(db, "token-14", "14")
     session_hash = _session(db, "token-14")
     _ask(db, session_hash, "Period 3", "14", "a question")
@@ -373,7 +361,7 @@ def test_no_flag_no_marker(client, db):
 
 def test_tile_shows_high_when_high_and_low_flags_exist(client, db):
     """Test that a tile shows 'flag-high' when both high and low severity flags exist."""
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     _card(db, "token-14", "14")
     session_hash = _session(db, "token-14")
     _ask(db, session_hash, "Period 3", "14", "a question")
@@ -422,7 +410,7 @@ def test_tile_shows_high_when_high_and_low_flags_exist(client, db):
 
 @pytest.mark.parametrize("role", ["teacher", "counselor"])
 def test_teacher_and_counselor_403(client, db, role):
-    _sign_in_as(client, db, role)
+    sign_in_as(client, db, role)
 
     response = client.get("/staff/live")
 
@@ -437,7 +425,7 @@ def test_anonymous_401(client):
 
 def test_detail_shows_questions_answers_citations_oldest_first(client, db):
     """Test that session detail shows exchanges ordered oldest first."""
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     _card(db, "token-14", "14", class_label="Period 3")
     session_hash = _session(db, "token-14")
 
@@ -480,7 +468,7 @@ def test_detail_shows_questions_answers_citations_oldest_first(client, db):
 
 def test_detail_unknown_session_404(client, db):
     """Test that accessing a non-existent session returns 404."""
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
 
     response = client.get("/staff/live/sessions/999999")
 
@@ -489,7 +477,7 @@ def test_detail_unknown_session_404(client, db):
 
 def test_detail_has_no_token_or_hash(client, db):
     """Test that session detail page does not contain token or hash."""
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     _card(db, "token-14", "14")
     session_hash = _session(db, "token-14")
     _ask(db, session_hash, "Period 3", "14", "a question")
@@ -511,7 +499,7 @@ def test_detail_has_no_token_or_hash(client, db):
 
 def test_detail_teacher_403(client, db):
     """Test that teacher role gets 403 for session detail."""
-    _sign_in_as(client, db, "teacher")
+    sign_in_as(client, db, "teacher")
 
     response = client.get("/staff/live/sessions/1")
 
@@ -520,7 +508,7 @@ def test_detail_teacher_403(client, db):
 
 def test_tile_links_to_detail(client, db):
     """Test that tile links properly to session detail."""
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     _card(db, "token-14", "14", class_label="Period 3")
     session_hash = _session(db, "token-14")
     _ask(db, session_hash, "Period 3", "14", "what do snow leopards eat?")
@@ -535,7 +523,7 @@ def test_tile_links_to_detail(client, db):
 
 def test_catalog_record_page_shows_the_record(client, db):
     """Test that the Catalog record page renders the Record's details."""
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     app.dependency_overrides[get_catalog] = lambda: FakeCatalog()
 
     response = client.get(f"/staff/catalog/record/{RECORD.id}")
@@ -547,7 +535,7 @@ def test_catalog_record_page_shows_the_record(client, db):
 
 def test_catalog_record_unknown_is_404(client, db):
     """Test that an unknown Record id 404s."""
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     app.dependency_overrides[get_catalog] = lambda: FakeCatalog()
 
     response = client.get("/staff/catalog/record/no-such-id")
@@ -557,7 +545,7 @@ def test_catalog_record_unknown_is_404(client, db):
 
 def test_catalog_record_teacher_403(client, db):
     """Test that teacher role gets 403 for the Catalog record page."""
-    _sign_in_as(client, db, "teacher")
+    sign_in_as(client, db, "teacher")
     app.dependency_overrides[get_catalog] = lambda: FakeCatalog()
 
     response = client.get(f"/staff/catalog/record/{RECORD.id}")
@@ -576,7 +564,7 @@ def _session_no_for_card(db, card_number, class_label) -> int:
 
 
 def test_revoke_card_refuses_next_ask_other_cards_continue(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     # No Watch is started in this test: open the gate directly (lib-793.3).
     set_setting(db, SUPERVISION_MODE, "off", account_id=1, now=NOW)
     expires_at = NOW + timedelta(hours=6)
@@ -613,7 +601,7 @@ def test_revoke_card_refuses_next_ask_other_cards_continue(client, db):
 
 
 def test_revoke_batch_refuses_every_card(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     # No Watch is started in this test: open the gate directly (lib-793.3).
     set_setting(db, SUPERVISION_MODE, "off", account_id=1, now=NOW)
     expires_at = NOW + timedelta(hours=6)
@@ -648,7 +636,7 @@ def test_revoke_batch_refuses_every_card(client, db):
 
 
 def test_revoke_requires_confirm(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     _card(db, "token-14", "14", class_label="Period 3")
     session_hash = _session(db, "token-14")
     session_row = db.execute(
@@ -663,7 +651,7 @@ def test_revoke_requires_confirm(client, db):
 
 
 def test_revoke_teacher_403(client, db):
-    _sign_in_as(client, db, "teacher")
+    sign_in_as(client, db, "teacher")
     _card(db, "token-14", "14", class_label="Period 3")
     session_hash = _session(db, "token-14")
     session_row = db.execute(
@@ -680,7 +668,7 @@ def test_revoke_teacher_403(client, db):
 
 
 def test_overview_still_has_no_forms(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     _card(db, "token-14", "14", class_label="Period 3")
     session_hash = _session(db, "token-14")
     _ask(db, session_hash, "Period 3", "14", "what do snow leopards eat?")
@@ -934,7 +922,7 @@ def test_supportive_reply_sends_no_delta_events(asking_client, bus):
 
 
 def test_detail_page_script_handles_delta_events(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     _card(db, "token-14", "14")
     session_hash = _session(db, "token-14")
     _ask(db, session_hash, "Period 3", "14", "a question")
@@ -1009,7 +997,7 @@ def test_events_ping_each_time_the_wait_returns():
 
 
 def test_events_teacher_403(client, db):
-    _sign_in_as(client, db, "teacher")
+    sign_in_as(client, db, "teacher")
 
     response = client.get("/staff/live/events")
 
@@ -1017,7 +1005,7 @@ def test_events_teacher_403(client, db):
 
 
 def test_live_pages_load_no_external_script(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     _card(db, "token-14", "14")
     session_hash = _session(db, "token-14")
     _ask(db, session_hash, "Period 3", "14", "a question")
@@ -1073,7 +1061,7 @@ def _panel_html(page: str) -> str:
 
 
 def test_live_view_panel_lists_every_open_flag_high_first(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     _card(db, "token-14", "14")
     session_hash = _session(db, "token-14")
     _ask(db, session_hash, "Period 3", "14", "Billy says I stink and makes me cry")
@@ -1094,7 +1082,7 @@ def test_live_view_panel_lists_every_open_flag_high_first(client, db):
 def test_panel_omits_closed_flags_and_says_when_none_are_open(client, db):
     from library_assistant.flags import close_flag
 
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     _card(db, "token-14", "14")
     session_hash = _session(db, "token-14")
     _ask(db, session_hash, "Period 3", "14", "a question")
@@ -1108,7 +1096,7 @@ def test_panel_omits_closed_flags_and_says_when_none_are_open(client, db):
 
 
 def test_session_detail_carries_the_panel_too(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     _card(db, "token-14", "14")
     session_hash = _session(db, "token-14")
     _ask(db, session_hash, "Period 3", "14", "a question")
@@ -1121,7 +1109,7 @@ def test_session_detail_carries_the_panel_too(client, db):
 
 
 def test_closing_a_flag_takes_it_off_the_panel_and_lowers_the_tile(client, db, bus):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     _card(db, "token-14", "14")
     session_hash = _session(db, "token-14")
     _ask(db, session_hash, "Period 3", "14", "a question")
@@ -1155,7 +1143,7 @@ def test_closing_a_flag_takes_it_off_the_panel_and_lowers_the_tile(client, db, b
 def test_reopening_a_flag_puts_it_back_on_the_panel(client, db, bus):
     from library_assistant.flags import close_flag
 
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     _card(db, "token-14", "14")
     session_hash = _session(db, "token-14")
     _ask(db, session_hash, "Period 3", "14", "a question")
@@ -1179,7 +1167,7 @@ def test_reopening_a_flag_puts_it_back_on_the_panel(client, db, bus):
 
 
 def test_session_detail_draws_answers_with_the_students_renderer(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     _card(db, "token-14", "14")
     session_hash = _session(db, "token-14")
     _ask(db, session_hash, "Period 3", "14", "a question")

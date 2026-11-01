@@ -162,7 +162,7 @@ def alarm_banner(db: sqlite3.Connection, account: StaffAccount, now: datetime) -
         "chime_on": chime_on,
         "repeat_seconds": repeat_seconds,
     }
-    if account.role == "librarian" or account.is_stand_in:
+    if account.can_watch:
         pending = (
             unacknowledged_alarms(db)
             if replays_on_page_open(db, account.id, now)

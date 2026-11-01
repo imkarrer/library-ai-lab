@@ -146,7 +146,7 @@ def nav_links(account: StaffAccount) -> list[tuple[str, str]]:
     """The pages this account may open, as (label, href): one list for the top bar and
     the /staff home, so a role never sees a link it would be refused."""
     links: list[tuple[str, str]] = []
-    if account.role == "librarian" or account.is_stand_in:
+    if account.can_watch:
         links += [("Live view", "/staff/live"), ("Flags", "/staff/flags")]
     links.append(("Test", "/staff/test"))
     if account.role == "counselor":
@@ -266,12 +266,26 @@ def create_account(
     return cursor.lastrowid
 
 
+# The roles that mint Batches (ADR-0002 addendum): a Counselor never does.
+MINTING_ROLES = ("librarian", "teacher")
+
+
 @dataclass(frozen=True)
 class StaffAccount:
     id: int
     username: str
     role: str
     is_stand_in: bool = False
+
+    @property
+    def can_watch(self) -> bool:
+        """Holds a Watch and works the whole Flag queue (ADR-0010)."""
+        return self.role == "librarian" or self.is_stand_in
+
+    @property
+    def can_mint(self) -> bool:
+        """Registers Batches (ADR-0002 addendum)."""
+        return self.role in MINTING_ROLES
 
 
 class StaffSignInRequired(Exception):
@@ -342,7 +356,7 @@ def require_watch_access() -> Callable[..., StaffAccount]:
     """Lets through the Librarian or a Stand-in; everyone else gets 403 (ADR-0010)."""
 
     def dependency(account: StaffDep) -> StaffAccount:
-        if account.role != "librarian" and not account.is_stand_in:
+        if not account.can_watch:
             raise HTTPException(status_code=403, detail="not available to your role")
         return account
 
@@ -533,7 +547,7 @@ def staff_home(
 
     # The accounts that mint (ADR-0002 addendum): their Minting page, filled in.
     minting_html = ""
-    if account.role in MINTING_ROLES:
+    if account.can_mint:
         minting_html = (
             '<section class="card-panel"><h2>Make Cards</h2>'
             "<p>Make your class's Cards on your own computer. The names you type stay "
@@ -723,10 +737,6 @@ def _key_row_html(row: tuple[int, str, str]) -> str:
     )
 
 
-# The roles that mint Batches (ADR-0002 addendum): a Counselor never does.
-MINTING_ROLES = ("librarian", "teacher")
-
-
 def _minting_page_form(account_id: int, role: str) -> str:
     if role not in MINTING_ROLES:
         return ""
@@ -862,7 +872,7 @@ def own_minting_page_route(
     settings: Settings = Depends(get_settings),
 ) -> Response:
     """A Teacher's (or the Librarian's) own Minting page, with a new key."""
-    if account.role not in MINTING_ROLES:
+    if not account.can_mint:
         raise HTTPException(status_code=403, detail="a Counselor does not make Cards")
     return _minting_page_download(
         request, db, account.id, account.username, clock, settings
@@ -875,7 +885,9 @@ def rotate_own_key_route(
     db: sqlite3.Connection = Depends(get_db),
     clock: datetime = Depends(get_clock),
 ) -> HTMLResponse:
-    """Any signed-in staff account rotates its own Registration key, shown once."""
+    """A staff account that makes Cards rotates its own Registration key, shown once."""
+    if not account.can_mint:
+        raise HTTPException(status_code=403, detail="a Counselor does not make Cards")
     key = issue_registration_key(db, account.id, clock)
     return page(
         "New registration key",

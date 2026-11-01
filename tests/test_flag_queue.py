@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+from staff_helpers import sign_in_as
 
 from library_assistant.access import connect, get_clock, get_db, hash_token
 from library_assistant.app import app
@@ -33,18 +34,6 @@ def client(db, clock):
         yield TestClient(app)
     finally:
         app.dependency_overrides.clear()
-
-
-def _sign_in_as(client, db, role) -> TestClient:
-    create_account(db, f"{role}-account", "correct horse", role)
-    response = client.post(
-        "/staff/login",
-        data={"username": f"{role}-account", "password": "correct horse"},
-        follow_redirects=False,
-    )
-    assert response.status_code == 303
-    client.cookies.set(STAFF_SESSION_COOKIE, response.cookies[STAFF_SESSION_COOKIE])
-    return client
 
 
 def _transcript(db, question="what do snow leopards eat?", answer="a good answer"):
@@ -98,7 +87,7 @@ def _flag(
 
 
 def test_queue_lists_flag_without_exchange_text(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     transcript_id = _transcript(
         db, question="is this ok?", answer="an answer that must not leak"
     )
@@ -119,7 +108,7 @@ def test_queue_lists_flag_without_exchange_text(client, db):
 
 
 def test_flag_page_shows_exchange_no_store(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     transcript_id = _transcript(
         db, question="is this ok?", answer="the full answer text"
     )
@@ -134,7 +123,7 @@ def test_flag_page_shows_exchange_no_store(client, db):
 
 
 def test_close_removes_from_queue(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     transcript_id = _transcript(db)
     flag_id = _flag(db, transcript_id)
 
@@ -152,7 +141,7 @@ def test_close_removes_from_queue(client, db):
 
 
 def test_teacher_gets_403(client, db):
-    _sign_in_as(client, db, "teacher")
+    sign_in_as(client, db, "teacher")
     transcript_id = _transcript(db)
     flag_id = _flag(db, transcript_id)
 
@@ -166,7 +155,7 @@ def test_teacher_gets_403(client, db):
 
 def test_counselor_sees_only_escalated(client, db):
     """A Counselor sees the queue, but only an Escalated Flag in it (ADR-0010)."""
-    _sign_in_as(client, db, "counselor")
+    sign_in_as(client, db, "counselor")
     transcript_id = _transcript(db)
     open_flag_id = _flag(db, transcript_id)
     escalated_flag_id = _flag(db, transcript_id, escalated=True)
@@ -228,7 +217,7 @@ def test_anonymous_gets_401(client, db):
 
 
 def test_unknown_flag_404(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
 
     assert client.get("/staff/flags/999").status_code == 404
     assert (
@@ -262,7 +251,7 @@ def test_raised_records_oversight_source(db):
 
 
 def test_viewing_flag_records_history(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     transcript_id = _transcript(db)
     flag_id = _flag(db, transcript_id)
 
@@ -277,7 +266,7 @@ def test_viewing_flag_records_history(client, db):
 
 
 def test_close_requires_outcome_and_reason(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     transcript_id = _transcript(db)
     flag_id = _flag(db, transcript_id)
 
@@ -301,7 +290,7 @@ def test_close_requires_outcome_and_reason(client, db):
 
 
 def test_close_records_history_with_outcome_and_account(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     transcript_id = _transcript(db)
     flag_id = _flag(db, transcript_id)
 
@@ -321,7 +310,7 @@ def test_close_records_history_with_outcome_and_account(client, db):
 
 
 def test_reopen_requires_reason(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     transcript_id = _transcript(db)
     flag_id = _flag(db, transcript_id)
     client.post(
@@ -339,7 +328,7 @@ def test_reopen_requires_reason(client, db):
 
 
 def test_reopen_reopens_and_records_history(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     transcript_id = _transcript(db)
     flag_id = _flag(db, transcript_id)
     client.post(
@@ -366,7 +355,7 @@ def test_reopen_reopens_and_records_history(client, db):
 
 
 def test_reopen_refused_after_exchange_purged(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     transcript_id = _transcript(db)
     flag_id = _flag(db, transcript_id)
     client.post(
@@ -386,7 +375,7 @@ def test_reopen_refused_after_exchange_purged(client, db):
 
 
 def test_overdue_flag_marked_in_queue(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     transcript_id = _transcript(db)
     flag_id = raise_flag(
         db,
@@ -583,7 +572,7 @@ def _escalate(client, flag_id, reason="needs the counselor"):
 
 def test_escalate_sets_escalated_and_history(client, db):
     create_account(db, "counselor-account", "correct horse", "counselor")
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     flag_id = _flag(db, _transcript(db), category="self-harm")
     assert "Escalate" in client.get(f"/staff/flags/{flag_id}").text
 
@@ -606,7 +595,7 @@ def test_escalate_sets_escalated_and_history(client, db):
 
 def test_escalated_flag_is_what_the_counselor_sees(client, db):
     create_account(db, "counselor-account", "correct horse", "counselor")
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     flag_id = _flag(db, _transcript(db))
     _escalate(client, flag_id)
     response = client.post(
@@ -619,7 +608,7 @@ def test_escalated_flag_is_what_the_counselor_sees(client, db):
 
 
 def test_escalate_absent_without_counselor(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     flag_id = _flag(db, _transcript(db))
 
     response = client.get(f"/staff/flags/{flag_id}")
@@ -632,7 +621,7 @@ def test_escalate_absent_without_counselor(client, db):
 def test_counselor_flag_shows_registered_by(client, db):
     """A Counselor sees Flag with Registered by field (lib-90j.2 addendum)."""
     create_account(db, "counselor-account", "correct horse", "counselor")
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
 
     # Create transcript and flag
     transcript_id = _transcript(db)
@@ -656,7 +645,7 @@ def test_counselor_flag_shows_registered_by(client, db):
 def test_unescalated_flag_404_for_counselor(client, db):
     """A Counselor gets 404 for a Flag that is not escalated."""
     create_account(db, "counselor-account", "correct horse", "counselor")
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
 
     # Create transcript and un-escalated flag
     transcript_id = _transcript(db)
@@ -677,7 +666,7 @@ def test_unescalated_flag_404_for_counselor(client, db):
 
 def test_escalate_requires_reason(client, db):
     create_account(db, "counselor-account", "correct horse", "counselor")
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     flag_id = _flag(db, _transcript(db))
 
     assert _escalate(client, flag_id, reason="").status_code == 400
@@ -687,7 +676,7 @@ def test_escalate_requires_reason(client, db):
 
 def test_escalate_is_librarian_only(client, db):
     create_account(db, "counselor-account", "correct horse", "counselor")
-    _sign_in_as(client, db, "teacher")
+    sign_in_as(client, db, "teacher")
     flag_id = _flag(db, _transcript(db))
     assert _escalate(client, flag_id).status_code == 403
 
@@ -719,7 +708,7 @@ def test_older_database_gains_escalation(tmp_path):
 
 def test_flag_queue_has_watch_control_for_librarian(client, db):
     """Test that the Flag queue page shows watch control for librarians."""
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     transcript_id = _transcript(db)
     _flag(db, transcript_id)
 
@@ -732,7 +721,7 @@ def test_flag_queue_has_watch_control_for_librarian(client, db):
 
 def test_flag_queue_script_answers_ping_with_heartbeat(client, db):
     """Test that the Flag queue page includes script that handles ping events with heartbeat."""
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     transcript_id = _transcript(db)
     _flag(db, transcript_id)
 
@@ -747,7 +736,7 @@ def test_flag_queue_script_answers_ping_with_heartbeat(client, db):
 
 def test_flag_queue_no_watch_control_for_counselor(client, db):
     """Test that the Flag queue page does not show watch control for counselors."""
-    _sign_in_as(client, db, "counselor")
+    sign_in_as(client, db, "counselor")
     transcript_id = _transcript(db)
     _flag(db, transcript_id, escalated=True)
 

@@ -36,6 +36,7 @@ from library_assistant.oversight import (
 )
 from library_assistant.routers.session import (
     BANNER_TEXT,
+    BOOKS_MARK,
     CHAT_PAGE_HTML,
     ERROR_TEXT,
     _in_flight,
@@ -107,6 +108,7 @@ def test_page(
     return HTMLResponse(
         CHAT_PAGE_HTML.format(
             books_title=json.dumps(books_title(settings.demo)),
+            books_mark=json.dumps(BOOKS_MARK),
             banner=BANNER_TEXT,
             who=f"Test &middot; {html.escape(account.username)}",
             below_composer=_IN_CLASS_PANEL,
