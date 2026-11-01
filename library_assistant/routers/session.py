@@ -76,6 +76,10 @@ BANNER_TEXT = "This can be wrong, check the source."
 
 ERROR_TEXT = "Something went wrong. Ask the librarian."
 
+# Ends the overview in the stream; the Citations follow it as JSON. Taken out of whatever
+# the model writes, so a prompt can't forge a book card.
+BOOKS_MARK = "\x1e"
+
 logger = logging.getLogger(__name__)
 
 # Books the search hands the model to choose from. Keyword relevance is rough, so this
@@ -140,21 +144,18 @@ CHAT_PAGE_HTML = """<!DOCTYPE html>
   </main>
   <script src="/answer.js"></script>
   <script>
-    // A finished answer's books ("Books in our library:", then a "Citation: Title (call
-    // number)" line each, with any By:, Where: and Why: lines under it) become a list of
-    // book cards; the overview stays as text.
-    const BOOKS_HEADER = "\\n\\nBooks in our library:";
-    const DETAILS = {{ By: "author", Where: "where", Why: "why" }};
+    // The overview is text. The books follow it as JSON, after a mark the model can't
+    // write, so only real Citations become book cards.
+    const BOOKS_MARK = {books_mark};
     const renderBooks = (bubble, text) => {{
-      const at = text.indexOf(BOOKS_HEADER);
+      const at = text.indexOf(BOOKS_MARK);
       renderAnswer(bubble, at < 0 ? text : text.slice(0, at));
       if (at < 0) return;
-      const citations = [];
-      for (const line of text.slice(at + BOOKS_HEADER.length).split("\\n")) {{
-        const citation = line.match(/^Citation: (.*) \\(([^()]*)\\)$/);
-        const detail = line.match(/^(By|Where|Why): (.*)$/);
-        if (citation) citations.push({{ title: citation[1], call_number: citation[2] }});
-        else if (detail && citations.length) citations.at(-1)[DETAILS[detail[1]]] = detail[2];
+      let citations;
+      try {{
+        citations = JSON.parse(text.slice(at + BOOKS_MARK.length));
+      }} catch (error) {{
+        return; // Still arriving.
       }}
       bubble.append(bookCards(citations, {books_title}));
     }};
@@ -254,6 +255,7 @@ CHAT_PAGE_HTML = """<!DOCTYPE html>
         }}
       }} catch (error) {{
         // The connection dropped mid-answer: say so, and let the Student ask again.
+        shown = shown.split(BOOKS_MARK)[0];
         shown += (shown ? "\\n\\n" : "") + ERROR_TEXT;
         renderBooks(answer, shown);
       }}
@@ -534,6 +536,7 @@ def chat_page(
     return HTMLResponse(
         CHAT_PAGE_HTML.format(
             books_title=json.dumps(books_title(settings.demo)),
+            books_mark=json.dumps(BOOKS_MARK),
             banner=BANNER_TEXT,
             who=f"{html.escape(session.class_label)} &middot; "
             f"card {html.escape(session.card_number)}",
@@ -713,7 +716,7 @@ async def stream_answer(
                     delta = event["choices"][0]["delta"].get("content", "")
                     if delta:
                         # Use the filter to handle search lines
-                        output = filter_instance.feed(delta)
+                        output = filter_instance.feed(delta).replace(BOOKS_MARK, "")
                         if output:
                             shown_parts.append(output)
                             publish_delta(output)
@@ -725,6 +728,7 @@ async def stream_answer(
 
         # After streaming, extract search terms from the full response
         remaining_text, search_terms = filter_instance.finish()
+        remaining_text = remaining_text.replace(BOOKS_MARK, "")
 
         # Yield any remaining text that wasn't handled by the filter, before the
         # citations, so the Student sees the overview whole before the books.
@@ -766,9 +770,7 @@ async def stream_answer(
 
         # Yield the citations
         if citations:
-            yield "\n\nBooks in our library:"
-            for citation in citations:
-                yield "\n" + "\n".join(citation.lines())
+            yield BOOKS_MARK + json.dumps([c.model_dump() for c in citations])
         else:
             yield "\n\nThe library's catalog has nothing on this yet. Ask the librarian."
 

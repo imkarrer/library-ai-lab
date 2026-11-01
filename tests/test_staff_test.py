@@ -26,7 +26,7 @@ from library_assistant.oversight import (
 )
 from library_assistant.routers import staff_test
 from library_assistant.routers.live import LiveBus, get_live_bus
-from library_assistant.routers.session import BANNER_TEXT, _in_flight
+from library_assistant.routers.session import BANNER_TEXT, BOOKS_MARK, _in_flight
 from library_assistant.staff import create_account, set_stand_in
 from library_assistant.supportive_replies import reply_for
 from library_assistant.watch import gate_is_open
@@ -137,6 +137,10 @@ def harness(monkeypatch):
         _in_flight.clear()
 
 
+def books_in(text: str) -> list[dict]:
+    return json.loads(text.split(BOOKS_MARK)[1])
+
+
 def sign_in(client: TestClient, username: str) -> None:
     response = client.post(
         "/staff/login",
@@ -164,7 +168,7 @@ def test_needs_no_card_and_no_watch(harness) -> None:
     assert answer.status_code == 200
     assert "Bulls like flowers." in answer.text
     assert "SEARCH" not in answer.text
-    assert "Citation: The story of Ferdinand / (813.52 LEA)" in answer.text
+    assert books_in(answer.text)[0]["title"] == "The story of Ferdinand /"
 
 
 def test_a_test_keeps_nothing_and_tells_nobody(harness) -> None:

@@ -26,6 +26,7 @@ import httpx
 import pytest
 
 from library_assistant.mint import mint_cards
+from library_assistant.routers.session import BOOKS_MARK
 
 REPO = Path(__file__).resolve().parent.parent
 PAUSED = "taking a break"
@@ -177,7 +178,7 @@ def test_a_card_scanned_before_watch_waits_then_answers_with_books(install):
         assert answer.status_code == 200
         assert "Here is a short overview" in answer.text
         assert "SEARCH" not in answer.text
-        assert "Books in our library:" in answer.text
+        assert BOOKS_MARK in answer.text
         assert "Clifford the big red dog" in answer.text
     finally:
         librarian.post("/staff/watch/end")

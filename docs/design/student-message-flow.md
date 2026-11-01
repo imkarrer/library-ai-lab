@@ -118,7 +118,7 @@ sequenceDiagram
     Note over A: a term matches all its words or nothing; the Student's words may match loosely
     A->>AL: given the overview, which of these fit, and why? (not streamed)
     AL-->>A: numbered picks, or NONE
-    A-->>P: "Books in our library:" and a Citation per pick (5 at most)
+    A-->>P: The Citations as JSON, one per pick (5 at most)
     A->>DB: finish_exchange: overview, Citations
     A->>A: release the Card (in a finally, so an error or a hang-up releases it too)
     P-->>S: overview, then books, under "This can be wrong, check the source."

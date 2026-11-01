@@ -5,12 +5,12 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+from staff_helpers import sign_in_as
 
 from library_assistant.access import connect, get_clock, get_db, hash_token
 from library_assistant.app import app
 from library_assistant.flags import get_flag, raise_flag
 from library_assistant.staff import (
-    STAFF_SESSION_COOKIE,
     create_account,
     deactivate_account,
 )
@@ -31,18 +31,6 @@ def client(db):
         yield TestClient(app)
     finally:
         app.dependency_overrides.clear()
-
-
-def _sign_in_as(client, db, role) -> TestClient:
-    create_account(db, f"{role}-account", "correct horse", role)
-    response = client.post(
-        "/staff/login",
-        data={"username": f"{role}-account", "password": "correct horse"},
-        follow_redirects=False,
-    )
-    assert response.status_code == 303
-    client.cookies.set(STAFF_SESSION_COOKIE, response.cookies[STAFF_SESSION_COOKIE])
-    return client
 
 
 def _transcript(db, question="is this ok?", answer="an answer, timed"):
@@ -86,7 +74,7 @@ def _flag(db, transcript_id, category="content", severity="high", escalated=Fals
 
 
 def test_export_has_required_fields_no_hash_no_token(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     transcript_id = _transcript(db, question="is this ok?", answer="an answer, timed")
     flag_id = _flag(db, transcript_id)
 
@@ -114,7 +102,7 @@ def test_export_has_required_fields_no_hash_no_token(client, db):
 
 
 def test_export_shows_registering_teacher_even_once_deactivated(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     teacher_id = create_account(db, "ms-alvarez", "correct horse", "teacher")
     batch_expires_at = NOW + timedelta(hours=6)
     db.execute(
@@ -151,7 +139,7 @@ def test_export_shows_registering_teacher_even_once_deactivated(client, db):
 
 
 def test_export_does_not_leak_other_sessions_text(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     other_transcript_id = _transcript(
         db, question="unrelated question", answer="an unrelated answer"
     )
@@ -169,7 +157,7 @@ def test_export_does_not_leak_other_sessions_text(client, db):
 def test_export_records_exported_and_leaves_no_file(tmp_path, monkeypatch, client, db):
     # The app's data folder is its working directory (the database path is relative).
     monkeypatch.chdir(tmp_path)
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     transcript_id = _transcript(db)
     flag_id = _flag(db, transcript_id)
     assert not get_flag(db, flag_id).exported
@@ -186,7 +174,7 @@ def test_export_records_exported_and_leaves_no_file(tmp_path, monkeypatch, clien
 def test_closing_does_not_count_as_an_export(client, db):
     """A confirmed close is not an Export: after a reopen, closing again still needs
     the confirmation."""
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     transcript_id = _transcript(db)
     flag_id = _flag(db, transcript_id, severity="high")
 
@@ -216,7 +204,7 @@ def test_closing_does_not_count_as_an_export(client, db):
 
 
 def test_close_page_shows_next_purge_and_confirmation(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     transcript_id = _transcript(db)
     flag_id = _flag(db, transcript_id, severity="high")
 
@@ -256,7 +244,7 @@ def test_older_flags_table_gains_the_exported_column(tmp_path):
 
 
 def test_high_severity_close_needs_confirmation_shows_next_purge(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     transcript_id = _transcript(db)
     flag_id = _flag(db, transcript_id, severity="high")
 
@@ -277,7 +265,7 @@ def test_high_severity_close_needs_confirmation_shows_next_purge(client, db):
 
 
 def test_high_severity_close_after_export_needs_no_confirmation(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     transcript_id = _transcript(db)
     flag_id = _flag(db, transcript_id, severity="high")
 
@@ -292,7 +280,7 @@ def test_high_severity_close_after_export_needs_no_confirmation(client, db):
 
 
 def test_teacher_cannot_export(client, db):
-    _sign_in_as(client, db, "teacher")
+    sign_in_as(client, db, "teacher")
     transcript_id = _transcript(db)
     flag_id = _flag(db, transcript_id, escalated=True)
 
@@ -301,10 +289,20 @@ def test_teacher_cannot_export(client, db):
 
 
 def test_counselor_can_export_only_escalated(client, db):
-    _sign_in_as(client, db, "counselor")
+    sign_in_as(client, db, "counselor")
     transcript_id = _transcript(db)
     open_flag_id = _flag(db, transcript_id, category="content")
     escalated_flag_id = _flag(db, transcript_id, escalated=True)
 
     assert client.get(f"/staff/flags/{open_flag_id}/export").status_code == 403
     assert client.get(f"/staff/flags/{escalated_flag_id}/export").status_code == 200
+
+
+def test_a_stand_in_teacher_can_export_and_a_teacher_cannot(client, db):
+    flag_id = _flag(db, _transcript(db))
+    sign_in_as(client, db, "teacher")
+    assert client.get(f"/staff/flags/{flag_id}/export").status_code == 403
+
+    db.execute("UPDATE staff_accounts SET is_stand_in = 1")
+    db.commit()
+    assert client.get(f"/staff/flags/{flag_id}/export").status_code == 200

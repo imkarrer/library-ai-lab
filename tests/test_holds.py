@@ -5,6 +5,7 @@ from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+from staff_helpers import sign_in_as
 
 import library_assistant.app as app_module
 from library_assistant.access import connect, get_clock, get_db, hash_token
@@ -12,7 +13,6 @@ from library_assistant.app import app
 from library_assistant.config import Settings, get_settings
 from library_assistant.holds import get_hold, lift_hold, set_hold
 from library_assistant.purge import purge, run_if_due
-from library_assistant.staff import STAFF_SESSION_COOKIE, create_account, set_stand_in
 
 # Far in the future on purpose (see tests/test_staff.py): a past NOW would make every
 # staff session in this file look already expired.
@@ -42,20 +42,6 @@ def client(db, clock):
         yield TestClient(app)
     finally:
         app.dependency_overrides.clear()
-
-
-def _sign_in_as(client, db, role, stand_in=False) -> TestClient:
-    account_id = create_account(db, f"{role}-account", "correct horse", role)
-    if stand_in:
-        set_stand_in(db, account_id, True)
-    response = client.post(
-        "/staff/login",
-        data={"username": f"{role}-account", "password": "correct horse"},
-        follow_redirects=False,
-    )
-    assert response.status_code == 303
-    client.cookies.set(STAFF_SESSION_COOKIE, response.cookies[STAFF_SESSION_COOKIE])
-    return client
 
 
 def _transcript(db, class_label="Period 3", card_number="14", asked_at=NOW):
@@ -117,7 +103,7 @@ HOLD_FORM = {
 
 
 def test_librarian_sets_a_hold_and_sees_it_on_the_holds_page(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
 
     response = client.post("/staff/holds", data=HOLD_FORM, follow_redirects=False)
     assert response.status_code == 303
@@ -141,7 +127,7 @@ def test_librarian_sets_a_hold_and_sees_it_on_the_holds_page(client, db):
 
 
 def test_librarian_sets_a_hold_on_all_classes_without_card_numbers(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     form = {**HOLD_FORM, "all_classes": "true", "class_labels": "", "card_numbers": ""}
 
     response = client.post("/staff/holds", data=form, follow_redirects=False)
@@ -162,7 +148,7 @@ def test_librarian_sets_a_hold_on_all_classes_without_card_numbers(client, db):
     ],
 )
 def test_hold_with_an_unusable_scope_is_refused(client, db, change):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
 
     response = client.post("/staff/holds", data={**HOLD_FORM, **change})
 
@@ -176,7 +162,7 @@ def test_hold_with_an_unusable_scope_is_refused(client, db, change):
 )
 def test_other_roles_cannot_set_lift_or_view_holds(client, db, role, stand_in):
     hold_id = _hold(db)
-    _sign_in_as(client, db, role, stand_in=stand_in)
+    sign_in_as(client, db, role, stand_in=stand_in)
 
     assert client.get("/staff/holds").status_code == 403
     assert client.post("/staff/holds", data=HOLD_FORM).status_code == 403
@@ -251,7 +237,7 @@ def test_hold_past_its_end_date_still_holds_until_lifted(db):
 
 def test_hold_has_no_edit_path(client, db):
     hold_id = _hold(db)
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
 
     for method in ("put", "patch"):
         response = getattr(client, method)(f"/staff/holds/{hold_id}", data=HOLD_FORM)
@@ -264,7 +250,7 @@ def test_hold_has_no_edit_path(client, db):
 @pytest.mark.parametrize("data", [{}, {"reason": "   "}])
 def test_lifting_needs_a_reason(client, db, data):
     hold_id = _hold(db)
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
 
     response = client.post(f"/staff/holds/{hold_id}/lift", data=data)
 
@@ -278,7 +264,7 @@ def test_after_a_lift_the_next_purge_applies_the_normal_rules(client, db, clock)
     purge(db, AFTER_TODAYS_END, SETTINGS)
     assert _remaining(db) == {held}
 
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     clock["now"] = AFTER_TODAYS_END + timedelta(hours=1)
     response = client.post(
         f"/staff/holds/{hold_id}/lift",
@@ -301,7 +287,7 @@ def test_after_a_lift_the_next_purge_applies_the_normal_rules(client, db, clock)
 def test_a_lifted_hold_cannot_be_lifted_again(client, db):
     hold_id = _hold(db)
     lift_hold(db, hold_id, NOW, "librarian-account", "first")
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
 
     response = client.post(f"/staff/holds/{hold_id}/lift", data={"reason": "second"})
 
@@ -335,7 +321,7 @@ def test_flag_queue_shows_active_hold_count(client, db):
     _hold(db)
     lifted = _hold(db)
     lift_hold(db, lifted, NOW, "librarian-account", "narrowed")
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
 
     response = client.get("/staff/flags")
 
@@ -347,7 +333,7 @@ def test_holds_page_shows_what_each_hold_holds_without_transcript_text(client, d
     _hold(db)
     _transcript(db)
     _transcript(db, card_number="15")
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
 
     response = client.get("/staff/holds")
 
@@ -371,7 +357,7 @@ def test_hold_older_than_review_days_is_marked_for_review_by_the_purge(client, d
     assert get_hold(db, fresh).review_marked_at is None
     assert get_hold(db, stale).active  # marked for review, never expired
 
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     assert "Review due" in client.get("/staff/holds").text
 
 
@@ -411,7 +397,7 @@ def test_startup_catch_up_purge_honours_holds(db, monkeypatch):
 
 
 def test_hold_export_contains_only_its_scope(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     _transcript(db, "Period 3", "14")
     _transcript(db, "Period 5", "14")
     _transcript(db, "Period 3", "99")
@@ -431,7 +417,7 @@ def test_hold_export_contains_only_its_scope(client, db):
 
 
 def test_hold_export_is_plain_text_not_html(client, db):
-    _sign_in_as(client, db, "librarian")
+    sign_in_as(client, db, "librarian")
     _transcript(db, "Art & Design", "14")
     hold_id = _hold(db, class_labels=("Art & Design",))
 
@@ -443,7 +429,7 @@ def test_hold_export_is_plain_text_not_html(client, db):
 
 def test_hold_export_refused_to_non_librarian(client, db):
     _hold(db)
-    _sign_in_as(client, db, "teacher")
+    sign_in_as(client, db, "teacher")
 
     response = client.get("/staff/holds/1/export")
     assert response.status_code == 403

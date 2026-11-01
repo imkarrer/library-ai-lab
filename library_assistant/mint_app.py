@@ -34,7 +34,7 @@ from pydantic import BaseModel
 from library_assistant.access import BatchCards, get_clock, get_db, register_cards
 from library_assistant.config import Settings, get_settings
 from library_assistant.minting_page import with_install_config
-from library_assistant.staff import MINTING_ROLES, StaffAccount, StaffDep
+from library_assistant.staff import StaffAccount, StaffDep
 from library_assistant.tls import TLS_NAMES_ENV, ca_cert_path
 
 APP_PATH = "/staff/mint"
@@ -58,7 +58,7 @@ _SCRIPT_RE = re.compile(r"<script(?![^>]*\bsrc=)([^>]*)>(.*?)</script>", re.DOTA
 
 
 def _minter(account: StaffDep) -> StaffAccount:
-    if account.role not in MINTING_ROLES:
+    if not account.can_mint:
         raise HTTPException(status_code=403, detail="a Counselor does not make Cards")
     return account
 
