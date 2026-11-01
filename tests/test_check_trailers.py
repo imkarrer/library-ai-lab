@@ -19,7 +19,7 @@ def _commit(repo: Path, message: str) -> None:
 
 def _check(repo: Path) -> int:
     return subprocess.run(
-        ["bash", str(SCRIPT)], cwd=repo, capture_output=True
+        ["bash", str(SCRIPT)], check=False, cwd=repo, capture_output=True
     ).returncode
 
 
@@ -37,8 +37,8 @@ def test_a_clean_history_passes(repo: Path) -> None:
 @pytest.mark.parametrize(
     "trailer",
     [
-        "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
-        "co-authored-by: claude <noreply@example.com>",
+        "Co-Authored-By: Claude Opus 5.5 <noreply@example.com>",
+        "co-authored-by: a bot <bot@anthropic.example.com>",
     ],
 )
 def test_a_claude_trailer_fails(repo: Path, trailer: str) -> None:
