@@ -14,7 +14,7 @@ import json
 import logging
 import re
 import sqlite3
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import datetime
 
 import httpx
@@ -118,7 +118,7 @@ CHAT_PAGE_HTML = """<!DOCTYPE html>
 <body class="student">
   <header class="student-bar">
     <span class="brand">Library Assistant</span>
-    <span class="who">{class_label} &middot; card {card_number}</span>
+    <span class="who">{who}</span>
   </header>
   <main class="chat">
     <p class="banner" role="note">{banner}</p>
@@ -132,8 +132,9 @@ CHAT_PAGE_HTML = """<!DOCTYPE html>
         placeholder="Ask about a topic, or look for a book">
       <button>Ask</button>
     </form>
+    {below_composer}
     <footer class="student-foot">
-      <button id="finish" class="link">End session</button>
+      {foot}
       <a href="/about">What happens to what I type</a>
     </footer>
   </main>
@@ -168,7 +169,7 @@ CHAT_PAGE_HTML = """<!DOCTYPE html>
       for (const element of turn.querySelectorAll("[id]")) element.removeAttribute("id");
       thread.append(turn);
     }};
-    document.getElementById("finish").addEventListener("click", () => {{
+    document.getElementById("finish")?.addEventListener("click", () => {{
       fetch("/card/finish", {{ method: "POST", credentials: "same-origin" }}).then(() => {{
         document.body.textContent = "Session ended. You can close this page.";
       }});
@@ -194,7 +195,7 @@ CHAT_PAGE_HTML = """<!DOCTYPE html>
       let retryCount = 0;
       let response;
       while (true) {{
-        response = await fetch("/ask", {{
+        response = await fetch({ask_url}, {{
           method: "POST",
           headers: {{ "Content-Type": "application/json" }},
           credentials: "same-origin",
@@ -263,9 +264,12 @@ CHAT_PAGE_HTML = """<!DOCTYPE html>
       questionInput.focus();
     }});
   </script>
+  {page_script}
 </body>
 </html>
 """
+
+STUDENT_FOOT = '<button id="finish" class="link">End session</button>'
 
 # Card refs (Token hashes) with a message in flight: one per Card, across all its
 # Sessions (decision lib-f24.65). Process memory only (one process, ADR-0008); never
@@ -531,8 +535,12 @@ def chat_page(
         CHAT_PAGE_HTML.format(
             books_title=json.dumps(books_title(settings.demo)),
             banner=BANNER_TEXT,
-            class_label=html.escape(session.class_label),
-            card_number=html.escape(session.card_number),
+            who=f"{html.escape(session.class_label)} &middot; "
+            f"card {html.escape(session.card_number)}",
+            below_composer="",
+            foot=STUDENT_FOOT,
+            ask_url=json.dumps("/ask"),
+            page_script="",
             refusal_text=json.dumps(REFUSAL_TEXT),
             error_text=json.dumps(ERROR_TEXT),
         ),
@@ -660,6 +668,116 @@ async def _pick_books(
     ]
 
 
+async def stream_answer(
+    http_client: httpx.AsyncClient,
+    settings: Settings,
+    catalog: Catalog,
+    question: str,
+    publish_delta: Callable[[str], None],
+    finish: Callable[[str, list[Citation]], None],
+) -> AsyncIterator[str]:
+    """A Grounded answer as it is shown: the overview, then the books. A Student's Session
+    and the staff test page both read it, so a test shows what a Student would get."""
+    messages = build_messages(question)
+    shown_parts: list[str] = []
+    shown: list[Citation] = []
+    # finally: a model error or a hang-up still records what the Student saw.
+    try:
+        # Create a single filter instance for the entire streaming process
+        filter_instance = SearchLineFilter()
+
+        # The response's 200 is already sent, so a model server that is down or
+        # drops the stream cannot become an error status: the Student is told in
+        # the answer instead, and the log names the error class, never the question.
+        body = _model_request(settings, messages, stream=True)
+        try:
+            async with http_client.stream(
+                "POST", "/chat/completions", json=body
+            ) as response:
+                async for line in response.aiter_lines():
+                    if not line.startswith("data: "):
+                        continue
+                    payload = line.removeprefix("data: ")
+                    if payload == "[DONE]":
+                        break
+                    event = json.loads(payload)
+                    # llama.cpp reports a failure inside the 200 stream, not as a
+                    # status: tell the Student, as for an unreachable model.
+                    if "error" in event:
+                        logger.warning(
+                            "model reported an error: %s",
+                            event["error"].get("type", "unknown"),
+                        )
+                        yield ("\n\n" if shown_parts else "") + ERROR_TEXT
+                        return
+                    delta = event["choices"][0]["delta"].get("content", "")
+                    if delta:
+                        # Use the filter to handle search lines
+                        output = filter_instance.feed(delta)
+                        if output:
+                            shown_parts.append(output)
+                            publish_delta(output)
+                            yield output
+        except httpx.HTTPError as error:
+            logger.warning("model request failed: %s", type(error).__name__)
+            yield ("\n\n" if shown_parts else "") + ERROR_TEXT
+            return
+
+        # After streaming, extract search terms from the full response
+        remaining_text, search_terms = filter_instance.finish()
+
+        # Yield any remaining text that wasn't handled by the filter, before the
+        # citations, so the Student sees the overview whole before the books.
+        if remaining_text:
+            shown_parts.append(remaining_text)
+            publish_delta(remaining_text)
+            yield remaining_text
+
+        # If no search terms, search with the original question
+        # Now search the catalog
+        records = search_each(
+            catalog,
+            search_terms[:MAX_SEARCH_TERMS],
+            question,
+            k=BOOK_CANDIDATES,
+        )
+        picked = (
+            await _pick_books(
+                http_client,
+                settings,
+                question,
+                "".join(shown_parts),
+                records,
+            )
+            if records
+            else []
+        )
+        citations = [
+            Citation(
+                record_id=record.id,
+                title=record.title,
+                call_number=record.call_number,
+                author=author_name(record.author),
+                where=where_to_find(record.call_number),
+                why=why,
+            )
+            for record, why in picked
+        ]
+
+        # Yield the citations
+        if citations:
+            yield "\n\nBooks in our library:"
+            for citation in citations:
+                yield "\n" + "\n".join(citation.lines())
+        else:
+            yield "\n\nThe library's catalog has nothing on this yet. Ask the librarian."
+
+        # Copy the citations to shown list
+        shown = citations.copy()
+    finally:
+        finish("".join(shown_parts), shown)
+
+
 def _answer(
     request: AskRequest,
     session: Session,
@@ -753,108 +871,10 @@ def _answer(
         )
         announce_flag(db, bus.publish, flag_id, is_repeat)
 
-    # First, we build the messages for the research prompt
-    messages = build_messages(request.question)
-
-    # Then we stream the model response
-    async def generate():
-        shown_parts: list[str] = []
-        shown: list[Citation] = []
-        # finally: a model error or a hang-up still records what the Student saw.
-        try:
-            # Create a single filter instance for the entire streaming process
-            filter_instance = SearchLineFilter()
-
-            # The response's 200 is already sent, so a model server that is down or
-            # drops the stream cannot become an error status: the Student is told in
-            # the answer instead, and the log names the error class, never the question.
-            body = _model_request(settings, messages, stream=True)
-            try:
-                async with http_client.stream(
-                    "POST", "/chat/completions", json=body
-                ) as response:
-                    async for line in response.aiter_lines():
-                        if not line.startswith("data: "):
-                            continue
-                        payload = line.removeprefix("data: ")
-                        if payload == "[DONE]":
-                            break
-                        event = json.loads(payload)
-                        # llama.cpp reports a failure inside the 200 stream, not as a
-                        # status: tell the Student, as for an unreachable model.
-                        if "error" in event:
-                            logger.warning(
-                                "model reported an error: %s",
-                                event["error"].get("type", "unknown"),
-                            )
-                            yield ("\n\n" if shown_parts else "") + ERROR_TEXT
-                            return
-                        delta = event["choices"][0]["delta"].get("content", "")
-                        if delta:
-                            # Use the filter to handle search lines
-                            output = filter_instance.feed(delta)
-                            if output:
-                                shown_parts.append(output)
-                                publish_delta(output)
-                                yield output
-            except httpx.HTTPError as error:
-                logger.warning("model request failed: %s", type(error).__name__)
-                yield ("\n\n" if shown_parts else "") + ERROR_TEXT
-                return
-
-            # After streaming, extract search terms from the full response
-            remaining_text, search_terms = filter_instance.finish()
-
-            # Yield any remaining text that wasn't handled by the filter, before the
-            # citations, so the Student sees the overview whole before the books.
-            if remaining_text:
-                shown_parts.append(remaining_text)
-                publish_delta(remaining_text)
-                yield remaining_text
-
-            # If no search terms, search with the original question
-            # Now search the catalog
-            records = search_each(
-                catalog,
-                search_terms[:MAX_SEARCH_TERMS],
-                request.question,
-                k=BOOK_CANDIDATES,
-            )
-            picked = (
-                await _pick_books(
-                    http_client,
-                    settings,
-                    request.question,
-                    "".join(shown_parts),
-                    records,
-                )
-                if records
-                else []
-            )
-            citations = [
-                Citation(
-                    record_id=record.id,
-                    title=record.title,
-                    call_number=record.call_number,
-                    author=author_name(record.author),
-                    where=where_to_find(record.call_number),
-                    why=why,
-                )
-                for record, why in picked
-            ]
-
-            # Yield the citations
-            if citations:
-                yield "\n\nBooks in our library:"
-                for citation in citations:
-                    yield "\n" + "\n".join(citation.lines())
-            else:
-                yield "\n\nThe library's catalog has nothing on this yet. Ask the librarian."
-
-            # Copy the citations to shown list
-            shown = citations.copy()
-        finally:
-            finish("".join(shown_parts), shown)
+    def generate() -> AsyncIterator[str]:
+        return stream_answer(
+            http_client, settings, catalog, request.question, publish_delta, finish
+        )
 
     # The Oversight task starts at the same moment as the Answer request (or the
     # Supportive reply): a Supportive reply still gets screened.
