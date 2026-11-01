@@ -36,7 +36,7 @@ from library_assistant.install_settings import (
     SUPERVISION_MODE,
     set_setting,
 )
-from library_assistant.oversight import PROBE_TEXT, screening_state
+from library_assistant.oversight import PROBE_TEXT, UNSCREENED, screening_state
 from library_assistant.routers import session as session_router
 from library_assistant.routers.session import (
     PAUSED_TEXT,
@@ -100,6 +100,8 @@ class FakeLanes:
         self.screened: list[str] = []
         self.answer_calls = 0
         self.hold_question: str | None = None
+        self.unreadable: set[str] = set()
+        self.refused: set[str] = set()
         self.held_entered = asyncio.Event()
         self.held_release = asyncio.Event()
 
@@ -107,8 +109,13 @@ class FakeLanes:
         if request.url.host == "oversight.example.com":
             question = json.loads(request.content)["messages"][1]["content"]
             self.screened.append(question)
-            if self.down:
+            if self.down or question in self.refused:
                 raise httpx.ConnectError("refused", request=request)
+            if question in self.unreadable:
+                body = json.dumps({"choices": [{"message": {"content": "banana"}}]})
+                return httpx.Response(
+                    200, content=body, headers={"content-type": "application/json"}
+                )
             if question == self.hold_question and not self.held_entered.is_set():
                 self.held_entered.set()
                 await self.held_release.wait()
@@ -470,3 +477,66 @@ async def test_oversight_down_setting_pauses_until_back(db, lanes, probe_wait):
 
         answered = await _ask(device, "a book about clouds?")
     assert answered.status_code == 200
+
+
+@pytest.mark.anyio
+async def test_an_unreadable_reply_fails_the_message_not_oversight(db, lanes):
+    lanes.unreadable.add("say banana")
+    async with _signed_in() as device:
+        await _ask(device, "say banana")
+        await session_router.screens_settled(WAIT)
+        await _ask(device, "next question")
+        await session_router.screens_settled(WAIT)
+
+    assert screening_state.unavailable_since is None
+    assert session_router._probe_task is None
+    _id, _screening, screened_at, verdict, _asked_at = _row(db, "next question")
+    assert screened_at is not None
+    assert json.loads(verdict)["category"] is None
+
+
+@pytest.mark.anyio
+async def test_an_unreadable_message_gets_an_adult_and_can_be_purged(db, lanes):
+    lanes.unreadable.add("say banana")
+    async with _signed_in() as device:
+        await _ask(device, "say banana")
+        await session_router.screens_settled(WAIT)
+
+    _id, _screening, screened_at, _verdict, _asked_at = _row(db, "say banana")
+    assert screened_at is not None
+    assert db.execute("SELECT category, severity, source FROM flags").fetchall() == [
+        (UNSCREENED, "low", "oversight")
+    ]
+
+
+@pytest.mark.anyio
+async def test_a_poison_message_does_not_stop_catch_up(db, lanes, probe_wait):
+    """A row that fails each time the endpoint is up can't hold the ones behind it."""
+    lanes.down = True
+    async with _signed_in() as device:
+        await _ask(device, "poison")
+        await _ask(device, "behind it")
+
+    lanes.down = False
+    lanes.refused.add("poison")
+    for _ in range(3):
+        probe_wait.release()
+    await _caught_up()
+
+    assert screening_state.unavailable_since is None
+    assert json.loads(_row(db, "poison")[3])["category"] == UNSCREENED
+    assert _row(db, "behind it")[2] is not None
+
+
+@pytest.mark.anyio
+async def test_a_stuck_row_from_an_older_install_clears(db, lanes, probe_wait):
+    """An unreadable reply in catch-up, as a database jammed before the fix would hit."""
+    lanes.down = True
+    async with _signed_in() as device:
+        await _ask(device, "say banana")
+    lanes.down = False
+    lanes.unreadable.add("say banana")
+    probe_wait.release()
+    await _caught_up()
+
+    assert json.loads(_row(db, "say banana")[3])["category"] == UNSCREENED

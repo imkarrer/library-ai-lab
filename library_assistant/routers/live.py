@@ -153,6 +153,7 @@ class SessionTile:
     latest_question: str
     registered_by: str | None = None
     flag_severity: str | None = None
+    ended: bool = False
 
 
 @dataclass(frozen=True)
@@ -176,7 +177,7 @@ def active_sessions(db: sqlite3.Connection, now: datetime) -> list[SessionTile]:
     """Sessions whose Card row still exists and has not expired, most recent activity first."""
     rows = db.execute(
         "SELECT sessions.rowid, sessions.session_hash, cards.class_label, "
-        "cards.card_number, sessions.started_at, cards.expires_at "
+        "cards.card_number, sessions.started_at, cards.expires_at, sessions.ended_at "
         "FROM sessions JOIN cards ON cards.token_hash = sessions.token_hash "
         "WHERE cards.expires_at > ?",
         (now.isoformat(),),
@@ -204,6 +205,7 @@ def active_sessions(db: sqlite3.Connection, now: datetime) -> list[SessionTile]:
         card_number,
         started_at,
         card_expires_at,
+        ended_at,
     ) in rows:
         transcript_rows = db.execute(
             "SELECT id, question, asked_at FROM transcripts WHERE session_hash = ? "
@@ -245,6 +247,7 @@ def active_sessions(db: sqlite3.Connection, now: datetime) -> list[SessionTile]:
                     db, class_label, card_number, card_expires_at
                 ),
                 flag_severity=flag_severity,
+                ended=ended_at is not None,
             )
         )
 
@@ -278,7 +281,8 @@ def _tile_html(tile: SessionTile, timezone: str = "UTC") -> str:
         f"card {html.escape(tile.card_number)}</p>"
         '<p class="when">Last activity: '
         f"{tile.last_activity_at.astimezone(ZoneInfo(timezone)):%H:%M}</p>"
-        f'<p class="count">{tile.message_count} message(s)</p>'
+        f'<p class="count">{tile.message_count} message(s)'
+        f"{' · Session ended' if tile.ended else ''}</p>"
         f'<p class="latest">{html.escape(tile.latest_question)}</p>'
         f"{badge}"
         f"{registered_by_html}"

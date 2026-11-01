@@ -16,11 +16,13 @@
 # - severity "low" raises a silent Flag for the end-of-day read. Low entries cast wider and
 #   will catch some jokes and hyperbole; the adult reading the exchange decides.
 # - Phrases match whole words after normalize(): case, accents, repeated letters ("kiiill")
-#   and the digits/symbols 0 1 3 4 5 7 @ $ are folded already. Apostrophes become spaces,
+#   invisible characters, lookalike letters from other alphabets, the digits/symbols
+#   0 1 3 4 5 7 @ $, ! * | inside a word, and letters spaced out one at a time are folded
+#   already. Apostrophes become spaces,
 #   so "don't" and "dont" are different phrases and both are listed.
 # - must_match and must_not_match are checked every time the file loads: a near miss in
 #   must_not_match is a promise that it does not fire.
-version = "2026-10-31.1"
+version = "2026-11-01.1"
 
 # ---------------------------------------------------------------------------------------
 # self-harm
@@ -31,6 +33,7 @@ id = "self-harm-kill-myself"
 category = "self-harm"
 severity = "high"
 phrases = [
+  "klil myself", "kill myslf", "kill mysef",
   "kill myself", "killing myself", "kill my self", "killing my self", "kill myslef",
   "k1ll myself", "k i l l myself", "end my life", "ending my life", "end my own life", "take my own life",
   "taking my own life", "i want to commit suicide", "i wanna commit suicide",
@@ -39,6 +42,7 @@ phrases = [
   "i wanna commit sucide", "i want to comit suicide", "i want to commit suiside",
 ]
 must_match = [
+  "i want to klil myself",
   "i want to kill myself",
   "im going to k i l l myself tonight",
   "sometimes i think about ending my life",
@@ -129,6 +133,7 @@ id = "self-harm-not-be-here"
 category = "self-harm"
 severity = "high"
 phrases = [
+  "want to end it all", "wanna end it all", "go to sleep and never wake up", "sleep and never wake up",
   "don't want to be here anymore", "dont want to be here anymore",
   "don't wanna be here anymore", "dont wanna be here anymore",
   "don't want to be here any more", "dont want to be here any more",
@@ -141,6 +146,8 @@ phrases = [
   "hope i dont wake up", "hope i don't wake up",
 ]
 must_match = [
+  "i just want to end it all",
+  "i want to go to sleep and never wake up",
   "i dont want to be here anymore",
   "I don't want to be alive",
   "i have nothing to live for",
@@ -207,6 +214,7 @@ id = "self-harm-method"
 category = "self-harm"
 severity = "high"
 phrases = [
+  "how would someone kill themselves", "how can someone kill themselves", "how does someone kill themselves", "how would you kill yourself",
   "hang myself", "hanging myself", "slit my wrists", "slit my wrist", "slitting my wrists",
   "shoot myself in the head", "want to shoot myself", "gonna shoot myself",
   "overdose on purpose", "i want to overdose", "i wanna overdose",
@@ -222,6 +230,7 @@ phrases = [
   "how do people overdose",
 ]
 must_match = [
+  "how would someone kill themselves",
   "how do people commit suicide",
   "how many pills is too many",
   "how many pills does it take to die",
@@ -244,6 +253,7 @@ id = "self-harm-a-friend"
 category = "self-harm"
 severity = "high"
 phrases = [
+  "how can my friend kill herself", "how can my friend kill himself", "how can my friend kill themselves",
   "my friend wants to die", "my friend wants to kill herself",
   "my friend wants to kill himself", "my friend wants to kill themselves",
   "my friend is going to kill herself", "my friend is going to kill himself",
@@ -254,6 +264,7 @@ phrases = [
   "my sister wants to die", "my brother wants to die",
 ]
 must_match = [
+  "how can my friend kill herself",
   "my friend wants to kill herself",
   "my friend says she wants to die",
   "i think my friend is suicidal",
@@ -671,6 +682,7 @@ id = "threats-school-attack"
 category = "threats-of-violence"
 severity = "high"
 phrases = [
+  "there is a bomb in", "there is a bomb at",
   "shoot up the school", "shoot up this school", "shoot up our school", "shoot up the class",
   "shoot up the cafeteria", "shooting up the school", "shoot everyone at school",
   "shoot everyone tomorrow", "how to shoot up a school",
@@ -680,6 +692,7 @@ phrases = [
   "im going to stab", "i'm going to stab", "gonna stab", "i will stab", "i'll stab",
 ]
 must_match = [
+  "there is a bomb in the gym",
   "im going to shoot up the school",
   "there's a bomb in the gym",
   "i want to stab him",

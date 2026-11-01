@@ -30,6 +30,7 @@ from library_assistant.dependencies import (
 from library_assistant.models import AskRequest, books_title
 from library_assistant.oversight import (
     OversightUnavailable,
+    OversightUnreadable,
     ScreeningState,
     get_screening_state,
     screen,
@@ -187,6 +188,11 @@ async def test_check(
             # Its own client: the Oversight endpoint is not the Answer lane's.
             async with httpx.AsyncClient() as client:
                 verdict = await screen(client, settings, request.question)
+        except OversightUnreadable:
+            lines.append(
+                "Oversight could not read this message: a low-severity Flag, so an "
+                "adult reads it instead."
+            )
         except OversightUnavailable:
             lines.append("Oversight did not answer, so it did not check this.")
         else:

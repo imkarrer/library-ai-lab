@@ -20,6 +20,7 @@ from library_assistant.dependencies import (
 )
 from library_assistant.oversight import (
     OversightUnavailable,
+    OversightUnreadable,
     ScreeningState,
     Verdict,
     get_screening_state,
@@ -229,6 +230,13 @@ def test_a_low_severity_match_still_gets_the_answer(harness) -> None:
             ),
         ),
         (Verdict(category=None, severity=None, reason=""), "Oversight found nothing."),
+        (
+            OversightUnreadable("no verdict"),
+            (
+                "Oversight could not read this message: a low-severity Flag, so an "
+                "adult reads it instead."
+            ),
+        ),
         (
             OversightUnavailable("down"),
             "Oversight did not answer, so it did not check this.",

@@ -14,6 +14,7 @@ import json
 import logging
 import re
 import sqlite3
+from collections import Counter
 from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import datetime
 
@@ -50,7 +51,9 @@ from library_assistant.install_settings import (
 )
 from library_assistant.models import AskRequest, Citation, books_title
 from library_assistant.oversight import (
+    UNSCREENED_VERDICT,
     OversightUnavailable,
+    OversightUnreadable,
     ScreeningState,
     Verdict,
     get_screening_state,
@@ -456,6 +459,9 @@ async def _probe_and_catch_up(
     down, oldest first and one at a time, only while no Card awaits a verdict. Ends
     when none is left; a failure on the way goes back to probing."""
     global _catch_up_call
+    # Failures per exchange, each after a probe passed: the endpoint is up, so a second
+    # one means this message is the trouble, and the messages behind it must not wait.
+    failures: Counter[int] = Counter()
     # Its own client: the Oversight endpoint is not the Answer lane's.
     async with httpx.AsyncClient() as client:
         while True:
@@ -483,9 +489,14 @@ async def _probe_and_catch_up(
                 continue
             try:
                 verdict = call.result()
+            except OversightUnreadable:
+                verdict = UNSCREENED_VERDICT
             except OversightUnavailable:
-                _oversight_down(db, settings, bus, now, wait)
-                continue
+                failures[transcript_id] += 1
+                if failures[transcript_id] < 2:
+                    _oversight_down(db, settings, bus, now, wait)
+                    continue
+                verdict = UNSCREENED_VERDICT
             # No Flag on an exchange that is gone (the Purge keeps unscreened ones, so
             # this is only a guard).
             if db.execute(
@@ -910,6 +921,22 @@ def _answer(
                     session.expires_at.isoformat(),
                     message_hash,
                     verdict,
+                    clock,
+                    "oversight",
+                    bus,
+                    clock,
+                )
+            except OversightUnreadable:
+                # This message's failure: Oversight stays up for everyone else, and
+                # an adult reads it in Oversight's place.
+                _record_verdict(
+                    db,
+                    transcript_id,
+                    session.class_label,
+                    session.card_number,
+                    session.expires_at.isoformat(),
+                    message_hash,
+                    UNSCREENED_VERDICT,
                     clock,
                     "oversight",
                     bus,

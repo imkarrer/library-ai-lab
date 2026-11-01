@@ -164,8 +164,8 @@ the "When Oversight is down" rule above. Making Students wait at "one moment" un
 Librarian notices and chooses ties the class to the slowest step, an adult's reaction, while
 the Watchlist, the floor every Install has, keeps running regardless.
 
-- **Carry on at once with the Watchlist alone.** When a screen fails (a connection error, a
-  timeout, or two unparseable replies), that message is released and marked
+- **Carry on at once with the Watchlist alone.** When a screen fails (a connection error or a
+  timeout), that message is released and marked
   `screening = watchlist_alone`, and so is every exchange admitted while Oversight stays down.
   The Card's next message is admitted as soon as its answer ends, as it would be with
   Oversight off.
@@ -186,3 +186,17 @@ the Watchlist, the floor every Install has, keeps running regardless.
   before the model is called, as it does on every Install without Oversight.
 
 `oversight.unavailable_seconds` goes away.
+
+## Addendum: a message Oversight can't read is that message's failure
+
+Decided 2026-11-01 by the owner, after a review showed that one Student message could stop
+screening for the whole Install. A prompt can make the Oversight model reply with something
+other than a verdict. That used to count as Oversight being down, and catch-up then retried the
+same message forever, so nothing behind it was screened and those exchanges outlived the Purge.
+
+- **Two unusable replies fail the message, not the endpoint.** Only a connection error or a
+  timeout marks Oversight down. In catch-up, a message that fails twice after the probe passed
+  is treated the same way, because the endpoint is answering.
+- **An adult reads it instead.** The message gets a low-severity Flag in the `unscreened`
+  category, with no Alarm. It counts as screened, so the Purge treats it like any other exchange
+  once the Flag is closed.

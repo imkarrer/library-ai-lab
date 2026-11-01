@@ -198,8 +198,11 @@ def test_two_sign_ins_are_one_session(client):
     first = _sign_in(test_client)
     second = _sign_in(test_client)
     assert first != second
-    # Second sign-in should replace the first session, not create a new one
-    assert db.execute("SELECT count(*) FROM sessions").fetchone()[0] == 1
+    # Second sign-in should replace the first session, not run beside it
+    assert (
+        db.execute("SELECT count(*) FROM sessions WHERE ended_at IS NULL").fetchone()[0]
+        == 1
+    )
 
 
 def test_revoking_the_card_ends_its_session(client, model_calls):
@@ -227,10 +230,14 @@ def test_the_batch_expiring_ends_its_session(client, clock, model_calls):
 
 def test_finished_ends_the_session(client, model_calls):
     test_client, db = client
-    _sign_in(test_client)
+    session_id = _sign_in(test_client)
     test_client.post("/card/finish")
-    assert db.execute("SELECT count(*) FROM sessions").fetchone()[0] == 0
-    test_client.cookies.clear()
+    assert (
+        db.execute("SELECT count(*) FROM sessions WHERE ended_at IS NULL").fetchone()[0]
+        == 0
+    )
+    # The old cookie replayed gets nowhere, though the row stays for the Live view.
+    test_client.cookies.set(SESSION_COOKIE, session_id)
     assert test_client.post("/ask", json={"question": "bulls?"}).status_code == 403
 
 
