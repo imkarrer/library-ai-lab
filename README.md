@@ -157,7 +157,7 @@ In short:
 - Each version becomes available under the Apache License 2.0 four years after it is
   published.
 
-The snapshot at commit `afdba6e` was published under the Apache License 2.0 and stays
+The snapshot at commit `f6fd858` was published under the Apache License 2.0 and stays
 available under it. Later versions are under the Business Source License.
 
 The templates in `docs/templates/` and the curriculum in `docs/curriculum/` are under CC BY

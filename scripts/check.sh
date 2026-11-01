@@ -18,6 +18,7 @@ if [ -n "$not_executable" ]; then
   exit 1
 fi
 
+bash scripts/check_trailers.sh
 ruff check .
 ruff format --check .
 python scripts/confidentiality.py

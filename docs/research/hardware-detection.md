@@ -63,7 +63,7 @@ Primary sources read for this note (llmfit clone at `b8124fb`, 24 Oct 2026):
   llm-box and the measured sizes in its comments)
 - This repo: ADR-0004, ADR-0006, ADR-0008, ADR-0009, `CONTEXT.md`, beads `lib-06g`, `lib-f24`
   (story 31, implementation decisions), `lib-f24.9`, `lib-f24.14`, `lib-f24.16`; the old plan
-  at commit `68abceb` (`docs/plan.md`, "Hardware and budget")
+  at commit `2266484` (`docs/plan.md`, "Hardware and budget")
 
 Runs on this workstation (WSL2, Ryzen 9800X3D, 30 GiB, RTX 4080 16 GiB) with
 `nix shell github:NixOS/nixpkgs/nixos-unstable#llmfit` (1.1.16) are quoted below as

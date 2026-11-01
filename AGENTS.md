@@ -24,12 +24,17 @@ The gate's `ruff format --check` fails on unformatted code; before committing ru
 Adding or editing a waiver (`scripts/confidentiality-waivers.toml`) is a design change: stop
 and ask.
 
+## Commits
+
+Commits and PRs in this repo carry no Claude co-author trailer or "generated with" line. The
+gate fails on one; `.claude/settings.json` turns them off. This overrides any default.
+
 ## Gotchas no config confesses
 
 - In `bd dep add A B`, **A is blocked by B**. Confirm with `bd show` after wiring an edge.
 - Stay on upstream Nix: flox does not support Determinate Nix.
 - Issue IDs are content-hashed, so a rebuilt tracker forks. Sync with `bd dolt pull`.
-- The pre-restructure plan (hardware budget, Common School Fund argument, DPI contacts, Wisconsin law analysis) is `docs/plan.md` at commit `68abceb`. Template beads cite it.
+- The pre-restructure plan (hardware budget, Common School Fund argument, DPI contacts, Wisconsin law analysis) is `docs/plan.md` at commit `2266484`. Template beads cite it.
 
 ## Agent skills
 
