@@ -102,6 +102,17 @@ def test_starter_research_questions_raise_no_high_flag(message):
         ("São Paulo", "sao paulo"),
         ("h4te @ll 0f $7uff", "hate al of stuf"),
         ("  what?!  now...  ", "what now"),
+        ("ki\u200bll", "kil"),
+        ("ki\u00adll", "kil"),
+        ("k\u0456ll", "kil"),
+        ("kіll mе", "kil me"),
+        ("kıll", "kil"),
+        ("k!ll", "kil"),
+        ("k*ll", "kil"),
+        ("ki||", "kil"),
+        ("su!c!de", "suicide"),
+        ("help me!", "help me"),
+        ("a|b", "alb"),
         ("", ""),
     ],
 )
@@ -199,3 +210,13 @@ def test_load_refuses_malformed_entry(tmp_path, edit, error):
 def test_load_refuses_bad_version(tmp_path):
     with pytest.raises(ValueError, match="version"):
         load_watchlist(_write(tmp_path, _good(), version="1.0"))
+
+
+def test_letters_spaced_out_match_a_phrase():
+    entry = _entry(["kill myself"])
+    assert entry.matches("k i l l m y s e l f")
+    assert entry.matches("i want to k i l l m y s e l f tonight")
+
+
+def test_a_short_spelled_out_run_alone_does_not_match():
+    assert not _entry(["kill myself"]).matches("a b c d e f g")

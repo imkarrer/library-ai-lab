@@ -209,14 +209,16 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
     )
     # A Session is one Card's conversation. Only the hash of its id is stored, so the
     # database alone cannot be replayed as a cookie; the Card row is checked on every
-    # request, so a Revoke or the Batch's expiry ends the Session at once.
+    # request, so a Revoke or the Batch's expiry ends the Session at once. An ended
+    # Session's row stays until the Purge, so its exchanges stay on the Live view.
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS sessions (
             session_hash TEXT PRIMARY KEY,
             token_hash TEXT NOT NULL,
             started_at TEXT NOT NULL,
-            last_seen_at TEXT NOT NULL DEFAULT '1970-01-01T00:00:00+00:00'
+            last_seen_at TEXT NOT NULL DEFAULT '1970-01-01T00:00:00+00:00',
+            ended_at TEXT
         )
         """
     )
@@ -336,6 +338,8 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
         """
     )
     _add_missing_columns(conn, "purge_runs", PURGE_RUN_COUNTS)
+    # An older sessions table deleted a Session when it ended.
+    _add_missing_columns(conn, "sessions", ("ended_at",), "TEXT")
     # An older flags table predates the Export record; its Flags read as not exported.
     _add_missing_columns(conn, "flags", ("exported", "escalated_by"))
     if "escalated_at" not in {r[1] for r in conn.execute("PRAGMA table_info(flags)")}:
@@ -720,6 +724,15 @@ def revoke_batch_of_session(db: sqlite3.Connection, session_no: int) -> int:
     return cursor.rowcount
 
 
+def end_session(db: sqlite3.Connection, session_hash: str, at: datetime) -> None:
+    """Stop a Session working. Its row stays until the Purge, or ending a Session would
+    take its exchanges off the Live view and out of reach of a Revoke."""
+    db.execute(
+        "UPDATE sessions SET ended_at = ? WHERE session_hash = ? AND ended_at IS NULL",
+        (at.isoformat(), session_hash),
+    )
+
+
 @router.get("/cards/{token}")
 def sign_in_token_in_path_refused(token: str) -> PlainTextResponse:
     """A Token in the URL path reaches server logs, so it is always refused.
@@ -766,9 +779,7 @@ def post_sign_in(
     session_id = secrets.token_urlsafe(32)
     if SESSION_COOKIE in request.cookies:
         old_session_id = request.cookies[SESSION_COOKIE]
-        db.execute(
-            "DELETE FROM sessions WHERE session_hash = ?", (hash_token(old_session_id),)
-        )
+        end_session(db, hash_token(old_session_id), clock)
 
     db.execute(
         "INSERT INTO sessions (session_hash, token_hash, started_at, last_seen_at) "
@@ -797,13 +808,12 @@ def finish_session(
     request: Request,
     response: Response,
     db: sqlite3.Connection = Depends(get_db),
+    clock: datetime = Depends(get_clock),
 ) -> dict[str, str]:
     """Ends this device's Session and clears its cookie. The Card itself is not Revoked."""
     session_id = request.cookies.get(SESSION_COOKIE)
     if session_id:
-        db.execute(
-            "DELETE FROM sessions WHERE session_hash = ?", (hash_token(session_id),)
-        )
+        end_session(db, hash_token(session_id), clock)
         db.commit()
     response.headers.update(NO_STORE)
     response.delete_cookie(SESSION_COOKIE, httponly=True, samesite="strict")
@@ -851,7 +861,7 @@ def current_session(
         "SELECT cards.card_number, cards.class_label, cards.expires_at, "
         "sessions.last_seen_at, sessions.token_hash "
         "FROM sessions JOIN cards ON cards.token_hash = sessions.token_hash "
-        "WHERE sessions.session_hash = ?",
+        "WHERE sessions.session_hash = ? AND sessions.ended_at IS NULL",
         (session_hash,),
     ).fetchone()
     if row is None:
@@ -865,7 +875,7 @@ def current_session(
     if idle_minutes > 0:
         idle_for = clock - datetime.fromisoformat(last_seen_at)
         if idle_for > timedelta(minutes=idle_minutes):
-            db.execute("DELETE FROM sessions WHERE session_hash = ?", (session_hash,))
+            end_session(db, session_hash, clock)
             db.commit()
             raise HTTPException(status_code=403, detail=IDLE_TEXT, headers=NO_STORE)
     db.execute(

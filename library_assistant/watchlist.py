@@ -46,15 +46,32 @@ _VERSION = re.compile(r"\d{4}-\d{2}-\d{2}\.\d+")
 _LEET = str.maketrans(
     {"0": "o", "1": "l", "3": "e", "4": "a", "5": "s", "7": "t", "@": "a", "$": "s"}
 )
+# Letters from other alphabets that look like Latin ones, so "kіll" with a Cyrillic "і" is
+# "kill". Not a full list: the ones a keyboard or a copy-paste gives a Student.
+_LOOKALIKES = str.maketrans(
+    {
+        **dict(zip("аеорсхуіјѕкмтнв", "aeopcxyijskmthb", strict=True)),
+        **dict(zip("ιοαεκντρ", "ioaekvtp", strict=True)),
+        "ı": "i",
+    }
+)
+# Inside a word these stand for letters: "k!ll", "k*ll", "ki||". "help!" stays punctuation.
+_SYMBOL_IN_WORD = re.compile(r"(?<=[a-z])[!*|]+(?=[a-z])|(?<=[a-z])\|+")
+_SYMBOLS = str.maketrans({"!": "i", "*": "i", "|": "l"})
 _NOT_LETTER = re.compile(r"[^a-z]+")
+# "k i l l m y s e l f": four or more single letters in a row.
+_SPELLED_OUT = re.compile(r"(?<![a-z])[a-z](?: [a-z]){3,}(?![a-z])")
 _REPEATED_LETTER = re.compile(r"([a-z])\1+")
 
 
 def normalize(text: str) -> str:
     """Fold `text` to plain lowercase words so evasions match the plain phrase."""
+    # Invisible characters go first: a zero-width space inside a word must not split it.
+    text = "".join(ch for ch in text if unicodedata.category(ch) != "Cf")
     text = unicodedata.normalize("NFKD", text)
     text = "".join(ch for ch in text if not unicodedata.combining(ch))
-    text = text.lower().translate(_LEET)
+    text = text.lower().translate(_LOOKALIKES).translate(_LEET)
+    text = _SYMBOL_IN_WORD.sub(lambda match: match.group().translate(_SYMBOLS), text)
     text = _NOT_LETTER.sub(" ", text)
     text = _REPEATED_LETTER.sub(r"\1", text)
     return " ".join(text.split())
@@ -76,9 +93,20 @@ class Entry:
         """True when any phrase occurs as whole words in `text`, both normalized."""
         # "1" stands for "l" in "ki11" and "i" in "su1c1de": read a message both ways.
         messages = (f" {normalize(text)} ", f" {normalize(text.replace('1', 'i'))} ")
-        return any(
+        if any(
             f" {normalize(phrase)} " in message
             for message in messages
+            for phrase in self.phrases
+        ):
+            return True
+        spelled_out = [
+            _REPEATED_LETTER.sub(r"\1", run.replace(" ", ""))
+            for message in messages
+            for run in _SPELLED_OUT.findall(message)
+        ]
+        return any(
+            normalize(phrase).replace(" ", "") in run
+            for run in spelled_out
             for phrase in self.phrases
         )
 

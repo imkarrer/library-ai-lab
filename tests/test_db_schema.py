@@ -4,6 +4,8 @@ An FTS virtual table keeps shadow tables that survive a DELETE on the transcript
 table it indexes, so the Purge would not be able to remove every copy.
 """
 
+import sqlite3
+
 from library_assistant.access import connect
 
 
@@ -52,3 +54,19 @@ def test_an_older_flag_history_gains_the_acknowledged_event(tmp_path):
         ("raised",),
         ("acknowledged",),
     ]
+
+
+def test_an_older_sessions_table_gains_ended_at(tmp_path):
+    path = tmp_path / "older.db"
+    older = sqlite3.connect(path)
+    older.execute(
+        "CREATE TABLE sessions (session_hash TEXT PRIMARY KEY, token_hash TEXT NOT NULL, "
+        "started_at TEXT NOT NULL)"
+    )
+    older.commit()
+    older.close()
+
+    columns = [
+        row[1] for row in connect(str(path)).execute("PRAGMA table_info(sessions)")
+    ]
+    assert "ended_at" in columns

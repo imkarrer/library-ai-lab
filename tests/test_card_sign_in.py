@@ -346,8 +346,10 @@ def test_new_sign_in_ends_the_devices_previous_session(client):
     assert response2.status_code == 200
     assert SESSION_COOKIE in response2.cookies
 
-    # Verify old session is deleted
-    session_count = db.execute("SELECT count(*) FROM sessions").fetchone()[0]
+    # Verify old session has ended
+    session_count = db.execute(
+        "SELECT count(*) FROM sessions WHERE ended_at IS NULL"
+    ).fetchone()[0]
     assert session_count == 1
 
     # Verify the new session is different from the old one
@@ -452,7 +454,10 @@ def test_session_ends_after_idle_minutes(client):
     response = tc.get("/chat")
     assert response.status_code == 403
     assert response.json()["detail"] == IDLE_TEXT
-    assert db.execute("SELECT count(*) FROM sessions").fetchone()[0] == 0
+    assert (
+        db.execute("SELECT count(*) FROM sessions WHERE ended_at IS NULL").fetchone()[0]
+        == 0
+    )
 
 
 def test_activity_keeps_session_alive(client):

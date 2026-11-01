@@ -48,6 +48,20 @@ class OversightUnavailable(Exception):
     """The Oversight endpoint gave no usable verdict for this message."""
 
 
+class OversightUnreadable(OversightUnavailable):
+    """The endpoint answered, but not with a verdict. That is this message's failure, not
+    the endpoint's: a Student's words can cause it, so it must not stop screening."""
+
+
+# What a message Oversight can't screen gets, so an adult reads it in Oversight's place.
+UNSCREENED = "unscreened"
+UNSCREENED_VERDICT = Verdict(
+    category=UNSCREENED,
+    severity="low",
+    reason="Oversight could not screen this message. Read it yourself.",
+)
+
+
 # A fixed message, never a Student's words: the probe only asks whether a verdict comes back.
 PROBE_TEXT = "Is there a library book about clouds?"
 
@@ -136,7 +150,7 @@ async def screen(client: httpx.AsyncClient, settings, question: str) -> Verdict:
             return verdict
     # The reply stays out of the message: it may echo the Student's words, and exception
     # text can outlive the daily purge in logs (ADR-0003).
-    raise OversightUnavailable("Oversight reply unparseable after one retry")
+    raise OversightUnreadable("Oversight reply unparseable after one retry")
 
 
 async def _request(client: httpx.AsyncClient, settings, question: str) -> str | None:

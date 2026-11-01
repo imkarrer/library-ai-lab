@@ -1182,3 +1182,36 @@ def test_session_detail_draws_answers_with_the_students_renderer(client, db):
     assert 'class="bubble assistant answer"' in page
     assert "bookCards(citations, BOOKS_TITLE, recordLink)" in page
     assert_scripts_parse(page)
+
+
+def _ended_session(client, db):
+    """A Student asks, then presses End session."""
+    _card(db, "token-14", "14", class_label="Period 3")
+    session_hash = _session(db, "token-14")
+    _ask(db, session_hash, "Period 3", "14", "what do snow leopards eat?")
+    db.execute("UPDATE sessions SET ended_at = ?", (NOW.isoformat(),))
+    db.commit()
+    return _session_no_for_card(db, "14", "Period 3")
+
+
+def test_an_ended_session_stays_on_the_live_view(client, db):
+    sign_in_as(client, db, "librarian")
+    session_no = _ended_session(client, db)
+
+    overview = client.get("/staff/live").text
+    assert "what do snow leopards eat?" in overview
+    assert "Session ended" in overview
+    assert client.get(f"/staff/live/sessions/{session_no}").status_code == 200
+
+
+def test_a_card_can_be_revoked_from_an_ended_session(client, db):
+    sign_in_as(client, db, "librarian")
+    session_no = _ended_session(client, db)
+
+    response = client.post(
+        f"/staff/live/sessions/{session_no}/revoke-card",
+        data={"confirm": "yes"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert db.execute("SELECT count(*) FROM cards").fetchone()[0] == 0
