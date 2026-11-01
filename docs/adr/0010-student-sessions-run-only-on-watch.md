@@ -243,18 +243,22 @@ person for anything urgent: the Counselor hears the Alarm only on an open Counse
 ## Amendment: the staff test page
 
 Decided 2026-11-01 by the owner: the Librarian "needs to have their own mode of interacting with
-the ai so they can test it without needing to scan a qr code or be on watch". The Librarian or a
-Stand-in can ask on `/staff/test`, signed in, with no Card and nobody on Watch.
+the ai so they can test it without needing to scan a qr code or be on watch". The Librarian, a
+Teacher, or a Stand-in can ask on `/staff/test`, signed in, with no Card and nobody on Watch.
+Teachers were added the same day: "if they can generate cards they should be able to experiment
+with it".
 
 This does not open the gate, because a test is not a Student Session. It stays outside the rules
 above for these reasons:
 
-- **Only the adults who can hold a Watch reach it.** A Card reaches none of it.
+- **Only staff who can make Cards, and Stand-ins, reach it.** A Card reaches none of it. A
+  Counselor alone does not.
 - **It keeps nothing.** No Session, no transcript, no Flag, no Live view event. It needs no
   Purge (ADR-0003), and a Card-to-Student link cannot arise (ADR-0002).
 - **It runs the Student's code.** The same answer stream, Watchlist, Supportive reply, and
   Oversight, so a test shows what a Student would get. Beside the answer it says what would
   happen in class, in place of raising the Flag.
 
-The cost: a Student using a signed-in staff computer would get the Supportive reply but raise no
-Flag. Staff sign-in is the boundary here, as it is for the Flag queue.
+The costs: a Student using a signed-in staff computer would get the Supportive reply but raise no
+Flag, so staff sign-in is the boundary here, as it is for the Flag queue. And a test during class
+shares the model with the Students, which the Live view does not show.

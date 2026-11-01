@@ -1,4 +1,4 @@
-"""The staff test page: the Librarian or a Stand-in asks the assistant, with no Card and no
+"""The staff test page: anyone who can make Cards, or a Stand-in, asks the assistant, with no Card and no
 Watch, and sees what a Student would get and what would happen in class.
 
 A test is not a Session. It writes nothing, so the Purge has nothing to do (ADR-0003), and it
@@ -13,9 +13,10 @@ import html
 import json
 import sqlite3
 from collections.abc import AsyncIterator
+from typing import Annotated
 
 import httpx
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
 from library_assistant.access import NO_STORE, REFUSAL_TEXT, get_db
@@ -42,7 +43,7 @@ from library_assistant.routers.session import (
     _ReleasingStream,
     stream_answer,
 )
-from library_assistant.staff import StandInDep
+from library_assistant.staff import MINTING_ROLES, StaffAccount, StaffDep
 from library_assistant.supportive_replies import reply_for
 from library_assistant.watchlist import Watchlist
 
@@ -90,6 +91,17 @@ _PAGE_SCRIPT = """<script>
   </script>"""
 
 
+def _can_test(account: StaffDep) -> StaffAccount:
+    """Anyone who can put a Card in a Student's hand can try what it opens. A Stand-in
+    covers for the Librarian. A Counselor alone gets 403."""
+    if account.role not in MINTING_ROLES and not account.is_stand_in:
+        raise HTTPException(status_code=403, detail="not available to your role")
+    return account
+
+
+TesterDep = Annotated[StaffAccount, Depends(_can_test)]
+
+
 def _flag_line(source: str, category: str, severity: str | None) -> str:
     """One check's result, in the words of what would happen to a Student."""
     kind = f"{severity}-severity Flag" if severity else "Flag"
@@ -99,7 +111,7 @@ def _flag_line(source: str, category: str, severity: str | None) -> str:
 
 @router.get(TEST_PATH)
 def test_page(
-    account: StandInDep, settings: Settings = Depends(get_settings)
+    account: TesterDep, settings: Settings = Depends(get_settings)
 ) -> HTMLResponse:
     """The Student's chat page, pointed at the test routes."""
     return HTMLResponse(
@@ -121,7 +133,7 @@ def test_page(
 @router.post(TEST_PATH + "/ask", response_model=None)
 async def test_ask(
     request: AskRequest,
-    account: StandInDep,
+    account: TesterDep,
     http_client: HttpClientDep,
     settings: Settings = Depends(get_settings),
     catalog: Catalog = Depends(get_catalog),
@@ -161,7 +173,7 @@ async def test_ask(
 @router.post(TEST_PATH + "/check")
 async def test_check(
     request: AskRequest,
-    _account: StandInDep,
+    _account: TesterDep,
     settings: Settings = Depends(get_settings),
     watchlist: Watchlist = Depends(get_watchlist),
     state: ScreeningState = Depends(get_screening_state),

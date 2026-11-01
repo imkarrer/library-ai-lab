@@ -147,11 +147,9 @@ def nav_links(account: StaffAccount) -> list[tuple[str, str]]:
     the /staff home, so a role never sees a link it would be refused."""
     links: list[tuple[str, str]] = []
     if account.role == "librarian" or account.is_stand_in:
-        links += [
-            ("Live view", "/staff/live"),
-            ("Flags", "/staff/flags"),
-            ("Test", "/staff/test"),
-        ]
+        links += [("Live view", "/staff/live"), ("Flags", "/staff/flags")]
+    if account.role in MINTING_ROLES or account.is_stand_in:
+        links.append(("Test", "/staff/test"))
     if account.role == "counselor":
         links.append(("Escalated Flags", "/staff/counselor"))
     if account.role == "librarian":
