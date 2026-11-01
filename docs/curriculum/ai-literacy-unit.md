@@ -589,8 +589,8 @@ Four quick items (thumbs, whiteboards, or a half-sheet):
 ### What to watch for
 
 - **Do not demonstrate the Supportive reply live.** Typing a Watchlist phrase on a staff
-  Card still raises a real Flag and sounds the Alarm. Show the preview printout instead. To see one beforehand, the
-  Librarian can use the Test page (`/staff/test`), which raises nothing. If a
+  Card still raises a real Flag and sounds the Alarm. Show the preview printout instead. To see one beforehand, use
+  the Test page (`/staff/test`), which raises nothing. If a
   student tries it "to see what happens", follow your protocol anyway, and talk to them
   privately and gently afterward.
 - **The Alarm chime is not a spotlight.** During a class session that uses the assistant, a

@@ -25,8 +25,8 @@ Tone matters more here than anywhere else: honest, specific, calm. The goal is t
 who needs help is more likely to ask for it.
 
 Do not demonstrate a Supportive reply live. Typing a Watchlist phrase on a staff Card raises a
-real Flag and sounds the Alarm. To see one beforehand, the Librarian can use the Test page
-(/staff/test), which raises nothing. Don't promise "right away" or "nobody will ever know".
+real Flag and sounds the Alarm. To see one beforehand, use the Test page (/staff/test), which
+raises nothing. Don't promise "right away" or "nobody will ever know".
 -->
 
 ---
