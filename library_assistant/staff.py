@@ -148,8 +148,7 @@ def nav_links(account: StaffAccount) -> list[tuple[str, str]]:
     links: list[tuple[str, str]] = []
     if account.role == "librarian" or account.is_stand_in:
         links += [("Live view", "/staff/live"), ("Flags", "/staff/flags")]
-    if account.role in MINTING_ROLES or account.is_stand_in:
-        links.append(("Test", "/staff/test"))
+    links.append(("Test", "/staff/test"))
     if account.role == "counselor":
         links.append(("Escalated Flags", "/staff/counselor"))
     if account.role == "librarian":
@@ -167,7 +166,7 @@ def nav_links(account: StaffAccount) -> list[tuple[str, str]]:
 _HOME_CARD_TEXT = {
     "/staff/live": "Start watch, and see every Session and open Flag as it happens.",
     "/staff/flags": "Every open Flag: Acknowledge, export, Escalate, and close.",
-    "/staff/test": "Ask it yourself, with no Card and no Watch. Nothing is saved.",
+    "/staff/test": "Try it yourself, sparingly. No Card, no Watch, nothing saved.",
     "/staff/counselor": "The Flags Escalated to you, to resolve and close.",
     "/staff/accounts": "Add Teachers and Counselors; grant Stand-in.",
     "/staff/keys": "Registration keys, and each Teacher's Minting page.",
