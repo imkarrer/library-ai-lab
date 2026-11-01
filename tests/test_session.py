@@ -31,13 +31,18 @@ from library_assistant.catalog.sqlite_backend import SqliteCatalog
 from library_assistant.config import Settings
 from library_assistant.dependencies import get_catalog, get_settings
 from library_assistant.install_settings import SUPERVISION_MODE, set_setting
+from library_assistant.oversight import UNSCREENED
 from library_assistant.prompt import MAX_BOOKS, MAX_SEARCH_TERMS
 from library_assistant.routers.session import (
+    ASKS_PER_WINDOW,
     BANNER_TEXT,
     BOOK_CANDIDATES,
     BOOKS_MARK,
     ERROR_TEXT,
+    MAX_REASON_CHARS,
     _in_flight,
+    _ReleasingStream,
+    _unreadable,
 )
 from library_assistant.staff import create_account
 
@@ -976,10 +981,11 @@ async def test_other_card_unaffected_while_in_flight(client, held_model):
 
 @pytest.mark.anyio
 async def test_same_card_second_session_also_409(client, held_model):
-    _, db = client
-    async with _signed_in() as phone, _signed_in() as laptop:
-        assert db.execute("SELECT count(*) FROM sessions").fetchone()[0] == 2
-        async with _first_message_in_flight(phone, held_model) as first:
+    async with _signed_in() as phone:
+        async with (
+            _first_message_in_flight(phone, held_model) as first,
+            _signed_in() as laptop,
+        ):
             assert _one_moment(await _ask(laptop))
         assert first["response"].status_code == 200
     assert held_model.calls == 2  # the overview, then choosing books
@@ -1044,3 +1050,114 @@ def test_chat_page_keeps_question_on_one_moment(client):
     assert page.status_code == 200
     # Check that the question is preserved during retries
     assert "questionInput.value" in page.text
+
+
+def test_a_second_scan_ends_the_first_session(client, model_calls):
+    test_client, db = client
+    first = _sign_in(test_client)
+    test_client.cookies.clear()
+    _sign_in(test_client)
+
+    test_client.cookies.set(SESSION_COOKIE, first)
+    assert test_client.post("/ask", json={"question": "bulls?"}).status_code == 403
+    live = db.execute("SELECT count(*) FROM sessions WHERE ended_at IS NULL")
+    assert live.fetchone()[0] == 1
+
+
+def test_a_flood_gets_one_moment(client, model_calls):
+    test_client, db = client
+    _sign_in(test_client)
+    for _ in range(ASKS_PER_WINDOW):
+        assert test_client.post("/ask", json={"question": "bulls?"}).status_code == 200
+
+    response = test_client.post("/ask", json={"question": "bulls?"})
+
+    assert response.status_code == 409
+    assert response.json() == {"status": "one moment"}
+    count = db.execute("SELECT count(*) FROM transcripts").fetchone()[0]
+    assert count == ASKS_PER_WINDOW
+
+
+@pytest.mark.parametrize(
+    ("answer", "unreadable"),
+    [
+        ("TWFkc2lvbg==", True),
+        ("aGVsbG8gd29ybGQgdGhpcyBpcyBiYXNlNjQ= Wolves", True),
+        ("The capital of Wisconsin is Madison.", False),
+        ("La capitale du Wisconsin est Madison, pas Milwaukee !", False),
+        ("Wolves live in packs. See pages 12-14, from 1998.", False),
+        ("狼は群れで暮らします", False),
+        ("", False),
+    ],
+)
+def test_unreadable_answers(answer, unreadable):
+    assert _unreadable(answer) is unreadable
+
+
+def _answers(monkeypatch, text: str) -> None:
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        chunk = json.dumps({"choices": [{"delta": {"content": text}}]})
+        return httpx.Response(
+            200,
+            content=f"data: {chunk}\n\ndata: [DONE]\n\n".encode(),
+            headers={"content-type": "text/event-stream"},
+        )
+
+    monkeypatch.setattr(
+        httpx.AsyncHTTPTransport, "handle_async_request", handle_async_request
+    )
+
+
+def test_an_unreadable_answer_raises_a_low_flag(client, monkeypatch):
+    test_client, db = client
+    _sign_in(test_client)
+    _answers(monkeypatch, "TWFkc2lvbg==\n")
+
+    test_client.post("/ask", json={"question": "capital?"})
+
+    assert db.execute("SELECT category, severity FROM flags").fetchall() == [
+        (UNSCREENED, "low")
+    ]
+
+
+def test_a_readable_answer_raises_nothing(client, monkeypatch):
+    test_client, db = client
+    _sign_in(test_client)
+    _answers(monkeypatch, "Madison is the capital.\n")
+
+    test_client.post("/ask", json={"question": "capital?"})
+
+    assert db.execute("SELECT count(*) FROM flags").fetchone()[0] == 0
+
+
+def test_a_reason_is_capped_and_kept(client, monkeypatch):
+    test_client, db = client
+    app.dependency_overrides[get_catalog] = lambda: ManyBooksCatalog(1)
+    _model_picks(monkeypatch, "1: " + "x" * 500)
+    _sign_in(test_client)
+
+    response = test_client.post("/ask", json={"question": "wolves?"})
+
+    why = _books(response)[0]["why"]
+    assert len(why) == MAX_REASON_CHARS
+    reasons = db.execute("SELECT reasons FROM transcripts").fetchone()[0]
+    assert reasons == f"Book 1: {why}"
+
+
+@pytest.mark.anyio
+async def test_a_stream_that_ends_says_so_once_however_it_ends():
+    released = []
+
+    async def body():
+        yield "text"
+
+    async def receive():
+        return {"type": "http.disconnect"}
+
+    async def send(_message):
+        return None
+
+    stream = _ReleasingStream(body(), release=lambda: released.append(True))
+    await stream({"type": "http", "asgi": {"spec_version": "2.4"}}, receive, send)
+
+    assert released == [True]

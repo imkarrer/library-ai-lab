@@ -117,6 +117,13 @@ def raise_flag(
     return flag_id
 
 
+def export_block(label: str, text: str) -> list[str]:
+    """`text` as Export lines. Every line after the first is marked, so a newline in a
+    Student's message can't pass for a line of the record."""
+    first, *rest = text.splitlines() or [""]
+    return [f"  {label}: {first}", *(f"    | {line}" for line in rest)]
+
+
 def raise_or_repeat(
     db: sqlite3.Connection,
     transcript_id: int,

@@ -232,6 +232,7 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
             question TEXT NOT NULL,
             answer TEXT NOT NULL,
             citations TEXT NOT NULL,
+            reasons TEXT NOT NULL DEFAULT '',
             asked_at TEXT NOT NULL,
             verdict TEXT,
             screened_at TEXT,
@@ -338,6 +339,8 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
         """
     )
     _add_missing_columns(conn, "purge_runs", PURGE_RUN_COUNTS)
+    # An older transcripts table kept no reason for a book.
+    _add_missing_columns(conn, "transcripts", ("reasons",), "TEXT NOT NULL DEFAULT ''")
     # An older sessions table deleted a Session when it ended.
     _add_missing_columns(conn, "sessions", ("ended_at",), "TEXT")
     # An older flags table predates the Export record; its Flags read as not exported.
@@ -780,6 +783,12 @@ def post_sign_in(
     if SESSION_COOKIE in request.cookies:
         old_session_id = request.cookies[SESSION_COOKIE]
         end_session(db, hash_token(old_session_id), clock)
+    # One live Session per Card: a photographed Card can't run beside its holder, who
+    # finds their chat has stopped and can say so.
+    db.execute(
+        "UPDATE sessions SET ended_at = ? WHERE token_hash = ? AND ended_at IS NULL",
+        (clock.isoformat(), token_hash),
+    )
 
     db.execute(
         "INSERT INTO sessions (session_hash, token_hash, started_at, last_seen_at) "
@@ -797,6 +806,7 @@ def post_sign_in(
         value=session_id,
         httponly=True,
         samesite="strict",
+        secure=request.url.scheme == "https",
         # A cookie's expires= must be GMT; a Batch registered by the CLI carries an offset.
         expires=expires_at_dt.astimezone(UTC),
     )

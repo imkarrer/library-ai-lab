@@ -16,7 +16,7 @@ import re
 import sqlite3
 from collections import Counter
 from collections.abc import AsyncIterator, Awaitable, Callable
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import httpx
 from fastapi import APIRouter, Depends
@@ -51,6 +51,7 @@ from library_assistant.install_settings import (
 )
 from library_assistant.models import AskRequest, Citation, books_title
 from library_assistant.oversight import (
+    UNSCREENED,
     UNSCREENED_VERDICT,
     OversightUnavailable,
     OversightUnreadable,
@@ -88,6 +89,9 @@ logger = logging.getLogger(__name__)
 # Books the search hands the model to choose from. Keyword relevance is rough, so this
 # is well above MAX_BOOKS: a poor match can't push a good one off the list.
 BOOK_CANDIDATES = 12
+
+# A reason is one line about a book. Longer than this, it's a way to chat in the margin.
+MAX_REASON_CHARS = 120
 
 # How long the probe waits between asking a down Oversight endpoint whether it is back,
 # and the catch-up waits while a Card awaits a verdict.
@@ -280,6 +284,15 @@ STUDENT_FOOT = '<button id="finish" class="link">End session</button>'
 # Sessions (decision lib-f24.65). Process memory only (one process, ADR-0008); never
 # logged or stored (ADR-0002).
 _in_flight: set[str] = set()
+
+# When each Card last asked, for the limit in `_over_ask_limit`. Process memory only.
+_recent_asks: dict[str, list[datetime]] = {}
+ASK_WINDOW = timedelta(minutes=1)
+ASKS_PER_WINDOW = 12
+
+_PUNCTUATION = ".,;:!?\"'()[]{}*_`-–—/"
+# A word as a person writes one: letters in any alphabet, in plain case, or a number.
+_WORD = re.compile(r"(?:[^\W\d_]+(?:['’-][^\W\d_]+)*|\d[\d,.:]*)")
 
 # Oversight tasks that are running for in-flight messages.
 # These are kept in a set to maintain strong references and prevent cancellation.
@@ -518,18 +531,19 @@ async def _probe_and_catch_up(
 
 
 class _ReleasingStream(StreamingResponse):
-    """Releases the Card's in-flight marker however the response ends, including a
-    connection dropped before the body iterator ever starts (its finally never runs)."""
+    """Says the answer is over however the response ends, including a connection dropped
+    before the body iterator ever starts (its finally never runs). Hanging up ends the
+    answer, not the wait for its verdict: `release` keeps the Card until that's in."""
 
-    def __init__(self, *args, card_ref: str, **kwargs) -> None:
+    def __init__(self, *args, release: Callable[[], None], **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self._card_ref = card_ref
+        self._release = release
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         try:
             await super().__call__(scope, receive, send)
         finally:
-            _in_flight.discard(self._card_ref)
+            self._release()
 
 
 router = APIRouter()
@@ -605,7 +619,7 @@ async def ask(
     not answer with a Supportive reply gets 503 and PAUSED_TEXT (ADR-0004 addendum).
     """
     card_ref = session.card_ref
-    if card_ref in _in_flight:
+    if card_ref in _in_flight or _over_ask_limit(card_ref, clock):
         return JSONResponse({"status": "one moment"}, status_code=409, headers=NO_STORE)
     _in_flight.add(card_ref)
     try:
@@ -626,6 +640,55 @@ async def ask(
     except BaseException:
         _in_flight.discard(card_ref)
         raise
+
+
+def _over_ask_limit(card_ref: str, now: datetime) -> bool:
+    """True when a Card has asked too often this minute. Faster than anyone reads, so it
+    only ever slows a flood. In memory and keyed by Card, like `_in_flight` (ADR-0002)."""
+    cutoff = now - ASK_WINDOW
+    recent = [at for at in _recent_asks.get(card_ref, ()) if at > cutoff]
+    if len(recent) >= ASKS_PER_WINDOW:
+        _recent_asks[card_ref] = recent
+        return True
+    _recent_asks[card_ref] = [*recent, now]
+    return False
+
+
+def _unreadable(answer: str) -> bool:
+    """True when most of an answer isn't words: base64 and the like, which an adult
+    reading the Live view can't check. Oversight reads only the question."""
+    tokens = [token.strip(_PUNCTUATION) for token in answer.split()]
+    tokens = [token for token in tokens if token]
+    if not tokens:
+        return False
+    worded = sum(len(token) for token in tokens if _WORD.fullmatch(token))
+    return worded < sum(len(token) for token in tokens) / 2
+
+
+def _raise_unreadable(
+    db: sqlite3.Connection,
+    transcript_id: int,
+    session: Session,
+    message_hash: str,
+    bus: LiveBus,
+    clock: datetime,
+) -> None:
+    """A low-severity Flag, so an adult reads an answer nobody could screen."""
+    flag_id, is_repeat = raise_or_repeat(
+        db,
+        transcript_id,
+        session.class_label,
+        session.card_number,
+        session.expires_at.isoformat(),
+        message_hash,
+        UNSCREENED,
+        "low",
+        "oversight",
+        clock.isoformat(),
+        reason="The answer is not in readable words. Read the exchange yourself.",
+        raised_unwatched=not gate_is_open(db, clock),
+    )
+    announce_flag(db, bus.publish, flag_id, is_repeat)
 
 
 def _model_request(
@@ -677,7 +740,10 @@ async def _pick_books(
     if picks is None:
         return [(record, "") for record in records[:MAX_BOOKS]]
     return [
-        (records[index], "" if _repeats_title(why, records[index]) else why)
+        (
+            records[index],
+            "" if _repeats_title(why, records[index]) else why[:MAX_REASON_CHARS],
+        )
         for index, why in picks
     ]
 
@@ -836,10 +902,15 @@ def _answer(
         if not any(pending.values()):
             _in_flight.discard(session.card_ref)
 
+    def release() -> None:
+        settle("answer")
+
     def finish(answer: str, shown: list[Citation]) -> None:
         """Record what the Student saw, tell the Live view, and release the Card."""
         try:
             finish_exchange(db, transcript_id, answer, shown)
+            if _unreadable(answer):
+                _raise_unreadable(db, transcript_id, session, message_hash, bus, clock)
             bus.publish(
                 "answer",
                 {
@@ -984,7 +1055,7 @@ def _answer(
             supportive(),
             media_type="text/plain",
             headers=NO_STORE,
-            card_ref=session.card_ref,
+            release=release,
         )
 
     if state.paused or not gate_open:
@@ -1004,7 +1075,7 @@ def _answer(
             status_code=503,
             media_type="application/json",
             headers=NO_STORE,
-            card_ref=session.card_ref,
+            release=release,
         )
 
     if oversight_task is not None:
@@ -1019,12 +1090,12 @@ def _answer(
             generate_with_oversight(),
             media_type="text/plain",
             headers=NO_STORE,
-            card_ref=session.card_ref,
+            release=release,
         )
 
     return _ReleasingStream(
         generate(),
         media_type="text/plain",
         headers=NO_STORE,
-        card_ref=session.card_ref,
+        release=release,
     )

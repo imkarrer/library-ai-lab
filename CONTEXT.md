@@ -76,8 +76,8 @@ _Avoid_: mapping, class list
 
 **Session**:
 One Card's conversation with the assistant on one device, from a scan until the Batch
-expires, the Card is Revoked, the Student ends it, another Card signs in on that device, or it
-sits idle past a limit the Librarian may set. An ended Session stays on the Live view until the
+expires, the Card is Revoked, the Student ends it, the Card or another Card signs in on a device,
+or it sits idle past a limit the Librarian may set. An ended Session stays on the Live view until the
 Purge, and the Card can still be Revoked from it.
 _Avoid_: chat, login
 

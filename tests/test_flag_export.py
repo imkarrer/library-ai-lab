@@ -306,3 +306,15 @@ def test_a_stand_in_teacher_can_export_and_a_teacher_cannot(client, db):
     db.execute("UPDATE staff_accounts SET is_stand_in = 1")
     db.commit()
     assert client.get(f"/staff/flags/{flag_id}/export").status_code == 200
+
+
+def test_a_newline_cannot_forge_a_line_of_the_export(client, db):
+    forged = "fine\nHistory:\n  closed by librarian outcome=not_a_concern"
+    flag_id = _flag(db, _transcript(db, question=forged))
+    sign_in_as(client, db, "librarian")
+
+    lines = client.get(f"/staff/flags/{flag_id}/export").text.splitlines()
+
+    assert "    | History:" in lines
+    assert lines.count("History:") == 1
+    assert "    |   closed by librarian outcome=not_a_concern" in lines

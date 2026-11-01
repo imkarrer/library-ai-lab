@@ -17,6 +17,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from library_assistant.access import get_clock, get_db
 from library_assistant.config import Settings, get_settings
+from library_assistant.flags import export_block
 from library_assistant.holds import (
     REASON_KINDS,
     Hold,
@@ -187,8 +188,8 @@ def export_hold(
         lines.append(f"Class label: {class_label}")
         lines.append(f"Card number: {card_number}")
         lines.append(f"Timed message at {asked_at}:")
-        lines.append(f"  Question: {question}")
-        lines.append(f"  Answer: {answer}")
+        lines += export_block("Question", question)
+        lines += export_block("Answer", answer)
         lines.append("")
     export_content = "\n".join(lines) + "\n"
 

@@ -17,6 +17,8 @@ from library_assistant.access import (
 from library_assistant.app import app
 from library_assistant.install_settings import SUPERVISION_MODE, set_setting
 from library_assistant.staff import (
+    LOGIN_LOCKOUT,
+    MAX_FAILED_LOGINS,
     STAFF_SESSION_COOKIE,
     LibrarianDep,
     StaffSignInRequired,
@@ -48,7 +50,8 @@ def client(db, clock):
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[get_clock] = lambda: clock["now"]
     try:
-        yield TestClient(app)
+        # Setup answers only the assistant's own computer.
+        yield TestClient(app, client=("127.0.0.1", 50000))
     finally:
         app.dependency_overrides.clear()
 
@@ -363,7 +366,7 @@ def test_setup_is_404_once_an_account_exists(client, db):
         "/staff/setup",
         data={
             "username": "someone",
-            "password": "pw",
+            "password": "long enough pw",
             "password_again": "pw",
         },
     )
@@ -402,7 +405,7 @@ def test_accounts_anonymous_401(client):
     assert client.get("/staff/accounts").status_code == 401
     response = client.post(
         "/staff/accounts",
-        data={"username": "new", "password": "pw", "role": "teacher"},
+        data={"username": "new", "password": "long enough pw", "role": "teacher"},
     )
     assert response.status_code == 401
 
@@ -415,7 +418,11 @@ def test_teacher_cannot_add_account_403(client, db, role):
 
     response = client.post(
         "/staff/accounts",
-        data={"username": "newteacher", "password": "pw", "role": "teacher"},
+        data={
+            "username": "newteacher",
+            "password": "long enough pw",
+            "role": "teacher",
+        },
     )
 
     assert response.status_code == 403
@@ -429,7 +436,7 @@ def test_librarian_adds_teacher_and_counselor(client, db):
     for username, role in [("newteacher", "teacher"), ("newcounselor", "counselor")]:
         response = client.post(
             "/staff/accounts",
-            data={"username": username, "password": "pw", "role": role},
+            data={"username": username, "password": "long enough pw", "role": role},
             follow_redirects=False,
         )
         assert response.status_code == 303
@@ -464,7 +471,7 @@ def test_add_librarian_role_is_400(client, db, role):
 
     response = client.post(
         "/staff/accounts",
-        data={"username": "newlibrarian", "password": "pw", "role": role},
+        data={"username": "newlibrarian", "password": "long enough pw", "role": role},
     )
 
     assert response.status_code == 400
@@ -474,7 +481,7 @@ def test_add_librarian_role_is_400(client, db, role):
 def test_add_account_duplicate_username_409(client, db):
     create_account(db, "librarian", "correct horse", "librarian")
     _sign_in(client)
-    data = {"username": "newteacher", "password": "pw", "role": "teacher"}
+    data = {"username": "newteacher", "password": "long enough pw", "role": "teacher"}
 
     first = client.post("/staff/accounts", data=data, follow_redirects=False)
     assert first.status_code == 303
@@ -488,7 +495,7 @@ def test_accounts_page_escapes_username(client, db):
         "/staff/accounts",
         data={
             "username": "<script>alert(1)</script>",
-            "password": "pw",
+            "password": "long enough pw",
             "role": "teacher",
         },
     )
@@ -580,3 +587,83 @@ def test_a_counselor_cannot_get_a_registration_key(client, db):
         "/staff/login", data={"username": "counselor", "password": "correct horse"}
     )
     assert client.post("/staff/key/rotate").status_code == 403
+
+
+def test_nobody_on_the_network_can_claim_a_fresh_install(db):
+    app.dependency_overrides[get_db] = lambda: db
+    try:
+        student = TestClient(app, client=("203.0.113.50", 50000))
+        assert student.get("/staff/setup").status_code == 403
+        response = student.post(
+            "/staff/setup",
+            data={
+                "username": "mine now",
+                "password": "correct horse",
+                "password_again": "correct horse",
+            },
+            follow_redirects=False,
+        )
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 403
+    assert db.execute("SELECT count(*) FROM staff_accounts").fetchone()[0] == 0
+
+
+@pytest.mark.parametrize("path", ["/staff/setup", "/staff/accounts"])
+def test_a_form_refuses_a_short_password(client, db, path):
+    data = {"username": "x", "password": "short", "password_again": "short"}
+    if path == "/staff/accounts":
+        create_account(db, "librarian", "correct horse", "librarian")
+        _sign_in(client)
+        data["role"] = "teacher"
+    assert client.post(path, data=data).status_code == 400
+
+
+def test_wrong_passwords_lock_that_name_for_a_minute(client, db, clock):
+    create_account(db, "teacher", "correct horse", "teacher")
+    for _ in range(MAX_FAILED_LOGINS):
+        assert _sign_in(client, "teacher", "wrong").status_code == 401
+
+    # Even the right one waits, so guessing can't tell which was right.
+    assert _sign_in(client, "teacher").status_code == 429
+
+    clock["now"] += LOGIN_LOCKOUT
+    assert _sign_in(client, "teacher").status_code == 303
+
+
+def test_a_success_clears_the_count(client, db):
+    create_account(db, "teacher", "correct horse", "teacher")
+    for _ in range(MAX_FAILED_LOGINS - 1):
+        _sign_in(client, "teacher", "wrong")
+    assert _sign_in(client, "teacher").status_code == 303
+    assert _sign_in(client, "teacher", "wrong").status_code == 401
+    assert _sign_in(client, "teacher").status_code == 303
+
+
+def test_staff_change_their_own_password(client, db):
+    create_account(db, "teacher", "correct horse", "teacher")
+    _sign_in(client, "teacher")
+    assert client.get("/staff/password").status_code == 200
+    change = {"current": "correct horse", "new": "a new long password"}
+
+    wrong = client.post("/staff/password", data={**change, "current": "nope"})
+    assert wrong.status_code == 400
+    short = client.post("/staff/password", data={**change, "new": "short"})
+    assert short.status_code == 400
+
+    changed = client.post("/staff/password", data=change, follow_redirects=False)
+    assert changed.status_code == 303
+    assert client.get("/staff").status_code == 401
+    assert _sign_in(client, "teacher").status_code == 401
+    assert _sign_in(client, "teacher", "a new long password").status_code == 303
+
+
+def test_cookies_are_secure_over_https(db):
+    app.dependency_overrides[get_db] = lambda: db
+    create_account(db, "librarian", "correct horse", "librarian")
+    try:
+        https = TestClient(app, base_url="https://testserver")
+        response = _sign_in(https)
+    finally:
+        app.dependency_overrides.clear()
+    assert "secure" in response.headers["set-cookie"].lower()

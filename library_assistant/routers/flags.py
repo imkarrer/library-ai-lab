@@ -40,6 +40,7 @@ from library_assistant.flags import (
     FlagRow,
     close_flag,
     escalate_flag,
+    export_block,
     get_flag,
     is_overdue,
     open_flags,
@@ -358,10 +359,12 @@ def _flag_detail(
     over to them."""
     base = COUNSELOR_FLAGS_PATH if as_counselor else FLAGS_PATH
     transcript = db.execute(
-        "SELECT question, answer FROM transcripts WHERE id = ?",
+        "SELECT question, answer, reasons FROM transcripts WHERE id = ?",
         (flag.transcript_id,),
     ).fetchone()
-    question, answer = transcript if transcript else ("", "")
+    question, answer, reasons = transcript if transcript else ("", "", "")
+    if reasons:
+        answer = f"{answer}\n\nWhy each book: {reasons}"
     append_event(db, flag.id, "viewed", at=clock.isoformat(), account=account.username)
     history_rows = "".join(
         "<tr>"
@@ -617,10 +620,12 @@ def export_flag(
         raise HTTPException(status_code=403, detail="not available to your role")
 
     transcript = db.execute(
-        "SELECT question, answer, asked_at FROM transcripts WHERE id = ?",
+        "SELECT question, answer, asked_at, reasons FROM transcripts WHERE id = ?",
         (flag.transcript_id,),
     ).fetchone()
-    question, answer, asked_at = transcript if transcript else ("", "", flag.raised_at)
+    question, answer, asked_at, reasons = (
+        transcript if transcript else ("", "", flag.raised_at, "")
+    )
 
     lines = [
         f"Class label: {flag.class_label}",
@@ -639,8 +644,10 @@ def export_flag(
         lines.append(f"Matched entry: {flag.entry_id}")
     lines.append("")
     lines.append(f"Timed message at {asked_at}:")
-    lines.append(f"  Question: {question}")
-    lines.append(f"  Answer: {answer}")
+    lines += export_block("Question", question)
+    lines += export_block("Answer", answer)
+    if reasons:
+        lines += export_block("Why each book", reasons)
     lines.append("")
     lines.append("History:")
     for event in get_history(db, flag_id):
