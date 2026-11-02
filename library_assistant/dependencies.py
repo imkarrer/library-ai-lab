@@ -64,6 +64,14 @@ def start_exchange(
     return cursor.lastrowid
 
 
+def reasons_text(citations: list[Citation]) -> str:
+    """Why each book was shown, as the record of what the Student saw. A reason is the
+    model's own free text, so it is kept and shown to adults like the answer."""
+    return "\n".join(
+        f"{citation.title}: {citation.why}" for citation in citations if citation.why
+    )
+
+
 def finish_exchange(
     db: sqlite3.Connection,
     transcript_id: int,
@@ -72,10 +80,11 @@ def finish_exchange(
 ) -> None:
     """Fill in the answer and its Citations once the reply has streamed."""
     db.execute(
-        "UPDATE transcripts SET answer = ?, citations = ? WHERE id = ?",
+        "UPDATE transcripts SET answer = ?, citations = ?, reasons = ? WHERE id = ?",
         (
             answer,
             ",".join(citation.record_id for citation in citations),
+            reasons_text(citations),
             transcript_id,
         ),
     )

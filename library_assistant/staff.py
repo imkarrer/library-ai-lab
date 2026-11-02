@@ -13,6 +13,7 @@ import functools
 import hashlib
 import hmac
 import html
+import ipaddress
 import secrets
 import sqlite3
 import urllib.parse
@@ -175,6 +176,7 @@ _HOME_CARD_TEXT = {
     "/staff/settings": "Supervision mode, Watch grace, the Alarm chime.",
     "/staff/supportive-replies-preview": "What a Student sees instead of an answer.",
     "/staff/it-kit": "HTTPS for Chromebooks: what district IT needs, filled in.",
+    "/staff/password": "Set a password only you know.",
     "/staff/lessons": "Slides and student handouts for the AI literacy unit.",
 }
 
@@ -265,6 +267,15 @@ def create_account(
     db.commit()
     return cursor.lastrowid
 
+
+# A real Install's passwords, set in a form. The demo stack's are set directly, on purpose.
+MIN_PASSWORD_LENGTH = 10
+SHORT_PASSWORD_TEXT = f"Use a password of at least {MIN_PASSWORD_LENGTH} characters."
+
+# Wrong passwords in a row per username: (count, when the last one came). Process memory.
+_failed_logins: dict[str, tuple[int, datetime]] = {}
+MAX_FAILED_LOGINS = 5
+LOGIN_LOCKOUT = timedelta(minutes=1)
 
 # The roles that mint Batches (ADR-0002 addendum): a Counselor never does.
 MINTING_ROLES = ("librarian", "teacher")
@@ -409,7 +420,11 @@ def _any_staff_account_exists(db: sqlite3.Connection) -> bool:
 
 
 def _sign_in(
-    db: sqlite3.Connection, account_id: int, clock: datetime, next_path: str = "/staff"
+    request: Request,
+    db: sqlite3.Connection,
+    account_id: int,
+    clock: datetime,
+    next_path: str = "/staff",
 ) -> RedirectResponse:
     """Open a staff session for the account and send them to `next_path`."""
     session_id = secrets.token_urlsafe(32)
@@ -425,7 +440,11 @@ def _sign_in(
     db.commit()
     response = RedirectResponse(_safe_next(next_path), status_code=303)
     response.set_cookie(
-        key=STAFF_SESSION_COOKIE, value=session_id, httponly=True, samesite="strict"
+        key=STAFF_SESSION_COOKIE,
+        value=session_id,
+        httponly=True,
+        samesite="strict",
+        secure=request.url.scheme == "https",
     )
     return response
 
@@ -442,15 +461,45 @@ def login_page(
     )
 
 
+def _is_loopback(host: str) -> bool:
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def _on_this_computer(request: Request) -> bool:
+    """True for the assistant's own computer, so nobody on the network can claim an
+    Install before the Librarian does. With --lan the Mac reaches itself on its own
+    network address, so that counts too."""
+    client = request.client.host if request.client else ""
+    server = request.scope.get("server") or ("",)
+    return _is_loopback(client) or client == server[0]
+
+
+def _set_up_elsewhere() -> HTMLResponse:
+    return page(
+        "Set up",
+        "<h1>Set up on the assistant's computer</h1>"
+        "<p>Open this page on the computer the assistant runs on.</p>",
+        status_code=403,
+    )
+
+
 @router.get("/setup", response_model=None)
-def setup_page(db: sqlite3.Connection = Depends(get_db)) -> HTMLResponse:
+def setup_page(
+    request: Request, db: sqlite3.Connection = Depends(get_db)
+) -> HTMLResponse:
     if _any_staff_account_exists(db):
         raise HTTPException(status_code=404)
+    if not _on_this_computer(request):
+        return _set_up_elsewhere()
     return page("Set up", SETUP_FORM.format(message=""))
 
 
 @router.post("/setup", response_model=None)
 def setup(
+    request: Request,
     username: Annotated[str, Form()],
     password: Annotated[str, Form()],
     password_again: Annotated[str, Form()],
@@ -459,6 +508,14 @@ def setup(
 ) -> HTMLResponse | RedirectResponse:
     if _any_staff_account_exists(db):
         raise HTTPException(status_code=404)
+    if not _on_this_computer(request):
+        return _set_up_elsewhere()
+    if len(password) < MIN_PASSWORD_LENGTH:
+        return page(
+            "Set up",
+            SETUP_FORM.format(message=f"<p>{SHORT_PASSWORD_TEXT}</p>"),
+            status_code=400,
+        )
     if password != password_again:
         return page(
             "Set up",
@@ -466,17 +523,43 @@ def setup(
             status_code=400,
         )
     account_id = create_account(db, username, password, "librarian")
-    return _sign_in(db, account_id, clock)
+    return _sign_in(request, db, account_id, clock)
+
+
+def _locked_out(username: str, now: datetime) -> bool:
+    """True after too many wrong passwords for this name in a row, for a minute. Only new
+    sign-ins wait, so nobody can shut out an adult who is already signed in."""
+    failed = _failed_logins.get(username)
+    return (
+        failed is not None
+        and failed[0] >= MAX_FAILED_LOGINS
+        and now - failed[1] < LOGIN_LOCKOUT
+    )
+
+
+def _note_failed_login(username: str, now: datetime) -> None:
+    count = _failed_logins.get(username, (0, now))[0]
+    _failed_logins[username] = (count + 1, now)
 
 
 @router.post("/login", response_model=None)
 def login(
+    request: Request,
     username: Annotated[str, Form()],
     password: Annotated[str, Form()],
     next: Annotated[str | None, Form()] = None,
     db: sqlite3.Connection = Depends(get_db),
     clock: datetime = Depends(get_clock),
 ) -> HTMLResponse | RedirectResponse:
+    if _locked_out(username, clock):
+        return page(
+            "Sign in",
+            LOGIN_FORM.format(
+                message="<p>Too many tries. Wait a minute, then try again.</p>",
+                next=html.escape(_safe_next(next)),
+            ),
+            status_code=429,
+        )
     row = db.execute(
         "SELECT id, password_hash, is_active FROM staff_accounts WHERE username = ?",
         (username,),
@@ -484,6 +567,7 @@ def login(
     stored = row[1] if row else _unknown_user_hash()
     # A deactivated account gets the same answer as a wrong password, after the same work.
     if not verify_password(password, stored) or row is None or not row[2]:
+        _note_failed_login(username, clock)
         return page(
             "Sign in",
             LOGIN_FORM.format(
@@ -492,7 +576,60 @@ def login(
             ),
             status_code=401,
         )
-    return _sign_in(db, row[0], clock, _safe_next(next))
+    _failed_logins.pop(username, None)
+    return _sign_in(request, db, row[0], clock, _safe_next(next))
+
+
+PASSWORD_FORM = (
+    "<h1>Change your password</h1>{message}"
+    '<form method="post" action="/staff/password">'
+    '<p><label>Current password <input name="current" type="password" required '
+    'autocomplete="current-password"></label></p>'
+    '<p><label>New password <input name="new" type="password" required '
+    'autocomplete="new-password"></label></p>'
+    "<p><button>Change password</button></p></form>"
+)
+
+
+@router.get("/password")
+def password_page(
+    account: StaffDep,
+    db: sqlite3.Connection = Depends(get_db),
+    clock: datetime = Depends(get_clock),
+) -> HTMLResponse:
+    body = PASSWORD_FORM.format(message="")
+    return page("Change password", body, account=account, db=db, now=clock)
+
+
+@router.post("/password", response_model=None)
+def change_password(
+    account: StaffDep,
+    current: Annotated[str, Form()],
+    new: Annotated[str, Form()],
+    db: sqlite3.Connection = Depends(get_db),
+    clock: datetime = Depends(get_clock),
+) -> HTMLResponse | RedirectResponse:
+    """Change your own password. Your other signed-in browsers are signed out."""
+    stored = db.execute(
+        "SELECT password_hash FROM staff_accounts WHERE id = ?", (account.id,)
+    ).fetchone()[0]
+    message = None
+    if not verify_password(current, stored):
+        message = "That is not your current password."
+    elif len(new) < MIN_PASSWORD_LENGTH:
+        message = SHORT_PASSWORD_TEXT
+    if message:
+        body = PASSWORD_FORM.format(message=f"<p>{message}</p>")
+        return page(
+            "Change password", body, account=account, db=db, now=clock, status_code=400
+        )
+    db.execute(
+        "UPDATE staff_accounts SET password_hash = ? WHERE id = ?",
+        (hash_password(new), account.id),
+    )
+    db.execute("DELETE FROM staff_sessions WHERE account_id = ?", (account.id,))
+    db.commit()
+    return RedirectResponse("/staff/login", status_code=303)
 
 
 @router.post("/logout")
@@ -540,6 +677,7 @@ def staff_home(
             *nav_links(account),
             ("Lessons", "/staff/lessons"),
             ("Supportive reply preview", "/staff/supportive-replies-preview"),
+            ("Change password", "/staff/password"),
             *([("IT kit", "/staff/it-kit")] if account.role == "librarian" else []),
         ]
     )
@@ -686,6 +824,8 @@ def add_account_route(
     """Librarian-only: add a Teacher or Counselor account; anything else is 400."""
     if role not in ADDABLE_ROLES:
         raise HTTPException(status_code=400, detail="role must be teacher or counselor")
+    if len(password) < MIN_PASSWORD_LENGTH:
+        raise HTTPException(status_code=400, detail=SHORT_PASSWORD_TEXT)
     try:
         create_account(db, username, password, role)
     except sqlite3.IntegrityError:

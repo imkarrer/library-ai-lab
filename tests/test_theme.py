@@ -32,7 +32,7 @@ def test_the_favicon_needs_no_session_and_fetches_nothing():
 
 @pytest.mark.parametrize("path", ["/about", "/staff/login", "/staff/setup"])
 def test_a_page_shows_the_favicon(path):
-    response = TestClient(app).get(path)
+    response = TestClient(app, client=("127.0.0.1", 50000)).get(path)
     assert f'<link rel="icon" href="{FAVICON_PATH}"' in response.text
 
 

@@ -22,7 +22,12 @@ from library_assistant.catalog import Catalog, Record
 from library_assistant.config import Settings
 from library_assistant.dependencies import get_catalog, get_settings, get_watchlist
 from library_assistant.install_settings import SUPERVISION_MODE, set_setting
-from library_assistant.routers.live import LiveBus, get_live_bus, live_events
+from library_assistant.routers.live import (
+    LiveBus,
+    _reason_for,
+    get_live_bus,
+    live_events,
+)
 from library_assistant.shelf import author_name, where_to_find
 from library_assistant.staff import (
     StaffAccount,
@@ -190,7 +195,23 @@ def test_latest_question_truncated(client, db):
     response = client.get("/staff/live")
 
     assert long_question not in response.text
-    assert long_question[:80] + "..." in response.text
+    assert long_question[:40] + " ... " + long_question[-40:] in response.text
+
+
+def test_padding_cannot_hide_the_end_of_a_question(client, db):
+    sign_in_as(client, db, "librarian")
+    _card(db, "token-14", "14")
+    session_hash = _session(db, "token-14")
+    question = "what do wolves eat in the winter? " * 4 + "the real question"
+    _ask(db, session_hash, "Period 3", "14", question)
+
+    assert "the real question" in client.get("/staff/live").text
+
+
+def test_a_reason_comes_back_for_a_title_with_a_colon():
+    reasons = "Wolves : the hunters: About packs.\nOther: Not this one."
+    assert _reason_for("Wolves : the hunters", reasons) == "About packs."
+    assert _reason_for("Missing", reasons) == ""
 
 
 def _main_html(page: str) -> str:

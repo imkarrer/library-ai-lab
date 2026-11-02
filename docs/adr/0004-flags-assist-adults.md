@@ -200,3 +200,8 @@ same message forever, so nothing behind it was screened and those exchanges outl
 - **An adult reads it instead.** The message gets a low-severity Flag in the `unscreened`
   category, with no Alarm. It counts as screened, so the Purge treats it like any other exchange
   once the Flag is closed.
+- **An answer that isn't in words gets the same Flag.** A Student can ask the model to reply in
+  base64, which no adult can read on the Live view and Oversight never sees, because it reads
+  only the question. When most of an answer isn't words, it raises the `unscreened` Flag too.
+  This catches encodings that don't look like words, not ones that do, such as pig latin.
+

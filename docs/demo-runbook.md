@@ -196,7 +196,7 @@ volunteers' questions.
    made now would land in the wrong database.
 
 3. **Librarian**, in a browser. Open `http://127.0.0.1:8000/staff/login`. With no accounts
-   yet it sends you to `/staff/setup`. Create the Librarian: username `librarian`, a password
+   yet it sends you to `/staff/setup`, which only answers on this computer. Create the Librarian: username `librarian`, a password
    you will remember on stage. This signs you in, and `/staff` links to every page below.
 
 4. **Librarian.** Open **Accounts** and add two with **Add account**:

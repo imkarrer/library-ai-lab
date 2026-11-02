@@ -159,7 +159,7 @@ async def test_ask(
         ),
         media_type="text/plain",
         headers=NO_STORE,
-        card_ref=in_flight_key,
+        release=lambda: _in_flight.discard(in_flight_key),
     )
 
 

@@ -167,10 +167,21 @@ class Exchange:
     transcript_id: int | None = None
 
 
+def _reason_for(title: str, reasons: str) -> str:
+    """The book's line in `reasons` (dependencies.reasons_text), without its title."""
+    prefix = f"{title}: "
+    for line in reasons.splitlines():
+        if line.startswith(prefix):
+            return line.removeprefix(prefix)
+    return ""
+
+
 def _truncate(question: str) -> str:
     if len(question) <= LATEST_QUESTION_LIMIT:
         return question
-    return question[:LATEST_QUESTION_LIMIT] + "..."
+    # Both ends, so harmless padding can't push the real question off the tile.
+    half = LATEST_QUESTION_LIMIT // 2
+    return question[:half] + " ... " + question[-half:]
 
 
 def active_sessions(db: sqlite3.Connection, now: datetime) -> list[SessionTile]:
@@ -342,14 +353,21 @@ def session_detail(
 
     # Get exchanges ordered by asked_at ascending (oldest first)
     transcript_rows = db.execute(
-        "SELECT id, asked_at, question, answer, citations FROM transcripts "
+        "SELECT id, asked_at, question, answer, citations, reasons FROM transcripts "
         "WHERE session_hash = ? "
         "ORDER BY asked_at ASC",
         (session_hash,),
     ).fetchall()
 
     exchanges = []
-    for transcript_id, asked_at_str, question, answer, citations_str in transcript_rows:
+    for (
+        transcript_id,
+        asked_at_str,
+        question,
+        answer,
+        citations_str,
+        reasons,
+    ) in transcript_rows:
         asked_at = datetime.fromisoformat(asked_at_str)
 
         # Parse citations
@@ -368,6 +386,7 @@ def session_detail(
                                 call_number=record.call_number,
                                 author=author_name(record.author),
                                 where=where_to_find(record.call_number),
+                                why=_reason_for(record.title, reasons),
                             )
                         )
                     else:
@@ -455,7 +474,8 @@ OVERVIEW_SCRIPT = """<script>
 (() => {
   const LIMIT = __LIMIT__;
   const tiles = document.getElementById("tiles");
-  const shorten = (q) => (q.length <= LIMIT ? q : q.slice(0, LIMIT) + "...");
+  const shorten = (q) =>
+    q.length <= LIMIT ? q : q.slice(0, LIMIT / 2) + " ... " + q.slice(-LIMIT / 2);
   const line = (cls) => {
     const p = document.createElement("p");
     p.className = cls;
