@@ -8,8 +8,8 @@ knows about them and who can see what they type.
 
 **Status: draft for review.** Written for a working school librarian to review, change, and
 teach. Nothing here has been taught yet. Items marked `[VERIFY]` need a person to confirm
-them before use. Vocabulary follows [`CONTEXT.md`](../../CONTEXT.md); in student-facing text
-the terms are explained the first time they appear.
+them before use. Vocabulary follows [`CONTEXT.md`](../../CONTEXT.md); student-facing text
+explains each term the first time it appears.
 
 **Slides and handouts.** Each lesson has a slide deck to teach from, with what to say in the
 speaker notes, and a two-sided handout each student keeps: notes to fill in on the front, the
@@ -26,7 +26,7 @@ The unit assumes the Install is running and these are in place. Do not start Les
 hands-on part until they are.
 
 - **The escalation protocol is adopted** and you know who works the Flag queue and how fast
-  (bead lib-9v7). Students will be told that some messages reach a counselor. That has to be
+  (bead lib-9v7). You will tell students that some messages reach a counselor. That has to be
   true on the day you say it.
 - **A school counselor has reviewed the Watchlist and the Supportive replies** (bead
   lib-sdo). See [ADR-0004](../adr/0004-flags-assist-adults.md): the Watchlist is the only
@@ -56,8 +56,8 @@ Roster.
 
 ### Middle school and high school
 
-The lessons work for both. The facts in Lesson 4 stay the same at every age. Everything else
-can be adjusted:
+The lessons work for both. The facts in Lesson 4 stay the same at every age. You can adjust everything
+else:
 
 | Lesson | Middle school | High school |
 |---|---|---|
@@ -197,12 +197,12 @@ Students will be able to:
    you check it against something real.
 
 3. **How this assistant is different (5 min).** Project the assistant. Point out:
-   - The **banner**: "this can be wrong, check the source." It never goes away, on purpose.
+   - The **banner**: "this can be wrong. Check the source." It never goes away, on purpose.
    - Every answer has **two parts**. First, a short overview the model writes from what it
      already knows. That part can be wrong and has no Citations: it is the model talking.
      Then **Books in our library**: real books from *our library's Catalog* that match the
      question, each with a **Citation** (title and call number) taken straight from the
-     Catalog, so none of them is made up. The model picks which books to show and adds one
+     Catalog, so the model can't make them up. The model picks which books to show and adds one
      line on what each is about. That line is the model talking too, so check it against the
      book. (Lesson 2 is all about these.) If the library has
      nothing, it says so: "The library's catalog has nothing on this yet."
@@ -240,7 +240,7 @@ Exit ticket, three items:
 
 1. True or false, and why: "If the assistant sounds really sure, the answer is right."
 2. Finish the sentence: "A language model writes by ..."
-3. The banner says "this can be wrong, check the source." What is *the source*? (Looking for:
+3. The banner says "this can be wrong. Check the source." What is *the source*? (Looking for:
    the Record or the book it cited, not "the internet" or "the AI".)
 
 Item 3 tells you who is ready for Lesson 2 and who needs the Record idea retaught.
@@ -334,8 +334,8 @@ Hand each student a printed answer with two Citations (prepared from your Catalo
 ### What to watch for
 
 - **Treating the Citation as the proof.** A Citation proves the book is real and that we own
-  it. It does not prove the overview is right: the overview was written before the books
-  were found. Students who stop at "it listed books" are ready for Lesson 3.
+  it. It does not prove the overview is right: the model wrote the overview before it found
+  the books. Students who stop at "it listed books" are ready for Lesson 3.
 - **"The book isn't there."** Checked-out books, mis-shelved books, and lost books all happen.
   Use it: the Record told you the library owns it, the shelf told you where it is today. Those
   are different questions, and the assistant can't answer the second one.
@@ -403,9 +403,9 @@ is beating the machine, when the habit you want is checking it.
 ### Plan (45 minutes)
 
 1. **Why real books don't make the overview right (7 min).** Recap the two parts: the model
-   writes the overview from what it already knows, then the Catalog is searched and the books
-   are listed. Ask: *"If every book is real, how could the answer still be wrong?"* Draw out:
-   - the overview was written **before** the books were found, so nothing forced it to agree
+   writes the overview from what it already knows, then the assistant searches the Catalog and lists
+   the books. Ask: *"If every book is real, how could the answer still be wrong?"* Draw out:
+   - the model writes the overview **before** it finds the books, so nothing forces it to agree
      with them;
    - it can **sound sure** about a date, a name, or a cause and still be guessing;
    - the books can be **about the topic but not the claim**: a book on volcanoes may say
@@ -518,7 +518,7 @@ Students will be able to:
    cover for them. A school counselor sees a question only if the librarian asks them to help
    with it.
 
-   Then, how long: *"Everything you typed is deleted at the end of the school day. There are
+   Then, how long: *"The assistant deletes everything you typed at the end of the school day. There are
    two exceptions. A message an adult needs to follow up on is kept until they've finished. And
    if the law requires the school to keep something, like a records request, it keeps it
    longer."* (This is the daily Purge and its exceptions for an open Flag and a Hold,
@@ -606,7 +606,7 @@ Four quick items (thumbs, whiteboards, or a half-sheet):
   counselor know.
 - **Don't overpromise privacy.** Avoid "nobody will ever know". The accurate version is: no
   name in the assistant, the librarian sees questions, adults can find out who had a Card when
-  they need to help, everything is deleted daily except what an adult is following up or the
+  they need to help, the assistant deletes everything daily except what an adult is following up or the
   law requires the school to keep.
 - **Don't oversell the safety net.** The Watchlist checks for phrases, and it will miss some.
   Say so. The message is "talk to a person", not "the computer will catch it".
@@ -699,7 +699,7 @@ specifics ("found it on the shelf at 551.21").
 ### What to watch for
 
 - **Disclosure as confession.** Students may think admitting AI use means admitting cheating.
-  Frame it the way citing a book is framed: what good researchers do.
+  Frame it like citing a book: what good researchers do.
 - **Tier confusion across classes.** Students will hear different rules from different
   teachers. That's expected; the tier is a property of the assignment, not the student.
 - **Library Assistant vs. other AI tools.** Students will ask about tools they use at home.
@@ -742,7 +742,7 @@ tried on the demo Catalog, which isn't your collection. `[VERIFY]`
 1. **Hook (5 min).** Ask: *"If you walked up to me and said 'space', what would I do?"* You'd ask
    what they want to know about space. Say: *"The assistant usually doesn't ask. It guesses.
    Today you learn to stop making it guess."* Mention that early web searchers had to learn this
-   too, and that it was treated as a skill worth teaching.
+   too, and that librarians taught it as a skill.
 
 2. **Weak and strong (10 min).** Run a pair on the projector and compare both parts of the
    answer.
@@ -800,8 +800,8 @@ Lakes, the moon landing.
   names there may not be in your library. Only Books in our library are real Records. Recommendation
   results can be mixed even with a strong prompt, so teach this as a place to ask you.
 - **Trying to break it.** Some students will test whether they can make it say anything. Name it:
-  a prompt that tricks the assistant isn't a strong prompt, and what they type can be seen by the
-  adult on Watch (Lesson 4).
+  a prompt that tricks the assistant isn't a strong prompt, and the adult on Watch can see what they
+  type (Lesson 4).
 
 ---
 
@@ -821,7 +821,7 @@ versus a frontier model, honestly"):
   anything; the overview is the model's own words and can be wrong, multi-step math
   especially. The books listed under it are how students check, and for math, working the
   steps themselves or in a textbook.
-- Transcription is mentioned in the planning notes as a strength of local models, but the
+- The planning notes name transcription as a strength of local models, but the
   Library Assistant does not offer it to students and this unit does not cover it. (The notes
   cite 6.32% English word error rate for Parakeet TDT v3 against 7.83% for Whisper; public
   leaderboard summaries give 7.83% for Whisper large-v3-turbo and about 7.44% for large-v3.
@@ -851,8 +851,8 @@ For your own reference when students ask:
   raise a Flag seconds later, and the student sees nothing different
   ([ADR-0004](../adr/0004-flags-assist-adults.md),
   [ADR-0011](../adr/0011-supportive-replies-per-rubric-category.md)).
-- **Purge**: every transcript is deleted at the end of the school day, except those attached
-  to an open Flag or under a Hold ([ADR-0003](../adr/0003-purge-at-end-of-school-day.md)).
+- **Purge**: the assistant deletes every transcript at the end of the school day, except those
+  attached to an open Flag or under a Hold ([ADR-0003](../adr/0003-purge-at-end-of-school-day.md)).
 - **Intranet only**: the model and the Catalog run on the school network
   ([ADR-0006](../adr/0006-intranet-only.md)).
 

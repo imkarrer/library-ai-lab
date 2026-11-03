@@ -76,8 +76,8 @@ Print this on the back of the Card sheet, or post it near the library computers.
   will tell you to talk to a trusted adult, and an adult at school will check on it. That is
   to help you, not to get you in trouble.
 - The assistant can be wrong. Check the book or source it points to.
-- Your chat is deleted at the end of the school day, unless an adult still needs to follow up
-  on something you wrote.
+- The assistant deletes your chat at the end of the school day, unless an adult still needs
+  to follow up on something you wrote.
 - Your Card stops working when class ends. If you lose it, tell your teacher.
 - If your teacher says an assignment is Human-Only, don't use the assistant for it. If you
   do use it, fill in the AI Use box.

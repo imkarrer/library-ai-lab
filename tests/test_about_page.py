@@ -19,7 +19,7 @@ def test_about_page_needs_no_session_and_is_not_cached():
 def test_about_page_covers_the_card_who_sees_purge_and_help():
     text = TestClient(app).get(ABOUT_PATH).text
     assert "never gets your name" in text
-    assert "deleted at the end of the school day" in text
+    assert "deletes everything you type at the end of the school day" in text
     assert "does not go to a company" in text
     assert "988" in text
 

@@ -11,7 +11,7 @@ footer: 'Check the Source · Lesson 3 · Yours to keep'
 
 ## If every book is real, how could the answer still be wrong?
 
-- The overview was written <span class="blank"></span> the books were found.
+- The model writes the overview <span class="blank"></span> it finds the books.
 - It can sound <span class="blank"></span> and still be guessing.
 - A book can be about the <span class="blank"></span> but not the <span class="blank"></span>.
 - The Record can be thin, so you may need the <span class="blank"></span> itself.
@@ -63,7 +63,7 @@ contradicts it.
 
 ## Take it with you
 
-- **Real books don't make the overview right.** It was written before the books were found.
+- **Real books don't make the overview right.** The model wrote it before it found the books.
 - Check the **claim**, not just that books were listed.
 - Use the steps: **Question, Check, Compare, Decide**.
 - Being wrong about one thing doesn't make everything wrong. Show your evidence.

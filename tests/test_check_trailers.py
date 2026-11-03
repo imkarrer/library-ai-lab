@@ -1,5 +1,6 @@
 """The gate refuses a commit with a Claude co-author trailer."""
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -7,6 +8,8 @@ import pytest
 
 SCRIPT = Path(__file__).parents[1] / "scripts" / "check_trailers.sh"
 IDENTITY = ("-c", "user.name=Test", "-c", "user.email=test@example.com")
+# The machine's own git config can sign commits and wait on an agent; tests ignore it.
+ENV = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
 
 
 def _commit(repo: Path, message: str) -> None:
@@ -14,18 +17,19 @@ def _commit(repo: Path, message: str) -> None:
         ["git", *IDENTITY, "commit", "--allow-empty", "-q", "-m", message],
         cwd=repo,
         check=True,
+        env=ENV,
     )
 
 
 def _check(repo: Path) -> int:
     return subprocess.run(
-        ["bash", str(SCRIPT)], check=False, cwd=repo, capture_output=True
+        ["bash", str(SCRIPT)], check=False, cwd=repo, capture_output=True, env=ENV
     ).returncode
 
 
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
-    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True, env=ENV)
     _commit(tmp_path, "A commit\n\nCo-Authored-By: A Person <person@example.com>")
     return tmp_path
 

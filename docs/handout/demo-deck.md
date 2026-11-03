@@ -44,7 +44,7 @@ Every answer comes in two parts:
 
 <div class="quote">
 
-This can be wrong, check the source.
+This can be wrong. Check the source.
 
 </div>
 
@@ -63,8 +63,8 @@ card, on their own computer. The assistant never sees it.</p>
 </div>
 <div class="card-panel">
 <h3>Gone every day</h3>
-<p>Every conversation is deleted at the end of the school day, unless an adult is still
-working on a flag about it.</p>
+<p>The assistant deletes every conversation at the end of the school day, unless an adult is
+still working on a flag about it.</p>
 </div>
 <div class="card-panel">
 <h3>Stays in the building</h3>

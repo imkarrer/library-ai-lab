@@ -48,9 +48,9 @@ ABOUT_PAGE_HTML = """<!DOCTYPE html>
   it.</p>
 
   <h2>How long it is kept</h2>
-  <p>Everything you type is deleted at the end of the school day. There are two
-  exceptions: a message an adult is still following up on is kept until they have
-  finished, and the school keeps messages longer if the law requires it.</p>
+  <p>The assistant deletes everything you type at the end of the school day, with two
+  exceptions: it keeps a message an adult is still following up on until they finish, and
+  the school keeps messages longer if the law requires it.</p>
   <p>It all stays on a computer in this school. It does not go to a company or out to
   the internet.</p>
 

@@ -58,11 +58,11 @@ flox activate -- python3 -m pytest -q tests/test_integration_flows.py
 
 ## How it protects students
 
-- **Cards are minted on the Teacher's machine.** The assistant receives only Token hashes,
+- **The Teacher's machine mints the Cards.** The assistant receives only Token hashes,
   an expiry, and a class label such as "Period 3". It has never held a student's name
   ([ADR-0002](docs/adr/0002-cards-are-minted-on-the-teachers-machine.md)).
-- **Transcripts are purged at the end of each school day**, except those attached to an open
-  Flag ([ADR-0003](docs/adr/0003-purge-at-end-of-school-day.md)).
+- **The Purge deletes transcripts at the end of each school day**, except those attached to
+  an open Flag ([ADR-0003](docs/adr/0003-purge-at-end-of-school-day.md)).
 - **Flags assist the adults.** A deterministic Watchlist is always on. An Oversight model
   can be added on a second box, or on the same box when it never slows students down.
   High-severity disclosures get a supportive reply, not a refusal

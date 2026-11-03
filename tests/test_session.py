@@ -270,7 +270,7 @@ def test_chat_page_shows_the_banner_and_needs_a_session(client):
     _sign_in(test_client)
     page = test_client.get("/chat")
     assert page.status_code == 200
-    assert BANNER_TEXT == "This can be wrong, check the source."
+    assert BANNER_TEXT == "This can be wrong. Check the source."
     assert BANNER_TEXT in page.text
     assert "Period 3" in page.text and "card 14" in page.text
     assert "End session" in page.text
