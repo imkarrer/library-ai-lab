@@ -185,3 +185,10 @@ def test_the_unit_is_not_written_for_one_age():
 def test_stylesheet_is_revalidated_so_an_update_shows_at_once():
     response = TestClient(app).get("/library.css")
     assert response.headers["cache-control"] == "no-cache"
+
+
+def test_code_has_a_named_font_on_every_page():
+    """Left to the browser, monospace differs by machine and moves printed pages."""
+    components = (STATIC_DIR / "components.css").read_text()
+    assert "code, pre, kbd, samp {\n  font-family: var(--font-mono);" in components
+    assert "--font-mono:" in (STATIC_DIR / "palette.css").read_text()

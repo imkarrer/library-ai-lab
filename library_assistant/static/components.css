@@ -20,6 +20,10 @@ h1, h2, h3 {
   color: var(--ink-muted);
 }
 
+code, pre, kbd, samp {
+  font-family: var(--font-mono);
+}
+
 /* tables: a rounded card with a green header row */
 
 table {

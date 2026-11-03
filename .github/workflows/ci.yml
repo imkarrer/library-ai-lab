@@ -41,7 +41,9 @@ jobs:
       - name: Build and check
         run: flox activate -d docs/handout -- make -C docs/handout all check
 
+      # Kept when the check fails too, so a page that ran over can be looked at.
       - name: Keep the build
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: materials
