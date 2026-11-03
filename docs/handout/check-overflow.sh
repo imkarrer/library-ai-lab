@@ -134,7 +134,7 @@ case "$REPORT" in
     exit 2
     ;;
   *)
-    echo "check-overflow: $REPORT" >&2
+    echo "check-overflow: $DOC: $REPORT" >&2
     exit 1
     ;;
 esac

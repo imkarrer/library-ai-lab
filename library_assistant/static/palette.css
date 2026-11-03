@@ -43,4 +43,8 @@
     sans-serif;
   --font-heading: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia,
     serif;
+  /* Named, not left to the browser: its default monospace differs by machine and wraps
+     code to a different length, which moved a printed page past its edge in CI. */
+  --font-mono: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono",
+    monospace;
 }
