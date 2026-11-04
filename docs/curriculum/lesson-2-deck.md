@@ -81,7 +81,7 @@ A Record is **not** the book. It also doesn't say whether the book is on the she
 
 </div>
 
-The one line about why a book was picked is the model talking, so check that too.
+The one line about why the model picked a book is the model talking, so check that too.
 
 ---
 

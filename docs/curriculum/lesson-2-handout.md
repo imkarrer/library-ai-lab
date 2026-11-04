@@ -70,7 +70,7 @@ today. Those are different questions, and the assistant can't answer the second 
 - A **Citation** gives a book's title and call number. A **Record** describes the book.
 - A Citation proves the book is **real** and that we own it. It doesn't prove the overview is
   right.
-- The one line about why a book was picked is the model talking. Check it against the book.
+- The one line about why the model picked a book is the model talking. Check it against the book.
 
 ## Check yourself
 

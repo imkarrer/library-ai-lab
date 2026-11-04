@@ -121,7 +121,7 @@ sequenceDiagram
     A-->>P: The Citations as JSON, one per pick (5 at most)
     A->>DB: finish_exchange: overview, Citations
     A->>A: release the Card (in a finally, so an error or a hang-up releases it too)
-    P-->>S: overview, then books, under "This can be wrong, check the source."
+    P-->>S: overview, then books, under "This can be wrong. Check the source."
     Note over S,P: Ask was disabled while the answer streamed.<br/>Now it is free again: the next message starts at step 1
 ```
 
@@ -361,7 +361,7 @@ sequenceDiagram
 5. **A research assistant, two hops** (lib-f24.27). Almost any question is fair, math
    included. The model writes a short overview from what it knows, and the Catalog then
    lists books found with the model's search terms, so no book is ever invented. The banner
-   "This can be wrong, check the source." covers the overview, and the books are how you
+   "This can be wrong. Check the source." covers the overview, and the books are how you
    check. Built by lib-f24.59.
 6. **Supervision mode** (lib-f24.77): Live (the default), periodic review, or off, set by
    the Librarian, with every change recorded. The Watchlist, the Supportive reply, and Flags

@@ -26,8 +26,7 @@ When you ask it something, it writes an answer one piece at a time, each time pi
 
 A confident wrong answer is called a <span class="blank"></span>.
 
-If it sounds sure either way, you can tell by checking it against something
-<span class="blank"></span>.
+It sounds sure either way, so check it against something <span class="blank"></span>.
 
 ## Every answer has two parts
 
@@ -38,7 +37,7 @@ If it sounds sure either way, you can tell by checking it against something
 
 <div class="quote">
 
-This can be wrong, check the source.
+This can be wrong. Check the source.
 
 </div>
 

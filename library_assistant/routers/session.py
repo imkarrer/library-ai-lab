@@ -76,7 +76,7 @@ from library_assistant.watch import gate_is_open
 from library_assistant.watchlist import Watchlist, normalize
 
 # Quoted word for word by the AI literacy unit (docs/curriculum/ai-literacy-unit.md).
-BANNER_TEXT = "This can be wrong, check the source."
+BANNER_TEXT = "This can be wrong. Check the source."
 
 ERROR_TEXT = "Something went wrong. Ask the librarian."
 

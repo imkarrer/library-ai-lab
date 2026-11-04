@@ -30,7 +30,7 @@ REFUSAL_TEXT = "This card has stopped working. Ask your teacher for a new one."
 # (ADR-0003 addendum).
 NO_STORE = {"Cache-Control": "no-store"}
 
-IDLE_TEXT = "this session ended, scan your card again"
+IDLE_TEXT = "This session ended. Scan your Card again."
 
 # ADR-0010's paused wording: the assistant waits for an adult; nothing is broken.
 PAUSED_TEXT = (

@@ -28,7 +28,7 @@ footer: 'Check the Source · Lesson 4 · Yours to keep'
 
 ## How long, and where
 
-Everything you typed is deleted at the end of the <span class="blank"></span>.
+The assistant deletes everything you typed at the end of the <span class="blank"></span>.
 
 Two exceptions: <span class="blank"></span> <span class="blank"></span> and
 <span class="blank"></span> <span class="blank"></span>.
@@ -38,7 +38,7 @@ It all stays on a computer in <span class="blank"></span>. It doesn't go to a co
 ## When a message worries the adults
 
 The assistant checks every message for signs that someone could be in danger. If it finds one,
-it shows a message written for you and lets the librarian know, who may bring in the counselor.
+it shows a message written for you and lets the librarian know. The librarian may bring in a counselor.
 That's not to get anyone in trouble. It's because the adults here would rather know.
 
 ## The honest parts

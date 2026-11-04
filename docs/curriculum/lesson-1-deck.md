@@ -125,7 +125,7 @@ call number.</p>
 
 <div class="quote">
 
-This can be wrong, check the source.
+This can be wrong. Check the source.
 
 </div>
 

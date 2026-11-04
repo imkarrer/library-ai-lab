@@ -25,7 +25,7 @@ edit an overview, tell students afterwards. Have one Card per group. Pass out th
 
 ## If every book is real, how could the answer still be wrong?
 
-- The overview was written **before** the books were found.
+- The model writes the overview **before** it finds the books.
 - It can **sound sure** about a date, a name, or a cause and still be guessing.
 - A book can be about the **topic** but not the **claim**.
 - The **Record** can be thin, so you may need the book itself.
