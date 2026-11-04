@@ -348,6 +348,48 @@ allows; that's what decides which models it can run.
 
 ---
 
+## From one library to a district
+
+<div class="steps">
+<div class="card-panel"><strong>Prove it</strong><p>One Mac, one librarian, one school
+year.</p></div>
+<div class="card-panel"><strong>Publish it</strong><p>District IT pushes the environment to
+its FloxHub organization.</p></div>
+<div class="card-panel"><strong>Every library</strong><p>Each library's Mac pulls that one
+environment, and upgrades with it.</p></div>
+<div class="card-panel"><strong>Each school's own</strong><p>Timezone, end of day, counselor
+and catalog stay in each Install's config.</p></div>
+</div>
+
+<div class="box">
+
+The app is free for schools. **FloxHub is how a district ships it**, and everyone in district
+IT who publishes, reviews or rolls it out is **a FloxHub seat**.
+
+</div>
+
+<!--
+The pitch: get Nix into one library, and the district buys FloxHub seats to run it in all of
+them. The Library Assistant's licence lets a school or district run it free, installed and
+operated by its own employees (README, "License"), so FloxHub is what a district pays for, not
+the app.
+
+How it works: `flox push` publishes the environment to the district's FloxHub organization;
+each library's Mac runs `flox pull <district>/library-assistant` and `flox activate -s`. An
+upgrade is a new generation pushed once and pulled by every library in its update window,
+which is the one outbound window the intranet-only rule (ADR-0006) already allows. What
+differs between schools (timezone, end of day, counselor, accounts, the Catalog) is Install
+config and state, outside the environment (docs/research/models-in-the-closure.md, "What
+belongs in the closure"), so every library runs the same closure.
+
+[VERIFY before the talk: FloxHub's current seat and organization terms, and whether a Mac that
+only pulls a private environment needs a seat of its own. Don't quote a price.]
+[APRIL] The model packages have to come through the same pull; 14 GB weights are the
+"Weights that ship" card on the next slide.
+-->
+
+---
+
 ## What's next
 
 <div class="cards">
