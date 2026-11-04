@@ -49,6 +49,13 @@ OVERSIGHT_OLLAMA_PORT = 11435
 FAKE_MODEL_PORT = 8090
 ANSWER_MODEL, ANSWER_EFFORT = "gpt-oss:20b", "low"
 OVERSIGHT_MODEL, OVERSIGHT_EFFORT = "qwen3.5:4b", "none"
+# Six answer slots, so six groups asking at once all start within about two seconds (one
+# slot made the sixth wait for five whole answers). The largest request, picking books, is
+# about 2k tokens; 8k leaves room for the reasoning and the reply. Oversight gets one slot
+# because Ollama runs qwen3.5, a hybrid model, one request at a time whatever it is asked:
+# screens run beside the answers, and six queued screens finish before six answers do.
+ANSWER_CONTEXT, ANSWER_SLOTS = 8192, 6
+OVERSIGHT_CONTEXT, OVERSIGHT_SLOTS = 4096, 1
 FIXTURE_MARC = REPO / "tests" / "fixtures" / "catalog" / "loc-books-2016-sample.xml"
 
 
@@ -237,10 +244,11 @@ def _config_path(state: Path) -> Path:
     return state / "stack.json"
 
 
-def ollama_env(port: int, context_length: int) -> dict[str, str]:
+def ollama_env(port: int, context_length: int, slots: int) -> dict[str, str]:
     """One Ollama's environment. 127.0.0.1 only and no cloud features (ADR-0006: unset,
     `ollama serve` fetches model recommendations from ollama.com at start); no debug
-    logging, which writes prompts and request bodies (ADR-0003 addendum)."""
+    logging, which writes prompts and request bodies (ADR-0003 addendum). The model stays
+    loaded for as long as the Ollama runs, so no Student waits for it to load again."""
     env = {
         name: value
         for name, value in os.environ.items()
@@ -251,9 +259,9 @@ def ollama_env(port: int, context_length: int) -> dict[str, str]:
         "OLLAMA_HOST": f"127.0.0.1:{port}",
         "OLLAMA_NO_CLOUD": "1",
         "OLLAMA_CONTEXT_LENGTH": str(context_length),
-        "OLLAMA_NUM_PARALLEL": "1",
+        "OLLAMA_NUM_PARALLEL": str(slots),
         "OLLAMA_MAX_LOADED_MODELS": "1",
-        "OLLAMA_KEEP_ALIVE": "30m",
+        "OLLAMA_KEEP_ALIVE": "-1",
         "OLLAMA_FLASH_ATTENTION": "1",
     }
 
@@ -390,14 +398,14 @@ def up(state: Path, args: argparse.Namespace) -> None:
             state,
             "answer-ollama",
             [ollama, "serve"],
-            ollama_env(ANSWER_OLLAMA_PORT, 16384),
+            ollama_env(ANSWER_OLLAMA_PORT, ANSWER_CONTEXT, ANSWER_SLOTS),
             f"{ANSWER_OLLAMA}/api/version",
         )
         _start(
             state,
             "oversight-ollama",
             [ollama, "serve"],
-            ollama_env(OVERSIGHT_OLLAMA_PORT, 4096),
+            ollama_env(OVERSIGHT_OLLAMA_PORT, OVERSIGHT_CONTEXT, OVERSIGHT_SLOTS),
             f"http://127.0.0.1:{OVERSIGHT_OLLAMA_PORT}/api/version",
         )
         _say("  warming both models (first time after a while: 10 to 30 s)")
