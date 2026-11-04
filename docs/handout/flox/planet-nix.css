@@ -1,0 +1,138 @@
+/* @theme planet-nix */
+
+/*
+ * The Planet Nix talk deck (planet-nix-deck.md): the Flox theme, plus the few layouts the
+ * deck uses that the Flox theme doesn't have. Colours come from flox.css's variables.
+ */
+
+@import 'flox';
+
+/* A paragraph that leads a slide, under its title. */
+.lede {
+  font-size: 30px;
+  line-height: 1.4;
+}
+
+section.lead > p.lede {
+  color: var(--flox-gray-400);
+  max-width: 980px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.muted {
+  font-size: 19px;
+}
+
+/* A row of cards: three side by side, or two with .two. */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 22px;
+  margin: 0.2em 0 0.6em;
+}
+
+.cards.two {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.card-panel {
+  background: var(--flox-gray-100);
+  border: 1px solid var(--flox-gray-300);
+  border-top: 4px solid var(--flox-violet);
+  border-radius: 11px;
+  padding: 16px 20px;
+  font-size: 21px;
+  line-height: 1.42;
+}
+
+.card-panel h3 {
+  font-size: 25px;
+  color: var(--flox-black);
+  margin: 0 0 0.3em;
+}
+
+.card-panel p {
+  margin: 0;
+}
+
+/* A numbered path, left to right: "What it does". */
+.steps {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 18px;
+  counter-reset: step;
+  margin: 0.3em 0 0.6em;
+}
+
+.steps > .card-panel {
+  position: relative;
+  padding-top: 58px;
+}
+
+.steps > .card-panel::before {
+  counter-increment: step;
+  content: counter(step);
+  position: absolute;
+  top: 16px;
+  left: 20px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--flox-purple);
+  color: var(--flox-white);
+  font-family: var(--flox-mono);
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 30px;
+  text-align: center;
+}
+
+.steps strong {
+  display: block;
+  font-size: 24px;
+  margin-bottom: 0.2em;
+}
+
+.steps p {
+  margin: 0;
+}
+
+/* The one point a slide makes, set apart under its content. */
+.box {
+  border-left: 5px solid var(--flox-purple);
+  background: var(--flox-gray-100);
+  border-radius: 0 11px 11px 0;
+  padding: 12px 22px;
+  margin: 0.3em 0 0.6em;
+}
+
+.box p {
+  margin: 0;
+}
+
+/* Tables here run a little smaller than the Flox theme's, to fit four columns. */
+table {
+  font-size: 20px;
+}
+
+/* The tree and code on "The models are agent-stacks packages" run long; keep them in one line. */
+pre {
+  font-size: 19px;
+}
+
+/* The Install's manifest is the longest code on any slide. */
+section.tight > pre {
+  font-size: 17px;
+  line-height: 1.4;
+}
+
+@media print {
+  section .card-panel,
+  section .box {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+}

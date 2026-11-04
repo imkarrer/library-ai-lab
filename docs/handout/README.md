@@ -6,6 +6,13 @@ Every document here shares one look:
   [`deck.css`](deck.css). Its "Meet the cast" slide introduces the people `./stack up` seeds
   (`DEMO_CAST` and `DEMO_STUDENTS` in [`scripts/stack.py`](../../scripts/stack.py)); a test
   fails if the two drift apart.
+- [`planet-nix-deck.md`](planet-nix-deck.md), the Planet Nix talk, in Flox's look instead of
+  the library's: [`flox/flox.css`](flox/flox.css) is copied from
+  imkarrer/flox-buildkite-plugin's talk theme, and [`flox/planet-nix.css`](flox/planet-nix.css)
+  adds the deck's cards and callouts. Geist (SIL OFL 1.1, [`flox/OFL.txt`](flox/OFL.txt)) comes
+  from the `geist-font` package in this directory's Flox environment:
+  [`flox/embed-fonts.sh`](flox/embed-fonts.sh) inlines it into `build/geist.css`, so a render
+  fetches nothing and every machine measures the same font. The logo is from flox/flox.
 - The two sheets for district IT, kept with the other school templates and built here in
   the handout's look: [`it-network-request.md`](../templates/it-network-request.md) (let
   student devices reach the Mac when client isolation blocks them) and

@@ -15,6 +15,11 @@ chromium.systems = ["aarch64-linux", "x86_64-linux"]
 google-chrome.pkg-path = "google-chrome"
 google-chrome.systems = ["aarch64-darwin"]
 
+# Flox's brand typeface, for the Planet Nix deck's theme (flox/). The webfont output has the
+# variable woff2 files that flox/embed-fonts.sh inlines, so the deck renders with no network.
+geist-font.pkg-path = "geist-font"
+geist-font.outputs = ["webfont"]
+
 # The Makefile is the build. NixOS and other minimal systems don't ship `make`.
 gnumake.pkg-path = "gnumake"
 
