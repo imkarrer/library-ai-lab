@@ -296,8 +296,8 @@ Tab 1, enter the environment and set what both Ollamas share:
 ```bash
 flox activate
 unset OLLAMA_DEBUG OLLAMA_DEBUG_LOG_REQUESTS
-export OLLAMA_NO_CLOUD=1 OLLAMA_NUM_PARALLEL=1 OLLAMA_MAX_LOADED_MODELS=1 \
-  OLLAMA_KEEP_ALIVE=30m OLLAMA_FLASH_ATTENTION=1
+export OLLAMA_NO_CLOUD=1 OLLAMA_MAX_LOADED_MODELS=1 OLLAMA_KEEP_ALIVE=-1 \
+  OLLAMA_FLASH_ATTENTION=1
 ```
 
 `OLLAMA_NO_CLOUD=1` matters: without it `ollama serve` asks ollama.com for model
@@ -306,8 +306,8 @@ are unset because `OLLAMA_DEBUG_LOG_REQUESTS` writes request bodies, questions i
 the log (ADR-0003 addendum). Then start the two, sharing the downloaded models:
 
 ```bash
-OLLAMA_HOST=127.0.0.1:11436 OLLAMA_CONTEXT_LENGTH=16384 ollama serve &
-OLLAMA_HOST=127.0.0.1:11435 OLLAMA_CONTEXT_LENGTH=4096 ollama serve
+OLLAMA_HOST=127.0.0.1:11436 OLLAMA_CONTEXT_LENGTH=8192 OLLAMA_NUM_PARALLEL=6 ollama serve &
+OLLAMA_HOST=127.0.0.1:11435 OLLAMA_CONTEXT_LENGTH=4096 OLLAMA_NUM_PARALLEL=1 ollama serve
 ```
 
 The first is the Answer lane's, in the background; the second is the Oversight Lane's. Leave
@@ -325,11 +325,14 @@ curl -s http://127.0.0.1:11435/v1/chat/completions -H 'content-type: application
 curl -s http://127.0.0.1:11436/api/ps; curl -s http://127.0.0.1:11435/api/ps
 ```
 
-The first calls take 10 to 15 seconds while the models load; Ollama keeps them loaded for 30
-minutes after the last question (`OLLAMA_KEEP_ALIVE`), so warm them again if the demo starts
-later than that. Both fit on the GPU together (about 12.8 and 3.2 GB of the 24), measured
-here: a screen takes about a second and the answer's first words still come in about 0.3
-seconds. That leaves little memory free, so quit memory-hungry apps first.
+The first calls take 10 to 15 seconds while the models load; after that Ollama keeps them
+loaded until it stops (`OLLAMA_KEEP_ALIVE=-1`). Both fit on the GPU together (about 12.1 and
+2.9 GiB of the 24), measured here. Six answers start together: six groups asking at once
+all see their first words within about two seconds, each answer streaming at about 17
+tokens a second. Oversight screens one at a time (Ollama runs qwen3.5 that way), beside the
+answers, so six screens finish before six answers do; a Flag can reach Watch up to about
+ten seconds late at that moment. That leaves little memory free (5% in that test), so quit
+memory-hungry apps first.
 
 **Without Ollama** (fallback): run the flox model server (llama.cpp) instead. It uses the GPU
 too, at about 24 to 32 tokens/s against Ollama's 59, but takes nearly all of the GPU's

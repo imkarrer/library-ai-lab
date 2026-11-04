@@ -203,12 +203,28 @@ def test_ollama_env_is_local_only_with_no_cloud_and_no_prompt_logging(monkeypatc
     monkeypatch.setenv("OLLAMA_DEBUG", "2")
     monkeypatch.setenv("OLLAMA_DEBUG_LOG_REQUESTS", "1")
     monkeypatch.setenv("OLLAMA_HOST", "elsewhere:11434")
-    env = stack.ollama_env(11435, 4096)
+    env = stack.ollama_env(11435, 4096, 6)
     assert env["OLLAMA_HOST"] == "127.0.0.1:11435"  # ADR-0006
     assert env["OLLAMA_NO_CLOUD"] == "1"  # ADR-0006: no ollama.com calls
     assert "OLLAMA_DEBUG" not in env  # ADR-0003 addendum
     assert "OLLAMA_DEBUG_LOG_REQUESTS" not in env
     assert env["OLLAMA_CONTEXT_LENGTH"] == "4096"
+
+
+def test_both_lanes_stay_loaded_and_answers_start_together():
+    sys.path.insert(0, str(REPO / "scripts"))
+    import stack
+
+    for port, context, slots in (
+        (stack.ANSWER_OLLAMA_PORT, stack.ANSWER_CONTEXT, stack.ANSWER_SLOTS),
+        (stack.OVERSIGHT_OLLAMA_PORT, stack.OVERSIGHT_CONTEXT, stack.OVERSIGHT_SLOTS),
+    ):
+        env = stack.ollama_env(port, context, slots)
+        assert env["OLLAMA_KEEP_ALIVE"] == "-1"  # never unloads mid-class
+        assert env["OLLAMA_MAX_LOADED_MODELS"] == "1"  # its own model, never swapped
+        assert env["OLLAMA_NUM_PARALLEL"] == str(slots)
+        assert env["OLLAMA_CONTEXT_LENGTH"] == str(context)
+    assert stack.ANSWER_SLOTS >= 6  # six groups' answers start at once
 
 
 @pytest.mark.parametrize(
