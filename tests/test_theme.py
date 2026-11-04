@@ -2,7 +2,9 @@
 sheets, and the Marp handout, fetched from nowhere but the Install (ADR-0006)."""
 
 import importlib.util
+import os
 import re
+import subprocess
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -126,6 +128,62 @@ def test_demo_deck_shares_the_handouts_palette_and_look():
     assert "@import 'library-palette';" in deck_css
     assert "@import 'library-components';" in deck_css
     assert "theme: deck" in (REPO / "docs/handout/demo-deck.md").read_text()
+
+
+def test_talk_deck_wears_the_flox_theme_and_fetches_nothing():
+    """The Planet Nix deck uses the Flox theme, with Geist inlined rather than fetched, so
+    a render needs no network and check-overflow.sh always measures the same font."""
+    handout = REPO / "docs/handout"
+    marprc = (handout / ".marprc.yml").read_text()
+    for theme in ("./build/geist.css", "./flox/flox.css", "./flox/planet-nix.css"):
+        assert theme in marprc
+    flox = (handout / "flox/flox.css").read_text()
+    deck_theme = (handout / "flox/planet-nix.css").read_text()
+    assert flox.startswith("/* @theme flox */")
+    assert deck_theme.startswith("/* @theme planet-nix */")
+    assert "@import 'geist';" in flox
+    assert "@import 'flox';" in deck_theme
+    for css in (flox, deck_theme):
+        assert "url(" not in css
+        assert not re.search(r"https?://", css)
+    deck = (handout / "planet-nix-deck.md").read_text()
+    assert "theme: planet-nix" in deck
+    assert "I work at Flox" not in deck
+
+
+def _embed_fonts(tmp_path, fonts):
+    env_dir = tmp_path / "env"
+    woff2 = env_dir / "share/fonts/woff2"
+    woff2.mkdir(parents=True)
+    for name in fonts:
+        (woff2 / name).write_bytes(b"wOF2" + name.encode())
+    out = tmp_path / "build/geist.css"
+    result = subprocess.run(
+        [str(REPO / "docs/handout/flox/embed-fonts.sh"), str(out)],
+        env={**os.environ, "FLOX_ENV": str(env_dir)},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result, out
+
+
+def test_embed_fonts_inlines_both_geist_families(tmp_path):
+    result, out = _embed_fonts(tmp_path, ["Geist[wght].woff2", "GeistMono[wght].woff2"])
+    assert result.returncode == 0, result.stderr
+    css = out.read_text()
+    assert css.startswith("/* @theme geist */")
+    assert "font-family: 'Geist';" in css
+    assert "font-family: 'Geist Mono';" in css
+    assert css.count("url(data:font/woff2;base64,") == 2
+    assert not re.search(r"https?://", css)
+
+
+def test_embed_fonts_fails_and_writes_nothing_when_a_font_is_missing(tmp_path):
+    result, out = _embed_fonts(tmp_path, ["Geist[wght].woff2"])
+    assert result.returncode != 0
+    assert "GeistMono[wght].woff2 not found" in result.stderr
+    assert not out.exists()
 
 
 def test_demo_deck_introduces_the_cast_the_stack_seeds():

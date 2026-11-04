@@ -1,0 +1,750 @@
+/* @theme flox */
+
+/*
+ * Flox-branded Marp theme.
+ *
+ * Palette and typography lifted from flox.dev's own stylesheets, so this
+ * matches the real brand rather than approximating it:
+ *   black #1b1b1b · purple #711aff · violet #af54ff · rose #f47bff
+ *   rose-red #ff4fae · orange #ff7c32 · yellow #ffd02b
+ *   grays #fafafa #f3f3f3 #e3e3e3 #bfbfbf #9b9b9b · muted #6e6e6e
+ * Type: Geist / Geist Mono (Vercel, open source).
+ */
+
+/*
+ * Copied from imkarrer/flox-buildkite-plugin's docs/talks/theme/flox.css. One change: Geist
+ * comes from the `geist` theme, which flox/embed-fonts.sh generates from the geist-font
+ * package in this directory's Flox environment, instead of from Google Fonts. A render then
+ * needs no network, and check-overflow.sh measures every page in the same font.
+ */
+@import 'geist';
+
+:root {
+  --flox-black: #1b1b1b;
+  --flox-white: #ffffff;
+  --flox-purple: #711aff;
+  --flox-porpol: #7b2bff;
+  --flox-blue: #8247ff;
+  --flox-violet: #af54ff;
+  --flox-rose: #f47bff;
+  --flox-rose-red: #ff4fae;
+  --flox-orange: #ff7c32;
+  --flox-yellow: #ffd02b;
+
+  --flox-gray-100: #fafafa;
+  --flox-gray-200: #f3f3f3;
+  --flox-gray-300: #e3e3e3;
+  --flox-gray-400: #bfbfbf;
+  --flox-gray-500: #9b9b9b;
+  --flox-muted: #6e6e6e;
+
+  --flox-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, sans-serif;
+  --flox-mono: "Geist Mono", ui-monospace, SFMono-Regular, "Roboto Mono", Menlo,
+    Monaco, "Liberation Mono", monospace;
+
+  --flox-gradient: linear-gradient(
+    90deg,
+    var(--flox-purple) 0%,
+    var(--flox-violet) 35%,
+    var(--flox-rose) 62%,
+    var(--flox-orange) 100%
+  );
+}
+
+/* ---------------------------------------------------------------- base ---- */
+
+section {
+  width: 1280px;
+  height: 720px;
+  padding: 66px 78px 84px;
+  background: var(--flox-white);
+  color: var(--flox-black);
+  font-family: var(--flox-sans);
+  font-size: 25px;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: -0.005em;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
+/* Gradient hairline across the top of every slide — the brand signature. */
+section::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 7px;
+  background: var(--flox-gradient);
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--flox-sans);
+  font-weight: 700;
+  letter-spacing: -0.022em;
+  line-height: 1.1;
+  margin: 0 0 0.5em;
+}
+
+h1 {
+  font-size: 54px;
+}
+
+h2 {
+  font-size: 40px;
+}
+
+h3 {
+  font-size: 30px;
+  font-weight: 600;
+  color: var(--flox-muted);
+}
+
+/*
+ * Accent rule under the slide title, drawn as a pseudo-element rather than an
+ * <hr>. In Marp a literal `---` is a slide separator, so markup can't be used
+ * here without splitting the deck.
+ */
+section:not(.title):not(.lead):not(.demo) > h1::after,
+section:not(.title):not(.lead):not(.demo) > h2::after {
+  content: "";
+  display: block;
+  height: 4px;
+  width: 90px;
+  background: var(--flox-purple);
+  margin-top: 0.3em;
+}
+
+section.dark:not(.title):not(.lead):not(.demo) > h1::after,
+section.dark:not(.title):not(.lead):not(.demo) > h2::after {
+  background: var(--flox-rose);
+}
+
+p {
+  margin: 0 0 0.7em;
+}
+
+strong {
+  font-weight: 700;
+  color: var(--flox-purple);
+}
+
+em {
+  font-style: italic;
+  color: var(--flox-muted);
+}
+
+a {
+  color: var(--flox-purple);
+  text-decoration: none;
+  border-bottom: 2px solid var(--flox-gray-300);
+}
+
+ul,
+ol {
+  margin: 0 0 0.6em;
+  padding-left: 1.1em;
+}
+
+li {
+  margin-bottom: 0.42em;
+}
+
+li::marker {
+  color: var(--flox-violet);
+  font-weight: 700;
+}
+
+blockquote {
+  margin: 0.2em 0 0.7em;
+  padding: 0.05em 0 0.05em 1em;
+  border-left: 5px solid var(--flox-violet);
+  color: var(--flox-black);
+  font-size: 1.04em;
+}
+
+blockquote strong {
+  color: var(--flox-purple);
+}
+
+/* ---------------------------------------------------------------- code ---- */
+
+code {
+  font-family: var(--flox-mono);
+  font-size: 0.88em;
+  background: var(--flox-gray-200);
+  color: var(--flox-black);
+  padding: 0.1em 0.32em;
+  border-radius: 5px;
+}
+
+pre {
+  background: var(--flox-black);
+  border-radius: 11px;
+  padding: 20px 24px;
+  margin: 0 0 0.6em;
+  font-size: 21px;
+  line-height: 1.45;
+  overflow: visible;
+  /* No box-shadow: Chrome's PDF compositor (and macOS Preview) turns it
+   * into a rectangular grey smear around the rounded block. HTML would
+   * look fine; PDF/PPTX would not. Dark slides already use a 1px border. */
+}
+
+pre code {
+  background: transparent;
+  color: var(--flox-gray-100);
+  padding: 0;
+  font-size: 1em;
+  text-shadow: none;
+}
+
+/* Syntax highlighting, tuned to the brand rather than a stock scheme. */
+pre code .hljs-comment,
+pre code .hljs-quote {
+  color: var(--flox-gray-500);
+  font-style: italic;
+}
+pre code .hljs-keyword,
+pre code .hljs-selector-tag,
+pre code .hljs-built_in,
+pre code .hljs-meta {
+  color: var(--flox-rose);
+}
+pre code .hljs-string,
+pre code .hljs-attr,
+pre code .hljs-symbol {
+  color: var(--flox-yellow);
+}
+pre code .hljs-number,
+pre code .hljs-literal {
+  color: var(--flox-orange);
+}
+pre code .hljs-title,
+pre code .hljs-section,
+pre code .hljs-name {
+  color: var(--flox-violet);
+  font-weight: 600;
+}
+pre code .hljs-attribute,
+pre code .hljs-variable,
+pre code .hljs-template-variable {
+  color: #7fd7ff;
+}
+pre code .hljs-addition {
+  color: #7ee787;
+}
+pre code .hljs-deletion {
+  color: var(--flox-rose-red);
+}
+
+/* --------------------------------------------------------------- tables --- */
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 22px;
+  margin: 0 0 0.5em;
+}
+
+th {
+  background: var(--flox-black);
+  color: var(--flox-white);
+  font-weight: 600;
+  text-align: left;
+  padding: 11px 16px;
+  letter-spacing: -0.01em;
+}
+
+th:first-child {
+  border-top-left-radius: 9px;
+}
+th:last-child {
+  border-top-right-radius: 9px;
+}
+
+td {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--flox-gray-300);
+  vertical-align: top;
+}
+
+tbody tr:nth-child(even) {
+  background: var(--flox-gray-100);
+}
+
+/* ------------------------------------------------------- footer / pages --- */
+
+footer {
+  position: absolute;
+  left: 78px;
+  bottom: 34px;
+  font-size: 15px;
+  color: var(--flox-gray-500);
+  font-family: var(--flox-mono);
+  letter-spacing: 0.01em;
+}
+
+section::after {
+  position: absolute;
+  right: 78px;
+  bottom: 30px;
+  font-family: var(--flox-mono);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--flox-gray-400);
+  background: transparent;
+  padding: 0;
+}
+
+/* ------------------------------------------------------------ dark mode --- */
+
+section.dark {
+  background: var(--flox-black);
+  color: var(--flox-gray-100);
+}
+
+section.dark h1,
+section.dark h2 {
+  color: var(--flox-white);
+}
+
+section.dark h3 {
+  color: var(--flox-gray-400);
+}
+
+section.dark strong {
+  color: var(--flox-rose);
+}
+
+section.dark em {
+  color: var(--flox-gray-400);
+}
+
+section.dark a {
+  color: var(--flox-rose);
+  border-bottom-color: rgba(255, 255, 255, 0.25);
+}
+
+section.dark code {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--flox-gray-100);
+}
+
+section.dark pre {
+  background: #101010;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+}
+
+section.dark blockquote {
+  border-left-color: var(--flox-rose);
+  color: var(--flox-gray-100);
+}
+
+section.dark th {
+  background: var(--flox-purple);
+}
+
+section.dark td {
+  border-bottom-color: rgba(255, 255, 255, 0.16);
+}
+
+section.dark tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+section.dark::after {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+section.dark footer {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+/* -------------------------------------------------------------- title ----- */
+
+section.title {
+  justify-content: center;
+  padding: 66px 96px;
+}
+
+section.title h1 {
+  font-size: 74px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin-bottom: 0.18em;
+}
+
+section.title h2 {
+  font-size: 33px;
+  font-weight: 500;
+  color: var(--flox-gray-400);
+  letter-spacing: -0.015em;
+}
+
+section.title .logo {
+  width: 190px;
+  margin-bottom: 46px;
+}
+
+section.title .meta {
+  margin-top: 42px;
+  font-family: var(--flox-mono);
+  font-size: 20px;
+  color: var(--flox-gray-500);
+  line-height: 1.7;
+}
+
+/* --------------------------------------------------------------- lead ----- */
+
+/* Big single-statement slides. */
+section.lead {
+  justify-content: center;
+  text-align: center;
+  padding: 66px 120px;
+}
+
+section.lead h1 {
+  font-size: 62px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+section.lead h2 {
+  font-size: 44px;
+  font-weight: 700;
+}
+
+section.lead > p {
+  font-size: 30px;
+  color: var(--flox-gray-400);
+}
+
+section.lead blockquote {
+  border: 0;
+  padding: 0;
+  margin: 0 0 0.5em;
+  font-size: 46px;
+  font-weight: 700;
+  line-height: 1.24;
+  letter-spacing: -0.025em;
+  color: var(--flox-black);
+}
+
+section.lead.dark blockquote {
+  color: var(--flox-white);
+}
+
+/*
+ * A markdown blockquote wraps its text in <p>, which would otherwise pick up
+ * the smaller `section.lead > p` size and grey. Inherit instead.
+ */
+section.lead blockquote p {
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+  line-height: inherit;
+  margin: 0 0 0.25em;
+}
+
+section.lead blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+/* -------------------------------------------------------------- rhyme ----- */
+
+/*
+ * Flake-vs-TOML: cramped "hard way" on the left, one short thing on the
+ * right, matching results in the accent colour. Do not restyle one column
+ * without the other; the contrast IS the argument.
+ */
+
+.rhyme {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  align-items: stretch;
+  flex: 1;
+  min-height: 0;
+}
+
+.rhyme > div {
+  padding: 22px 30px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.rhyme .grind {
+  background: var(--flox-gray-100);
+  border-right: 2px solid var(--flox-gray-300);
+  border-radius: 11px 0 0 11px;
+  font-size: 19px;
+  line-height: 1.35;
+  color: var(--flox-muted);
+  /* Tightest box in the deck — a full flake only just fits. */
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.rhyme .shortcut {
+  background: var(--flox-white);
+  border-radius: 0 11px 11px 0;
+  font-size: 30px;
+}
+
+section.dark .rhyme .grind {
+  background: rgba(255, 255, 255, 0.05);
+  border-right-color: rgba(255, 255, 255, 0.16);
+  color: var(--flox-gray-400);
+}
+
+section.dark .rhyme .shortcut {
+  background: transparent;
+}
+
+.rhyme .label {
+  font-family: var(--flox-mono);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--flox-gray-500);
+  margin-bottom: 14px;
+}
+
+.rhyme .shortcut .label {
+  color: var(--flox-purple);
+}
+
+section.dark .rhyme .shortcut .label {
+  color: var(--flox-rose);
+}
+
+/* The identical result on both sides. Same colour on purpose. */
+.match {
+  color: var(--flox-purple);
+  font-weight: 700;
+}
+
+section.dark .match {
+  color: var(--flox-rose);
+}
+
+.rhyme .grind p,
+.rhyme .shortcut p {
+  margin: 0 0 0.34em;
+}
+
+/*
+ * The "wall of code" only works if the whole wall actually fits on the slide.
+ * A 20-line flake at the default size overflows a 720px canvas, so the grind
+ * column runs small on purpose — you point at its bulk, nobody reads it.
+ */
+.rhyme pre {
+  margin: 0;
+}
+
+.rhyme .grind pre {
+  font-size: 13px;
+  line-height: 1.26;
+  padding: 12px 16px;
+}
+
+.rhyme .shortcut pre {
+  font-size: 21px;
+  line-height: 1.5;
+}
+
+.rhyme .grind > *:last-child,
+.rhyme .shortcut > *:last-child {
+  margin-bottom: 0;
+}
+
+/* Match labels ("20 lines of Nix" / "4 lines of TOML") sit under the code. */
+.rhyme .grind > .match,
+.rhyme .shortcut > .match {
+  display: block;
+  margin-top: 14px;
+  font-size: 20px;
+}
+
+.rhyme .shortcut > .match {
+  font-size: 28px;
+}
+
+/* The grind column is the tightest box in the deck; buy back its last pixels. */
+.rhyme .grind .label {
+  margin-bottom: 8px;
+}
+
+.rhyme .grind > .match {
+  margin-top: 10px;
+}
+
+/* -------------------------------------------------------------- utility --- */
+
+.small {
+  font-size: 21px;
+}
+
+.tiny {
+  font-size: 18px;
+  color: var(--flox-muted);
+}
+
+.center {
+  text-align: center;
+}
+
+.muted {
+  color: var(--flox-muted);
+}
+
+.big {
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.kicker {
+  font-family: var(--flox-mono);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--flox-violet);
+  margin-bottom: 10px;
+}
+
+section.dark .kicker {
+  color: var(--flox-rose);
+}
+
+/* Side-by-side generic split. */
+.cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 34px;
+  flex: 1;
+  min-height: 0;
+}
+
+.cols.narrow-left {
+  grid-template-columns: 0.85fr 1.15fr;
+}
+
+.cols > div {
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Code in a column: readable by default. */
+.cols pre {
+  font-size: 17px;
+  line-height: 1.42;
+  padding: 16px 18px;
+}
+
+/*
+ * A full 20-line flake will not fit a 720px canvas at a readable size, so wrap
+ * that one block in <div class="wall"> and let it run small. You point at its
+ * bulk; nobody in the room reads it.
+ */
+.cols .wall pre {
+  font-size: 13px;
+  line-height: 1.36;
+  padding: 15px 17px;
+}
+
+/* Demo marker slides. */
+section.demo {
+  justify-content: center;
+  text-align: center;
+}
+
+section.demo .kicker {
+  font-size: 20px;
+  letter-spacing: 0.2em;
+}
+
+section.demo h1 {
+  font-size: 66px;
+  font-weight: 800;
+}
+
+section.demo .cmd {
+  margin-top: 26px;
+  font-family: var(--flox-mono);
+  font-size: 26px;
+  color: var(--flox-gray-400);
+}
+
+/*
+ * No CSS logo watermark on purpose: Marp renders images and PDFs through a
+ * temporary HTML file, so a relative background-image resolves in the HTML
+ * export and silently fails in PNG/PDF. The logo goes in via <img> on the
+ * title and closing slides instead, and the gradient hairline carries the
+ * brand everywhere else.
+ */
+
+/* Tighten spacing when a slide is dense. */
+section.tight {
+  font-size: 23px;
+}
+
+section.tight h1 {
+  font-size: 46px;
+  margin-bottom: 0.35em;
+}
+
+section.tight li {
+  margin-bottom: 0.28em;
+}
+
+section.tight table {
+  font-size: 20px;
+}
+
+/*
+ * Direct child only. Code inside .cols / .rhyme has its own sizing, and a
+ * broader selector here would out-specify it and blow those layouts open.
+ */
+section.tight > pre {
+  font-size: 19px;
+}
+
+/*
+ * Marpit's printable CSS sets `print-color-adjust: exact` on `section *`.
+ * Chrome then paints a grey rectangle for every element's compositing
+ * layer — headings, images, code blocks — in PDF and in PPTX/PNG (Marp
+ * emulates print media for those). HTML preview uses screen media, so
+ * it never shows the boxes. Keep exact-color on the slide itself so
+ * backgrounds still print; unset it on descendants.
+ */
+@media print {
+  section * {
+    -webkit-print-color-adjust: unset !important;
+    print-color-adjust: unset !important;
+    color-adjust: unset !important;
+  }
+
+  section,
+  section pre,
+  section code,
+  section th,
+  section td,
+  section .grind,
+  section .shortcut {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+}

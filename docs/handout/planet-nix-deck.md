@@ -1,23 +1,84 @@
 ---
 marp: true
-theme: deck
+theme: planet-nix
 paginate: true
-footer: 'Library Assistant · Planet Nix'
+footer: 'Bring Nix to school · Planet Nix'
 ---
 
-<!-- _class: lead -->
+<!-- _class: title dark -->
 <!-- _paginate: false -->
 <!-- _footer: '' -->
 
-# An AI for kids that fits in one manifest
+<img class="logo" src="flox/flox-logo-white-on-black.png" alt="Flox" />
 
-<p class="lede">A school library's research helper: two local LLMs, no names, no cloud, on one
-Mac Studio that sits on the library shelf.</p>
+# Bring Nix to school
 
-<p class="muted">Isaac Karrer · I work at Flox · source available: github.com/imkarrer/library-ai-lab</p>
+## A school library's AI, shipped as one Flox environment and two agent-stacks model packages
+
+<div class="meta">Isaac Karrer · Planet Nix 2027<br />github.com/imkarrer/library-ai-lab<br />github.com/agent-stacks</div>
 
 <!--
-Say up front that I work at Flox. This is a personal project, not a product.
+The library project is a personal project, not a product.
+
+This deck describes agent-stacks as it should be by April 2027: model packages that any
+process manager can serve (agent-stacks-spec issue #6, Proposal 0002 in PR #7). Notes marked
+[APRIL] name what has to have landed for a slide to be true. Before the talk, check each
+one; where it hasn't landed, change the slide to say "planned".
+-->
+
+---
+
+## Others brought Nix to school first
+
+<div class="cards">
+<div class="card-panel">
+<h3>Labs</h3>
+<p>Marc Schmitt, NixCon 2020: "Bringing NixOS to my school". EPITA's labs are about 1,000
+machines on 6 campuses, network-booted from one repo.</p>
+</div>
+<div class="card-panel">
+<h3>Exams</h3>
+<p>Ryan Lahfa and Yvan Sraka, NixCon 2020: a DevOps exam on NixOS, with a bastion host
+and a VM for each of 70 students.</p>
+</div>
+<div class="card-panel">
+<h3>Laptops</h3>
+<p>Mike Kelly's Nixbook, SCALE 22x and SeaGL 2025: NixOS that updates itself, for old
+laptops and Chromebooks.</p>
+</div>
+</div>
+
+<div class="box">
+
+Labs, exams and laptops have been done. This talk adds **a service in the building**,
+which needs nothing installed on a student's device.
+
+</div>
+
+<p class="muted">av.tib.eu/media/50711 · av.tib.eu/media/50689 · github.com/epita/nixpie ·
+github.com/mkellyxp/nixbook</p>
+
+<!--
+The ~1,000 figure is the nixpie README; the 2020 talk said "more than 800". The 70-student
+figure is from the exam talk's abstract [VERIFY]. Don't imply EPITA or Nixbook use Flox.
+-->
+
+---
+
+<!-- _class: lead dark -->
+<!-- _paginate: false -->
+<!-- _footer: '' -->
+
+# A service on the shelf
+
+<p class="lede">School Chromebooks stay exactly as IT set them up. A service on the school
+network needs only their browsers, so Nix lives on one Mac on the library shelf.</p>
+
+<!--
+Why not the Chromebooks themselves: on managed devices Google blocks Linux by default
+("Linux virtual machines" policy, support.google.com/chrome/a/answer/2657289), and replacing
+ChromeOS costs the school Google Admin, its content filter and the state test browsers. If
+asked, that's the "what's next" slide.
 -->
 
 ---
@@ -118,88 +179,159 @@ Python.</p>
 
 ---
 
+<!-- _class: tight -->
+
 ## The whole Install
 
 ```toml
 [install]
-python.pkg-path = "python312"
-uv.pkg-path = "uv"
-llama-cpp = { pkg-path = "llama-cpp", systems = ["aarch64-darwin"] }
-ollama = { pkg-path = "ollama", systems = ["aarch64-darwin"] }
+python.pkg-path       = "python312"
+uv.pkg-path           = "uv"
+answer-model.pkg-path = "agent-stacks/agent-model-gpt-oss-20b"
+screen-model.pkg-path = "agent-stacks/agent-model-qwen3.5-4b"
 
-[hook]
-on-activate = '''
-  # a venv in $FLOX_ENV_CACHE, rebuilt only when requirements change
-'''
+[services.answer]
+command = '''exec "$FLOX_ENV"/share/agent-models/gpt-oss-20b/bin/serve \
+  --listen 127.0.0.1:11436 --protocol openai-chat-completions'''
+
+[services.screen]
+command = '''exec "$FLOX_ENV"/share/agent-models/qwen3.5-4b/bin/serve \
+  --listen 127.0.0.1:11435 --protocol openai-chat-completions'''
 
 [services.assistant]
 command = 'exec "$FLOX_ENV_CACHE/venv/bin/python" -m library_assistant'
-
-[services.model]
-command = 'exec llama-server --host 127.0.0.1 --no-slots ...'
 ```
 
-<p class="muted">Abridged. <code>./stack up</code> starts the assistant and both Ollamas from
-this environment.</p>
+<p class="muted">Abridged. Two model packages and three services, all in one environment.</p>
+
+<!--
+[APRIL] Assumes model packages are published under these names and can be installed outside
+a stack. The names are illustrative until they exist. Today ./stack runs Ollama itself, with
+models from `ollama pull`.
+-->
+
+---
+
+## The models are agent-stacks packages
+
+```text
+share/agent-models/gpt-oss-20b/
+├── bin/serve     starts the server on the address it's given, prints "ready"
+├── bin/check     fails fast on a Mac without enough memory
+├── bin/ollama    the server, pinned with the weights
+├── blobs/        weights, template, licence: each pinned by digest
+└── manifests/    which blobs make up the model
+```
+
+- **Pinned when the package builds.** Nothing downloads at activation, and a missing blob
+  fails the build instead of fetching.
+- **`serve` is a contract.** Any process manager can call it: here, two Flox services.
+- **One server per model**, so screening never waits on answering.
+
+<!--
+[APRIL] The layout is Proposal 0002's (share/agent-models/<name>/, bin/serve, bin/check),
+with room for an Ollama model's several files. Both models run on the Mac's GPU through
+Metal, about 59 tokens/s for gpt-oss.
+
+What the package hides, from our prototype (docs/research/models-in-the-closure.md): Ollama
+needs an empty manifests-v2/ and OLLAMA_NOPRUNE=1 to serve from a read-only store, and a
+plain fetcher holds the 13.8 GB file in memory at about 4.4x its size.
+-->
+
+---
+
+## We are the harness
+
+| | An agent client in a stack | The Library Assistant |
+|---|---|---|
+| Who uses it | One person at a terminal | A class of students in browsers |
+| What starts the model | The stack launcher | A process manager, beside the app |
+| How long it runs | Until the person is done | All school day |
+| Which model | A default; the client picks | Fixed by role: one answers, one screens |
+
+<div class="box">
+
+agent-stacks gives us the **model package** and its **`serve` command**. We skip the part
+that wires a model into a harness, because **the app is the harness**.
+
+</div>
+
+<!--
+The app makes plain OpenAI-style chat completions calls, up to three per student message:
+a screening call to qwen3.5:4b at the same moment as a streamed answer from gpt-oss:20b,
+then a second answer-model call that picks books from the catalog. The app runs that loop
+itself, with no tool calling: it pulls a SEARCH line out of the stream and queries the
+catalog. Each model is configured as an address and a name, per role
+(LIBRARY_ASSISTANT_OPENAI_ENDPOINT, LIBRARY_ASSISTANT_OVERSIGHT_ENDPOINT).
+
+If the screening model is down, the app keeps answering and screens with the keyword
+Watchlist until it's back. A launcher that refuses to start when a model is missing is the
+wrong behaviour for this app; failing closed belongs at build time.
+
+[APRIL] Assumes the spec says `serve` may be called by any process manager, not only the
+stack launcher. That's the one thing to make sure Proposal 0002 doesn't rule out.
+-->
 
 ---
 
 ## Policy you can grep for
 
-```toml
-# No -v, --log-prompts-dir, or --slot-save-path, and --no-slots:
-# the model server keeps no log or cache of a question.
-# 127.0.0.1 only.
-exec llama-server --host 127.0.0.1 --port 8080 --no-slots ...
+```sh
+# gpt-oss-20b/bin/serve, generated when the package builds
+export OLLAMA_NO_CLOUD=1               # no call home at startup
+export OLLAMA_MODELS="$here/.."        # read-only, in the store
+export OLLAMA_HOST="$listen"           # 127.0.0.1 only
+"$here/ollama" serve >&2 &             # then: wait for it, print "ready"
 ```
 
-- A **privacy reviewer** reads the manifest, not a wiki page.
+- A **privacy reviewer** reads the package and the manifest, not a wiki page.
 - The **confidentiality scan** runs in the same gate as the tests
   (`flox activate -- bash scripts/check.sh`), locally and in CI.
 - The demo, the dev box and CI **activate the same environment**.
 
 <!--
-If there's time: the same environment does three jobs. It is the Install (the assistant and
-the model servers as flox services). It is the gate: ruff, the confidentiality scan, and
-~750 tests, with a fake model and a fake catalog so UX work doesn't wait on a GPU. And a
-second, small environment builds this deck and the librarian's handout (Marp and a pinned
-Chrome), kept apart on purpose so a school's Install never pulls in a browser.
+[APRIL] Check the generated serve script really sets these, and that the Ollama version it
+pins keeps no log of a prompt [VERIFY]. Without OLLAMA_NO_CLOUD, `ollama serve` calls
+ollama.com at startup; we found that by reading what the package does once it was in the
+manifest. That is the case for declared egress, on the "what's next" slide.
+
+The same environment does three jobs. It is the Install. It is the gate: ruff, the
+confidentiality scan, and ~980 tests, with a fake model and a fake catalog so UX work
+doesn't wait on a GPU. And a second, small environment builds this deck and the librarian's
+handout, kept apart so a school's Install never pulls in a browser.
 -->
 
 ---
 
-## The models come from the manifest too
+## The agent that builds it is an agent stack
 
-- Flox's **`ollama`** package runs both models on the Mac's GPU through Metal, at about
-  59 tokens/s.
-- **Two instances**, one per model, so screening never waits on answering. Both listen on
-  127.0.0.1.
-- `ollama serve` **calls ollama.com at startup** unless you tell it not to. One variable
-  turns it off, and a test makes sure it stays off.
-
-```toml
-[install.ollama]
-pkg-path = "ollama"
-pkg-group = "models"        # flox upgrade models: the model servers move on their own
-systems = ["aarch64-darwin"]
+```nix
+# flake.nix at the repo root
+agent = agent-pkgs.lib.${system}.mkAgentStack {
+  name = "library-ai-lab";
+  harness = agent-pkgs.packages.${system}.claude-code;
+  plugins = [ bead-loop.packages.${system}.agent-plugin-bead-loop ];
+};
 ```
 
-```python
-"OLLAMA_HOST": f"127.0.0.1:{port}",  # loopback only
-"OLLAMA_NO_CLOUD": "1",              # no call home
-```
+- **`nix run`** at the repo root starts Claude Code with this repo's skills, the same
+  everywhere.
+- A stack is **an agent client, its plugins, and their runtimes**, built as one unit.
+- The school's Install is a Flox environment. **The agent that writes it is a stack.**
+
+<p class="muted">agent-stacks.org · github.com/agent-stacks/agent-pkgs</p>
 
 <!--
-If asked about llama.cpp: it's still in the environment as a fallback server. If asked how we
-found the startup call: by reading what the package does once it was in the manifest. A
-package that phones home by default is the reason to want egress declared, next slide but one.
+Two closures, kept apart on purpose: the Install a librarian runs (.flox/) and the agent a
+contributor runs (flake.nix). A school never gets Claude Code. The agent-stacks spec is at
+github.com/agent-stacks/agent-stacks-spec (0.1.0 draft).
 -->
 
 ---
 
 ## Offline is a supply-chain problem
 
-- **One online moment**: activate the environment, fetch the models, build the catalog.
+- **One online moment**: activate the environment, models included, and build the catalog.
   After that, the Mac talks to the internet only in the update and renewal window.
 - The **store paths are the bill of materials.** What ran in the demo is what runs in the
   school.
@@ -216,33 +348,50 @@ allows; that's what decides which models it can run.
 
 ---
 
-## What I'd ask of the ecosystem
+## What's next
 
 <div class="cards">
 <div class="card-panel">
 <h3>Declared egress</h3>
-<p>Each package states which hosts it may reach, so a check catches "phones home at startup"
-and nobody has to read the source.</p>
+<p>Each package says which hosts it may reach, so a check catches the next server that
+phones home. agent-stacks-spec #3 starts this for agent clients.</p>
 </div>
 <div class="card-panel">
-<h3>Models as inputs</h3>
-<p>Weights run to many gigabytes and you fetch them once. Let me pin them like any other
-input.</p>
+<h3>Weights that ship</h3>
+<p>A 14 GB model is over cache.nixos.org's 4 GiB limit. Schools need a way to get one that
+isn't a USB stick in my bag.</p>
 </div>
 <div class="card-panel">
-<h3>Policy in the closure</h3>
-<p>"No logs, loopback only" should be a property you can check, not a comment you trust.</p>
+<h3>The rest of the school</h3>
+<p>Fleet tools, filters and test browsers that work with NixOS, and Nix tested in Linux on
+ARM Chromebooks.</p>
 </div>
 </div>
+
+<div class="box">
+
+Come build these: **github.com/agent-stacks/agent-stacks-spec**
+
+</div>
+
+<!--
+Egress: issue #3 / PR #4 is a host sandbox around an agent client; an app like this one
+needs the same declaration without being an agent client. Weights: measured in the research
+doc (nix copy with xz takes ~53 minutes to save ~7%; use compression=none). The third card
+is the list of things a school gives up if it leaves ChromeOS: Google Admin, content
+filtering for E-Rate, and the state test browsers.
+-->
 
 ---
 
-<!-- _class: lead -->
+<!-- _class: title dark -->
 <!-- _paginate: false -->
 <!-- _footer: '' -->
 
+<img class="logo" src="flox/flox-logo-white-on-black.png" alt="Flox" />
+
 # Let's see it.
 
-<p class="lede">Period 3 is about to scan in. Ms. Overdue is on watch.</p>
+## Period 3 is about to scan in. Ms. Overdue is on watch.
 
-<p class="muted">github.com/imkarrer/library-ai-lab</p>
+<div class="meta">github.com/imkarrer/library-ai-lab<br />github.com/agent-stacks</div>

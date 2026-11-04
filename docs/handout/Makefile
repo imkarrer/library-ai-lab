@@ -41,9 +41,21 @@ all: check-marp html pdf
 html: check-marp $(BUILD)/librarian-handout.html $(BUILD)/demo-deck.html $(BUILD)/planet-nix-deck.html $(IT_HTML) $(LESSON_HTML)
 pdf: check-marp $(BUILD)/librarian-handout.pdf $(BUILD)/demo-deck.pdf $(BUILD)/planet-nix-deck.pdf $(IT_PDF) $(LESSON_PDF)
 
-DEPS := $(DOC) handout.css $(PALETTE) $(COMPONENTS) .marprc.yml
-TALK_DEPS := $(TALK) deck.css $(PALETTE) $(COMPONENTS) .marprc.yml
-DECK_DEPS := $(DECK) deck.css $(PALETTE) $(COMPONENTS) .marprc.yml
+# .marprc.yml registers build/geist.css as a theme, so every marp run needs it to exist.
+FONTS := $(BUILD)/geist.css
+# The Planet Nix deck's logo, beside the built HTML so its relative path resolves there too.
+LOGO := $(BUILD)/flox/flox-logo-white-on-black.png
+
+DEPS := $(DOC) handout.css $(PALETTE) $(COMPONENTS) .marprc.yml $(FONTS)
+TALK_DEPS := $(TALK) flox/flox.css flox/planet-nix.css .marprc.yml $(FONTS) $(LOGO)
+DECK_DEPS := $(DECK) deck.css $(PALETTE) $(COMPONENTS) .marprc.yml $(FONTS)
+
+$(FONTS): flox/embed-fonts.sh
+	./flox/embed-fonts.sh $@
+
+$(LOGO): flox/flox-logo-white-on-black.png
+	@mkdir -p $(dir $@)
+	cp -f $< $@
 
 check-marp:
 	@command -v $(MARP) >/dev/null 2>&1 || { \
@@ -75,7 +87,7 @@ $(BUILD)/planet-nix-deck.html: $(TALK_DEPS)
 $(BUILD)/planet-nix-deck.pdf: $(TALK_DEPS)
 	$(MARP) --config-file .marprc.yml $(TALK) --pdf -o $@
 
-IT_DEPS := handout.css $(PALETTE) $(COMPONENTS) .marprc.yml
+IT_DEPS := handout.css $(PALETTE) $(COMPONENTS) .marprc.yml $(FONTS)
 
 $(BUILD)/%.html: ../templates/%.md $(IT_DEPS)
 	$(MARP) --config-file .marprc.yml $< -o $@
@@ -83,7 +95,7 @@ $(BUILD)/%.html: ../templates/%.md $(IT_DEPS)
 $(BUILD)/%.pdf: ../templates/%.md $(IT_DEPS)
 	$(MARP) --config-file .marprc.yml $< --pdf -o $@
 
-LESSON_DEPS := handout.css deck.css $(PALETTE) $(COMPONENTS) .marprc.yml
+LESSON_DEPS := handout.css deck.css $(PALETTE) $(COMPONENTS) .marprc.yml $(FONTS)
 
 $(BUILD)/%.html: ../curriculum/%.md $(LESSON_DEPS)
 	$(MARP) --config-file .marprc.yml $< -o $@
@@ -98,20 +110,21 @@ $(BUILD)/%.pdf: ../curriculum/%.md $(LESSON_DEPS)
 # links to just the sources instead.
 SERVE_ROOT := .serve
 
-serve: check-marp
+serve: check-marp $(FONTS)
 	@mkdir -p $(SERVE_ROOT)
+	@ln -sfn ../flox $(SERVE_ROOT)/flox
 	@ln -sfn ../$(DOC) $(SERVE_ROOT)/$(DOC)
 	@ln -sfn ../$(DECK) $(SERVE_ROOT)/$(DECK)
 	@ln -sfn ../$(TALK) $(SERVE_ROOT)/$(TALK)
 	@for doc in $(IT_DOCS) $(LESSON_DOCS); do ln -sfn ../$$doc $(SERVE_ROOT)/$$(basename $$doc); done
 	$(MARP) --config-file .marprc.yml --server --watch $(SERVE_ROOT)
 
-watch: check-marp
+watch: check-marp $(FONTS)
 	$(MARP) --config-file .marprc.yml $(DOC) --watch -o $(BUILD)/librarian-handout.html
 
 # Fails if any page's content runs past the bottom of the page: the bug you can't see in
 # the editor and can't miss on paper.
-check: check-marp
+check: check-marp $(FONTS)
 	@./check-overflow.sh $(DOC)
 	@./check-overflow.sh $(DECK)
 	@./check-overflow.sh $(TALK)

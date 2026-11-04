@@ -10,6 +10,11 @@ themeSet:
   - ../../library_assistant/static/components.css
   - ./handout.css
   - ./deck.css
+  # The Planet Nix deck's Flox look (flox/). build/geist.css is generated from the pinned
+  # geist-font package by flox/embed-fonts.sh; make writes it before any marp run.
+  - ./build/geist.css
+  - ./flox/flox.css
+  - ./flox/planet-nix.css
 options:
   markdown:
     breaks: false
