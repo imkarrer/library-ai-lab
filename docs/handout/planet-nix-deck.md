@@ -396,16 +396,15 @@ and catalog stay in each Install's config.</p></div>
 
 <div class="box">
 
-The app is free for schools. **FloxHub is how a district ships it**, and everyone in district
-IT who publishes, reviews or rolls it out is **a FloxHub seat**.
+**One environment, pushed once, pulled by every library.** An upgrade reaches every school
+in one push, and every school runs the same closure.
 
 </div>
 
 <!--
-The pitch: get Nix into one library, and the district buys FloxHub seats to run it in all of
-them. The Library Assistant's licence lets a school or district run it free, installed and
-operated by its own employees (README, "License"), so FloxHub is what a district pays for, not
-the app.
+Say it as how the Install scales, not as a sales pitch: this room is the Nix community, and
+Planet Nix is Flox's own event. Leave seats and pricing out of the talk; that argument is for
+conversations with a district.
 
 How it works: `flox publish` puts the app's package in the district's FloxHub catalog and
 `flox push` publishes the environment that installs it;
@@ -416,8 +415,8 @@ differs between schools (timezone, end of day, counselor, accounts, the Catalog)
 config and state, outside the environment (docs/research/models-in-the-closure.md, "What
 belongs in the closure"), so every library runs the same closure.
 
-[VERIFY before the talk: FloxHub's current seat and organization terms, and whether a Mac that
-only pulls a private environment needs a seat of its own. Don't quote a price.]
+[VERIFY before the talk: that a FloxHub organization can hold a private environment and a
+private catalog package, and that a library's Mac can pull them.]
 [APRIL] The model packages have to come through the same pull; 14 GB weights are the
 "Weights that ship" card on the next slide.
 -->
