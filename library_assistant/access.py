@@ -10,6 +10,7 @@ import hashlib
 import os
 import secrets
 import sqlite3
+import threading
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
@@ -192,10 +193,23 @@ def _create_flag_history(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
-def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
-    conn = sqlite3.connect(db_path, check_same_thread=False)
+def _open(db_path: str | None = None) -> sqlite3.Connection:
+    """A connection with the settings every connection needs, and no schema work.
+
+    Not WAL: it keeps old page images in a -wal file that secure_delete never zeroes, so
+    a purged transcript could outlive the Purge (ADR-0003). A writer waits up to 5 s for
+    another connection's write instead of failing at once.
+    """
+    conn = sqlite3.connect(
+        DB_PATH if db_path is None else db_path, timeout=5, check_same_thread=False
+    )
     # Enable secure_delete to overwrite deleted data with zeros
     conn.execute("PRAGMA secure_delete = ON")
+    return conn
+
+
+def connect(db_path: str | None = None) -> sqlite3.Connection:
+    conn = _open(db_path)
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS cards (
@@ -415,14 +429,23 @@ def connect(db_path: str = DB_PATH) -> sqlite3.Connection:
     return conn
 
 
-_connection: sqlite3.Connection | None = None
+_schema_ready = False
+_schema_lock = threading.Lock()
 
 
 def get_db() -> sqlite3.Connection:
-    global _connection
-    if _connection is None:
-        _connection = connect()
-    return _connection
+    """This request's own connection; FastAPI hands the same one to every dependency of
+    the request. One connection shared by the thread pool broke: two threads running the
+    same query share its prepared statement ("bad parameter or other API misuse"). The
+    schema is made once, by the first request; the connection closes when the request
+    lets go of it."""
+    global _schema_ready
+    if not _schema_ready:
+        with _schema_lock:
+            if not _schema_ready:
+                connect().close()
+                _schema_ready = True
+    return _open()
 
 
 def last_review_at(db: sqlite3.Connection) -> datetime | None:

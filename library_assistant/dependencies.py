@@ -35,8 +35,13 @@ def get_watchlist() -> Watchlist:
 async def get_http_client(
     settings: Settings = Depends(get_settings),
 ) -> AsyncIterator[httpx.AsyncClient]:
-    """The only outbound HTTP client: scoped to the configured model endpoint (ADR-0006)."""
-    async with httpx.AsyncClient(base_url=settings.openai_endpoint) as client:
+    """The only outbound HTTP client: scoped to the configured model endpoint (ADR-0006).
+    It waits `openai_timeout_seconds` for the model, not httpx's 5 s, but gives up on a
+    server that won't connect at once."""
+    timeout = httpx.Timeout(settings.openai_timeout_seconds, connect=5)
+    async with httpx.AsyncClient(
+        base_url=settings.openai_endpoint, timeout=timeout
+    ) as client:
         yield client
 
 

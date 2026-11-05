@@ -38,6 +38,9 @@ class Settings:
     # Sent on every Answer lane request: steady answers, and repeatable ones.
     openai_temperature: float = 0.3
     openai_seed: int = 42
+    # How long the Answer lane waits for the model's next bytes before telling the Student
+    # it failed. A model paging back in after a quiet spell can take half a minute to start.
+    openai_timeout_seconds: int = 60
     school_timezone: str = "America/Chicago"  # IANA name
     school_day_end: str = "15:30"  # HH:MM, local to school_timezone
     oversight_endpoint: str | None = None
