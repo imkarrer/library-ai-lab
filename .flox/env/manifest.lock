@@ -3,6 +3,15 @@
   "manifest": {
     "schema-version": "1.16.0",
     "install": {
+      "cryptography": {
+        "pkg-path": "python313Packages.cryptography"
+      },
+      "fastapi": {
+        "pkg-path": "python313Packages.fastapi"
+      },
+      "httpx": {
+        "pkg-path": "python313Packages.httpx"
+      },
       "llama-cpp": {
         "pkg-path": "llama-cpp",
         "pkg-group": "models",
@@ -20,23 +29,27 @@
           "aarch64-darwin"
         ]
       },
-      "python": {
-        "pkg-path": "python312"
+      "pytest": {
+        "pkg-path": "python313Packages.pytest"
       },
-      "uv": {
-        "pkg-path": "uv"
+      "python-multipart": {
+        "pkg-path": "python313Packages.python-multipart"
+      },
+      "python3": {
+        "pkg-path": "python313"
+      },
+      "qrcode": {
+        "pkg-path": "python313Packages.qrcode"
+      },
+      "ruff": {
+        "pkg-path": "ruff"
+      },
+      "uvicorn": {
+        "pkg-path": "python313Packages.uvicorn"
       }
     },
-    "vars": {
-      "UV_PYTHON_DOWNLOADS": "never"
-    },
     "hook": {
-      "on-activate": "  venv=\"$FLOX_ENV_CACHE/venv\"\n  if [ ! -d \"$venv\" ]; then\n    uv venv --quiet --python \"$(command -v python3)\" \"$venv\"\n  fi\n\n  stamp=\"$venv/.requirements.sha\"\n  want=\"$(cat \"$FLOX_ENV_PROJECT/requirements.txt\" \"$FLOX_ENV_PROJECT/requirements-dev.txt\" | sha256sum | cut -d' ' -f1)\"\n  if [ \"$(cat \"$stamp\" 2>/dev/null)\" != \"$want\" ]; then\n    echo \"Installing Python packages...\" >&2\n    VIRTUAL_ENV=\"$venv\" uv pip install --quiet \\\n      -r \"$FLOX_ENV_PROJECT/requirements.txt\" \\\n      -r \"$FLOX_ENV_PROJECT/requirements-dev.txt\" >&2 \\\n      && echo \"$want\" > \"$stamp\"\n  fi\n\n  # `flox activate -- cmd` runs no profile script, so put the venv on PATH\n  # here for it; interactive shells get the venv from [profile] below.\n  export PATH=\"$venv/bin:$PATH\"\n\n  # The demo model, once scripts/fetch_demo_model.sh has fetched it (ADR-0006's one online\n  # setup exception). `:-` keeps an override, so development keeps pointing at llm-box\n  # (ADR-0008) by exporting these two before activating.\n  export LIBRARY_ASSISTANT_OPENAI_ENDPOINT=\"${LIBRARY_ASSISTANT_OPENAI_ENDPOINT:-http://127.0.0.1:8080/v1}\"\n  export LIBRARY_ASSISTANT_OPENAI_MODEL=\"${LIBRARY_ASSISTANT_OPENAI_MODEL:-Qwen3-30B-A3B-Instruct-2507}\"\n"
-    },
-    "profile": {
-      "bash": "  source \"$FLOX_ENV_CACHE/venv/bin/activate\"\n",
-      "zsh": "  source \"$FLOX_ENV_CACHE/venv/bin/activate\"\n",
-      "fish": "  source \"$FLOX_ENV_CACHE/venv/bin/activate.fish\"\n"
+      "on-activate": "  # pymarc until the catalog has it: built once from .flox/pkgs/pymarc, then on the path.\n  if [ ! -e \"$FLOX_ENV_PROJECT/result-pymarc\" ]; then\n    echo \"Building pymarc (once)...\" >&2\n    (cd \"$FLOX_ENV_PROJECT\" && flox build pymarc >&2)\n  fi\n  export PYTHONPATH=\"$FLOX_ENV_PROJECT/result-pymarc/lib/python3.13/site-packages${PYTHONPATH:+:$PYTHONPATH}\"\n\n  # The demo model, once scripts/fetch_demo_model.sh has fetched it (ADR-0006's one online\n  # setup exception). `:-` keeps an override, so development keeps pointing at llm-box\n  # (ADR-0008) by exporting these two before activating.\n  export LIBRARY_ASSISTANT_OPENAI_ENDPOINT=\"${LIBRARY_ASSISTANT_OPENAI_ENDPOINT:-http://127.0.0.1:8080/v1}\"\n  export LIBRARY_ASSISTANT_OPENAI_MODEL=\"${LIBRARY_ASSISTANT_OPENAI_MODEL:-Qwen3-30B-A3B-Instruct-2507}\"\n"
     },
     "options": {
       "systems": [
@@ -47,13 +60,29 @@
     },
     "services": {
       "assistant": {
-        "command": "  # library_assistant/__main__.py runs uvicorn with no access log (it writes the raw path\n  # and query, which could carry a Token or Card number; ADR-0003 addendum) and a bounded\n  # shutdown, and reads LIBRARY_ASSISTANT_HOST / _PORT.\n  cd \"$FLOX_ENV_PROJECT\" && exec \"$FLOX_ENV_CACHE/venv/bin/python\" -m library_assistant\n"
+        "command": "  # library_assistant/__main__.py runs uvicorn with no access log (it writes the raw path\n  # and query, which could carry a Token or Card number; ADR-0003 addendum) and a bounded\n  # shutdown, and reads LIBRARY_ASSISTANT_HOST / _PORT.\n  cd \"$FLOX_ENV_PROJECT\" && exec python3 -m library_assistant\n"
       },
       "model": {
         "command": "  model=\"$FLOX_ENV_CACHE/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf\"\n  if [ ! -f \"$model\" ]; then\n    echo \"Demo model not found; run scripts/fetch_demo_model.sh once, online, first.\" >&2\n    exit 1\n  fi\n  # No -v, --log-prompts-dir, or --slot-save-path, and --no-slots (ADR-0003 addendum): the\n  # model server keeps no log or cache of a question. 127.0.0.1 only (ADR-0006).\n  # Metal again (lib-30v): llama.cpp 0.6.0 failed every request on the M5 Pro with a Metal\n  # out-of-memory error; 0.7.0 fits all 49 layers on the GPU (~25-32 tokens/s, against ~12\n  # on the CPU), with under 1 GiB of the GPU's working set to spare: nothing else can be\n  # loaded beside it. ./stack runs Ollama instead.\n  exec llama-server \\\n    --model \"$model\" \\\n    --host 127.0.0.1 \\\n    --port 8080 \\\n    --ctx-size 8192 \\\n    --no-slots\n",
         "systems": [
           "aarch64-darwin"
         ]
+      }
+    },
+    "build": {
+      "library-assistant": {
+        "command": "  lib=\"$out/lib/library-assistant\"\n  mkdir -p \"$lib\" \"$out/bin\"\n  cp -R library_assistant \"$lib/\"\n  find \"$lib\" -name __pycache__ -prune -exec rm -rf {} +\n  # minting_page.py reads it from beside the package.\n  cp offline-minting.html \"$lib/\"\n  # Flox wraps this script with a PYTHONPATH of the runtime packages; the app and pymarc\n  # are added here, from the store.\n  cat > \"$out/bin/library-assistant\" <<LAUNCHER\n#!/usr/bin/env python3\nimport runpy, sys\nsys.path[:0] = [\"$lib\", \"${pymarc}/lib/python3.13/site-packages\"]\nrunpy.run_module(\"library_assistant\", run_name=\"__main__\", alter_sys=True)\nLAUNCHER\n  chmod +x \"$out/bin/library-assistant\"\n",
+        "runtime-packages": [
+          "python3",
+          "fastapi",
+          "uvicorn",
+          "httpx",
+          "qrcode",
+          "python-multipart",
+          "cryptography"
+        ],
+        "version": "0.1.0",
+        "description": "The Library Assistant: a local AI assistant for a school library"
       }
     }
   },
@@ -118,21 +147,290 @@
       "priority": 5
     },
     {
+      "attr_path": "python313Packages.cryptography",
+      "broken": false,
+      "derivation": "/nix/store/zdb18pq1q9a7fisqgp25izsj3jxib2bc-python3.13-cryptography-50.0.2.drv",
+      "description": "Package which provides cryptographic recipes and primitives",
+      "install_id": "cryptography",
+      "license": "[ Apache-2.0, BSD-3-Clause, Python-2.0 ]",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "name": "python3.13-cryptography-50.0.2",
+      "pname": "cryptography",
+      "rev": "1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "rev_count": 1107793,
+      "rev_date": "2026-11-03T17:13:28Z",
+      "scrape_date": "2026-11-05T05:47:44.324071Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "50.0.2",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/vcf0dla8hp2j28wsy5bvz46lkji5byg6-python3.13-cryptography-50.0.2-dist",
+        "out": "/nix/store/5ha1jqd8myxkgz90sm46l4xb1bwjidxj-python3.13-cryptography-50.0.2"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python313Packages.cryptography",
+      "broken": false,
+      "derivation": "/nix/store/q7i5s9hkd5d3kh6997s5vqh1rmfshmzi-python3.13-cryptography-50.0.2.drv",
+      "description": "Package which provides cryptographic recipes and primitives",
+      "install_id": "cryptography",
+      "license": "[ Apache-2.0, BSD-3-Clause, Python-2.0 ]",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "name": "python3.13-cryptography-50.0.2",
+      "pname": "cryptography",
+      "rev": "1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "rev_count": 1107793,
+      "rev_date": "2026-11-03T17:13:28Z",
+      "scrape_date": "2026-11-05T06:15:19.377521Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "50.0.2",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/38skcyyrcd68mq6nx4kilaz9vvd2ck13-python3.13-cryptography-50.0.2-dist",
+        "out": "/nix/store/va67ji1hcw38h9vw06qjrqd70ww4sgv4-python3.13-cryptography-50.0.2"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python313Packages.cryptography",
+      "broken": false,
+      "derivation": "/nix/store/4hb253flyyxpsjmmc421dmw805im65cf-python3.13-cryptography-50.0.2.drv",
+      "description": "Package which provides cryptographic recipes and primitives",
+      "install_id": "cryptography",
+      "license": "[ Apache-2.0, BSD-3-Clause, Python-2.0 ]",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "name": "python3.13-cryptography-50.0.2",
+      "pname": "cryptography",
+      "rev": "1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "rev_count": 1107793,
+      "rev_date": "2026-11-03T17:13:28Z",
+      "scrape_date": "2026-11-05T06:44:47.510721Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "50.0.2",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/04sf7m30yps679hjsgx653vd27m985g2-python3.13-cryptography-50.0.2-dist",
+        "out": "/nix/store/71rwy52gk1g2filk962lx5zg90al2a23-python3.13-cryptography-50.0.2"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python313Packages.fastapi",
+      "broken": false,
+      "derivation": "/nix/store/pwpdzqq14gj1qqwflhr2c8bn83wnnc1k-python3.13-fastapi-0.141.1.drv",
+      "description": "Web framework for building APIs",
+      "install_id": "fastapi",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "name": "python3.13-fastapi-0.141.1",
+      "pname": "fastapi",
+      "rev": "1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "rev_count": 1107793,
+      "rev_date": "2026-11-03T17:13:28Z",
+      "scrape_date": "2026-11-05T05:47:44.333844Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.141.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/54yqlv35g2ml8rc5h57fbd7l6dshfxw6-python3.13-fastapi-0.141.1-dist",
+        "out": "/nix/store/41w1c6nb5ksg0fdjv19b83yji99g292r-python3.13-fastapi-0.141.1"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python313Packages.fastapi",
+      "broken": false,
+      "derivation": "/nix/store/5axr4wdq7faycwrzr99p988v3i03prnf-python3.13-fastapi-0.141.1.drv",
+      "description": "Web framework for building APIs",
+      "install_id": "fastapi",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "name": "python3.13-fastapi-0.141.1",
+      "pname": "fastapi",
+      "rev": "1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "rev_count": 1107793,
+      "rev_date": "2026-11-03T17:13:28Z",
+      "scrape_date": "2026-11-05T06:15:19.381518Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.141.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/1dvp01binagic52l8ym508s9pzsmalr5-python3.13-fastapi-0.141.1-dist",
+        "out": "/nix/store/vg8f1v9p4lk5sfl4g4lzj7wqkg2qkwww-python3.13-fastapi-0.141.1"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python313Packages.fastapi",
+      "broken": false,
+      "derivation": "/nix/store/5lhb6ak54yzxx4j7b9kg7n3wj0das2dp-python3.13-fastapi-0.141.1.drv",
+      "description": "Web framework for building APIs",
+      "install_id": "fastapi",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "name": "python3.13-fastapi-0.141.1",
+      "pname": "fastapi",
+      "rev": "1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "rev_count": 1107793,
+      "rev_date": "2026-11-03T17:13:28Z",
+      "scrape_date": "2026-11-05T06:44:47.514636Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.141.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/rz57sb77pbbzs2ysfz3bm1w1nlrb6n0n-python3.13-fastapi-0.141.1-dist",
+        "out": "/nix/store/cfhr5yvby628sgpx65ksfg7b7cz3d0n7-python3.13-fastapi-0.141.1"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python313Packages.httpx",
+      "broken": false,
+      "derivation": "/nix/store/xc16pd42il4rrj12p1cd04dxb4p462r0-python3.13-httpx-0.28.1.drv",
+      "description": "Next generation HTTP client",
+      "install_id": "httpx",
+      "license": "BSD-3-Clause",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "name": "python3.13-httpx-0.28.1",
+      "pname": "httpx",
+      "rev": "1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "rev_count": 1107793,
+      "rev_date": "2026-11-03T17:13:28Z",
+      "scrape_date": "2026-11-05T05:47:44.337231Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.28.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/q0b5d4i192h0dnk02rqj9jw0ny0xwlgd-python3.13-httpx-0.28.1-dist",
+        "out": "/nix/store/wy6g783r6wps83q3xwj2drwgy4cs84aa-python3.13-httpx-0.28.1"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python313Packages.httpx",
+      "broken": false,
+      "derivation": "/nix/store/sr782bnd218vqxxsl4wg25x612j7jsdq-python3.13-httpx-0.28.1.drv",
+      "description": "Next generation HTTP client",
+      "install_id": "httpx",
+      "license": "BSD-3-Clause",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "name": "python3.13-httpx-0.28.1",
+      "pname": "httpx",
+      "rev": "1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "rev_count": 1107793,
+      "rev_date": "2026-11-03T17:13:28Z",
+      "scrape_date": "2026-11-05T06:15:19.385270Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.28.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/9x3q8s2nrnvb560kcxv04p7hynsrj2pw-python3.13-httpx-0.28.1-dist",
+        "out": "/nix/store/mnzgkcbhfpkij7va0dchcxv45zq76zkx-python3.13-httpx-0.28.1"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python313Packages.httpx",
+      "broken": false,
+      "derivation": "/nix/store/zrxmpiryaqgly07kdh1rihqjp6s5ha22-python3.13-httpx-0.28.1.drv",
+      "description": "Next generation HTTP client",
+      "install_id": "httpx",
+      "license": "BSD-3-Clause",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "name": "python3.13-httpx-0.28.1",
+      "pname": "httpx",
+      "rev": "1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "rev_count": 1107793,
+      "rev_date": "2026-11-03T17:13:28Z",
+      "scrape_date": "2026-11-05T06:44:47.518183Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.28.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/kr69sj1jayzyhql37ls9q3yv250x82wz-python3.13-httpx-0.28.1-dist",
+        "out": "/nix/store/78xm8lq29vm6v3kbbd9xy9nn6zjphvik-python3.13-httpx-0.28.1"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
       "attr_path": "nodejs",
       "broken": false,
       "derivation": "/nix/store/i2p2vcalxpyikyrihlf83ccvyn73rfg4-nodejs-24.21.0.drv",
       "description": "Event-driven I/O framework for the V8 JavaScript engine",
       "install_id": "nodejs",
       "license": "MIT",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=02c087f3fe673c9e317f206a627cb6b910336dbe",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=1d060086d60cb76a40cf37109f979d88a5bd6396",
       "name": "nodejs-24.21.0",
       "pname": "nodejs",
-      "rev": "02c087f3fe673c9e317f206a627cb6b910336dbe",
-      "rev_count": 1097682,
-      "rev_date": "2026-10-20T13:28:04Z",
-      "scrape_date": "2026-10-21T05:50:29.001129Z",
+      "rev": "1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "rev_count": 1107793,
+      "rev_date": "2026-11-03T17:13:28Z",
+      "scrape_date": "2026-11-05T05:47:44.264923Z",
       "stabilities": [
-        "staging",
         "unstable"
       ],
       "unfree": false,
@@ -155,15 +453,14 @@
       "description": "Event-driven I/O framework for the V8 JavaScript engine",
       "install_id": "nodejs",
       "license": "MIT",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=02c087f3fe673c9e317f206a627cb6b910336dbe",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=1d060086d60cb76a40cf37109f979d88a5bd6396",
       "name": "nodejs-24.21.0",
       "pname": "nodejs",
-      "rev": "02c087f3fe673c9e317f206a627cb6b910336dbe",
-      "rev_count": 1097682,
-      "rev_date": "2026-10-20T13:28:04Z",
-      "scrape_date": "2026-10-21T06:26:17.650310Z",
+      "rev": "1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "rev_count": 1107793,
+      "rev_date": "2026-11-03T17:13:28Z",
+      "scrape_date": "2026-11-05T06:15:19.313924Z",
       "stabilities": [
-        "staging",
         "unstable"
       ],
       "unfree": false,
@@ -186,15 +483,14 @@
       "description": "Event-driven I/O framework for the V8 JavaScript engine",
       "install_id": "nodejs",
       "license": "MIT",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=02c087f3fe673c9e317f206a627cb6b910336dbe",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=1d060086d60cb76a40cf37109f979d88a5bd6396",
       "name": "nodejs-24.21.0",
       "pname": "nodejs",
-      "rev": "02c087f3fe673c9e317f206a627cb6b910336dbe",
-      "rev_count": 1097682,
-      "rev_date": "2026-10-20T13:28:04Z",
-      "scrape_date": "2026-10-21T07:05:52.913885Z",
+      "rev": "1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "rev_count": 1107793,
+      "rev_date": "2026-11-03T17:13:28Z",
+      "scrape_date": "2026-11-05T06:44:47.462182Z",
       "stabilities": [
-        "staging",
         "unstable"
       ],
       "unfree": false,
@@ -212,188 +508,547 @@
       "priority": 5
     },
     {
-      "attr_path": "python312",
+      "attr_path": "python313Packages.pytest",
       "broken": false,
-      "derivation": "/nix/store/5idck752rpqn40hxfdkcmb5kc46q95x4-python3-3.12.15.drv",
-      "description": "High-level dynamically-typed programming language",
-      "install_id": "python",
-      "license": "Python-2.0",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=02c087f3fe673c9e317f206a627cb6b910336dbe",
-      "name": "python3-3.12.15",
-      "pname": "python312",
-      "rev": "02c087f3fe673c9e317f206a627cb6b910336dbe",
-      "rev_count": 1097682,
-      "rev_date": "2026-10-20T13:28:04Z",
-      "scrape_date": "2026-10-21T05:50:29.052035Z",
+      "derivation": "/nix/store/skrbr25l618yfm0a8l90y5qv6vc1vrlx-python3.13-pytest-9.1.1.drv",
+      "description": "Framework for writing tests",
+      "install_id": "pytest",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "name": "python3.13-pytest-9.1.1",
+      "pname": "pytest",
+      "rev": "1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "rev_count": 1107793,
+      "rev_date": "2026-11-03T17:13:28Z",
+      "scrape_date": "2026-11-05T05:47:44.358409Z",
       "stabilities": [
-        "staging",
         "unstable"
       ],
       "unfree": false,
-      "version": "python3-3.12.15",
+      "version": "9.1.1",
       "outputs_to_install": [
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/vgwdsgh9h5wrchrs4l5nx1g1z4h8acf1-python3-3.12.15"
+        "dist": "/nix/store/mgb2sv8l252ckkz4sgfm24fx0pz1lyyp-python3.13-pytest-9.1.1-dist",
+        "out": "/nix/store/j0cw5fa0nrbmafw6wpya9hmv1dq9m5q2-python3.13-pytest-9.1.1",
+        "testout": "/nix/store/9hxp9an4xv6rwqw3irrbdhgmwvscv380-python3.13-pytest-9.1.1-testout"
       },
       "system": "aarch64-darwin",
       "group": "toplevel",
       "priority": 5
     },
     {
-      "attr_path": "python312",
+      "attr_path": "python313Packages.pytest",
       "broken": false,
-      "derivation": "/nix/store/ym6fl4a85m443dz9kzwqw91linz8vmdk-python3-3.12.15.drv",
-      "description": "High-level dynamically-typed programming language",
-      "install_id": "python",
-      "license": "Python-2.0",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=02c087f3fe673c9e317f206a627cb6b910336dbe",
-      "name": "python3-3.12.15",
-      "pname": "python312",
-      "rev": "02c087f3fe673c9e317f206a627cb6b910336dbe",
-      "rev_count": 1097682,
-      "rev_date": "2026-10-20T13:28:04Z",
-      "scrape_date": "2026-10-21T06:26:17.698987Z",
+      "derivation": "/nix/store/76ayk0fhpa581a0ky2z6j3qgr6pm4aqg-python3.13-pytest-9.1.1.drv",
+      "description": "Framework for writing tests",
+      "install_id": "pytest",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "name": "python3.13-pytest-9.1.1",
+      "pname": "pytest",
+      "rev": "1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "rev_count": 1107793,
+      "rev_date": "2026-11-03T17:13:28Z",
+      "scrape_date": "2026-11-05T06:15:19.401969Z",
       "stabilities": [
-        "staging",
         "unstable"
       ],
       "unfree": false,
-      "version": "python3-3.12.15",
+      "version": "9.1.1",
       "outputs_to_install": [
         "out"
       ],
       "outputs": {
-        "debug": "/nix/store/148lfnvzkncsl2nvx2df90s84l53n064-python3-3.12.15-debug",
-        "out": "/nix/store/ri58arv0f08h4lmnzs9kxqg32daqv6hf-python3-3.12.15"
+        "dist": "/nix/store/plxr2q2g1a9wa70qf0xpsw8g3dlbwn7n-python3.13-pytest-9.1.1-dist",
+        "out": "/nix/store/w15z30880vddjhaddmmjhlcmqhawb79v-python3.13-pytest-9.1.1",
+        "testout": "/nix/store/zxr7ymy1rjz1n1sf5qbnnvhh640nspn5-python3.13-pytest-9.1.1-testout"
       },
       "system": "aarch64-linux",
       "group": "toplevel",
       "priority": 5
     },
     {
-      "attr_path": "python312",
+      "attr_path": "python313Packages.pytest",
       "broken": false,
-      "derivation": "/nix/store/pfcby5ivqdxb9kw8mrydxngzky3c3qk5-python3-3.12.15.drv",
-      "description": "High-level dynamically-typed programming language",
-      "install_id": "python",
-      "license": "Python-2.0",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=02c087f3fe673c9e317f206a627cb6b910336dbe",
-      "name": "python3-3.12.15",
-      "pname": "python312",
-      "rev": "02c087f3fe673c9e317f206a627cb6b910336dbe",
-      "rev_count": 1097682,
-      "rev_date": "2026-10-20T13:28:04Z",
-      "scrape_date": "2026-10-21T07:05:52.960655Z",
+      "derivation": "/nix/store/x2kvsdl0w6wm59yjvyj31q14c3n6ngc5-python3.13-pytest-9.1.1.drv",
+      "description": "Framework for writing tests",
+      "install_id": "pytest",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "name": "python3.13-pytest-9.1.1",
+      "pname": "pytest",
+      "rev": "1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "rev_count": 1107793,
+      "rev_date": "2026-11-03T17:13:28Z",
+      "scrape_date": "2026-11-05T06:44:47.534601Z",
       "stabilities": [
-        "staging",
         "unstable"
       ],
       "unfree": false,
-      "version": "python3-3.12.15",
+      "version": "9.1.1",
       "outputs_to_install": [
         "out"
       ],
       "outputs": {
-        "debug": "/nix/store/y5r68vk7v5x6qmdziixvwavl05390pqf-python3-3.12.15-debug",
-        "out": "/nix/store/1wbgna3xlprfllr1ysgpy9xiz0rxzglz-python3-3.12.15"
+        "dist": "/nix/store/i8jq5q3v3fbcxxsrb83w6rrdzqzrv1zq-python3.13-pytest-9.1.1-dist",
+        "out": "/nix/store/wgqd388m45gyv06jbf9r6ia2diqc5pzw-python3.13-pytest-9.1.1",
+        "testout": "/nix/store/3m8bzg3i1yfkxmg6mxpwn4kgwd64848m-python3.13-pytest-9.1.1-testout"
       },
       "system": "x86_64-linux",
       "group": "toplevel",
       "priority": 5
     },
     {
-      "attr_path": "uv",
+      "attr_path": "python313Packages.python-multipart",
       "broken": false,
-      "derivation": "/nix/store/29p5hsm3dvg6fnal9pppgh7d8gjx2ja8-uv-0.13.1.drv",
-      "description": "Extremely fast Python package installer and resolver, written in Rust",
-      "install_id": "uv",
-      "license": "[ Apache-2.0, MIT ]",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=02c087f3fe673c9e317f206a627cb6b910336dbe",
-      "name": "uv-0.13.1",
-      "pname": "uv",
-      "rev": "02c087f3fe673c9e317f206a627cb6b910336dbe",
-      "rev_count": 1097682,
-      "rev_date": "2026-10-20T13:28:04Z",
-      "scrape_date": "2026-10-21T05:50:29.306619Z",
+      "derivation": "/nix/store/via9h79lzmspvd77nyhjwd54gyivj3j4-python3.13-python-multipart-0.0.32.drv",
+      "description": "Streaming multipart parser for Python",
+      "install_id": "python-multipart",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "name": "python3.13-python-multipart-0.0.32",
+      "pname": "python-multipart",
+      "rev": "1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "rev_count": 1107793,
+      "rev_date": "2026-11-03T17:13:28Z",
+      "scrape_date": "2026-11-05T05:47:44.359578Z",
       "stabilities": [
-        "staging",
         "unstable"
       ],
       "unfree": false,
-      "version": "0.13.1",
+      "version": "0.0.32",
       "outputs_to_install": [
-        "out",
-        "out",
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/5wd02grqz8aprq88y8mi7207afx0fzng-uv-0.13.1"
+        "dist": "/nix/store/zyczr7qzy8nc7353ab9fdnfd97gwjag0-python3.13-python-multipart-0.0.32-dist",
+        "out": "/nix/store/n1kxcwwdwinyll2h6cdbfdr7qmd8b7cz-python3.13-python-multipart-0.0.32"
       },
       "system": "aarch64-darwin",
       "group": "toplevel",
       "priority": 5
     },
     {
-      "attr_path": "uv",
+      "attr_path": "python313Packages.python-multipart",
       "broken": false,
-      "derivation": "/nix/store/5nd4qwik6vdk9vbkx3a8mkzd6bi5b5kp-uv-0.13.1.drv",
-      "description": "Extremely fast Python package installer and resolver, written in Rust",
-      "install_id": "uv",
-      "license": "[ Apache-2.0, MIT ]",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=02c087f3fe673c9e317f206a627cb6b910336dbe",
-      "name": "uv-0.13.1",
-      "pname": "uv",
-      "rev": "02c087f3fe673c9e317f206a627cb6b910336dbe",
-      "rev_count": 1097682,
-      "rev_date": "2026-10-20T13:28:04Z",
-      "scrape_date": "2026-10-21T06:26:17.896819Z",
+      "derivation": "/nix/store/q11zph1vhy0bc950wch8xx0y4384rjma-python3.13-python-multipart-0.0.32.drv",
+      "description": "Streaming multipart parser for Python",
+      "install_id": "python-multipart",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "name": "python3.13-python-multipart-0.0.32",
+      "pname": "python-multipart",
+      "rev": "1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "rev_count": 1107793,
+      "rev_date": "2026-11-03T17:13:28Z",
+      "scrape_date": "2026-11-05T06:15:19.403247Z",
       "stabilities": [
-        "staging",
         "unstable"
       ],
       "unfree": false,
-      "version": "0.13.1",
+      "version": "0.0.32",
       "outputs_to_install": [
-        "out",
-        "out",
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/fq5dfc6yj7cpg6i9qi588ffi2x73q6ag-uv-0.13.1"
+        "dist": "/nix/store/alcp448h42ycccz0cpgnli6rqprbp31w-python3.13-python-multipart-0.0.32-dist",
+        "out": "/nix/store/lwvbxlc4fj3kwv503g11gfrwq1n6p7ff-python3.13-python-multipart-0.0.32"
       },
       "system": "aarch64-linux",
       "group": "toplevel",
       "priority": 5
     },
     {
-      "attr_path": "uv",
+      "attr_path": "python313Packages.python-multipart",
       "broken": false,
-      "derivation": "/nix/store/6d86y4rv2glbbzkj7y90d3qq2i488v6z-uv-0.13.1.drv",
-      "description": "Extremely fast Python package installer and resolver, written in Rust",
-      "install_id": "uv",
-      "license": "[ Apache-2.0, MIT ]",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=02c087f3fe673c9e317f206a627cb6b910336dbe",
-      "name": "uv-0.13.1",
-      "pname": "uv",
-      "rev": "02c087f3fe673c9e317f206a627cb6b910336dbe",
-      "rev_count": 1097682,
-      "rev_date": "2026-10-20T13:28:04Z",
-      "scrape_date": "2026-10-21T07:05:53.153768Z",
+      "derivation": "/nix/store/v14yqz4ckz5ajp385jy4mw881rwmw1v3-python3.13-python-multipart-0.0.32.drv",
+      "description": "Streaming multipart parser for Python",
+      "install_id": "python-multipart",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "name": "python3.13-python-multipart-0.0.32",
+      "pname": "python-multipart",
+      "rev": "1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "rev_count": 1107793,
+      "rev_date": "2026-11-03T17:13:28Z",
+      "scrape_date": "2026-11-05T06:44:47.535801Z",
       "stabilities": [
-        "staging",
         "unstable"
       ],
       "unfree": false,
-      "version": "0.13.1",
+      "version": "0.0.32",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/zmrpazzas37q99c76v8c1jxc0hsxfkpb-python3.13-python-multipart-0.0.32-dist",
+        "out": "/nix/store/8n00j77j9fmbaam4h4vzvbd1b77nkn28-python3.13-python-multipart-0.0.32"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python313",
+      "broken": false,
+      "derivation": "/nix/store/4vhkdq7wchxjvndl7xms3i5mma9h3hja-python3-3.13.16.drv",
+      "description": "High-level dynamically-typed programming language",
+      "install_id": "python3",
+      "license": "Python-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "name": "python3-3.13.16",
+      "pname": "python313",
+      "rev": "1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "rev_count": 1107793,
+      "rev_date": "2026-11-03T17:13:28Z",
+      "scrape_date": "2026-11-05T05:47:44.305864Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "python3-3.13.16",
+      "outputs_to_install": [
+        "out",
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/igbn577l0ylqad4ks9asxlprkjavfvg0-python3-3.13.16"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python313",
+      "broken": false,
+      "derivation": "/nix/store/cnlmh6fp2z5y4pwfjsabflyflw5v5yam-python3-3.13.16.drv",
+      "description": "High-level dynamically-typed programming language",
+      "install_id": "python3",
+      "license": "Python-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "name": "python3-3.13.16",
+      "pname": "python313",
+      "rev": "1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "rev_count": 1107793,
+      "rev_date": "2026-11-03T17:13:28Z",
+      "scrape_date": "2026-11-05T06:15:19.369557Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "python3-3.13.16",
       "outputs_to_install": [
         "out",
         "out",
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/07gw2d21ivy19hgjj8wmyqhf338gqzdj-uv-0.13.1"
+        "debug": "/nix/store/p1bspdz8glhzg52x67s6p5m6pp13rral-python3-3.13.16-debug",
+        "out": "/nix/store/1mr1x2jzwwjl67qq90sbj01g7cj6g7vv-python3-3.13.16"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python313",
+      "broken": false,
+      "derivation": "/nix/store/6qyy14svbp2vcw1hnswchghbl5iyj3m9-python3-3.13.16.drv",
+      "description": "High-level dynamically-typed programming language",
+      "install_id": "python3",
+      "license": "Python-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "name": "python3-3.13.16",
+      "pname": "python313",
+      "rev": "1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "rev_count": 1107793,
+      "rev_date": "2026-11-03T17:13:28Z",
+      "scrape_date": "2026-11-05T06:44:47.503389Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "python3-3.13.16",
+      "outputs_to_install": [
+        "out",
+        "out",
+        "out"
+      ],
+      "outputs": {
+        "debug": "/nix/store/qfg3cmyffnqracdb08k7325z3i46m8jq-python3-3.13.16-debug",
+        "out": "/nix/store/4168xqs4l5jbfc7xyi9zrhdhszx0pnlb-python3-3.13.16"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python313Packages.qrcode",
+      "broken": false,
+      "derivation": "/nix/store/9bzb85bcv1nxvwc3pdqhb8cwkhg3gjy7-python3.13-qrcode-8.2.drv",
+      "description": "Python QR Code image generator",
+      "install_id": "qrcode",
+      "license": "BSD-3-Clause",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "name": "python3.13-qrcode-8.2",
+      "pname": "qrcode",
+      "rev": "1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "rev_count": 1107793,
+      "rev_date": "2026-11-03T17:13:28Z",
+      "scrape_date": "2026-11-05T05:47:44.360641Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "8.2",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/lcykkh6zvpc0nrrksvah2q422138lkai-python3.13-qrcode-8.2-dist",
+        "out": "/nix/store/bh4vbp0m6gyv2dzchxj55fpfak2jia03-python3.13-qrcode-8.2"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python313Packages.qrcode",
+      "broken": false,
+      "derivation": "/nix/store/11blf6qkwm1i1gkbwn5xyv0v01wiz1ay-python3.13-qrcode-8.2.drv",
+      "description": "Python QR Code image generator",
+      "install_id": "qrcode",
+      "license": "BSD-3-Clause",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "name": "python3.13-qrcode-8.2",
+      "pname": "qrcode",
+      "rev": "1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "rev_count": 1107793,
+      "rev_date": "2026-11-03T17:13:28Z",
+      "scrape_date": "2026-11-05T06:15:19.404392Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "8.2",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/1ks4jpfxc5w923gfknhfq96dmwlljp6s-python3.13-qrcode-8.2-dist",
+        "out": "/nix/store/dq4qyrhpm273pm4ggxqnn35zdq56djdw-python3.13-qrcode-8.2"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python313Packages.qrcode",
+      "broken": false,
+      "derivation": "/nix/store/nkzmdg2xv29zsmrfrfn04r2vvm478bdc-python3.13-qrcode-8.2.drv",
+      "description": "Python QR Code image generator",
+      "install_id": "qrcode",
+      "license": "BSD-3-Clause",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "name": "python3.13-qrcode-8.2",
+      "pname": "qrcode",
+      "rev": "1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "rev_count": 1107793,
+      "rev_date": "2026-11-03T17:13:28Z",
+      "scrape_date": "2026-11-05T06:44:47.537034Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "8.2",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/bv7pky66gwlz5qlfxcjbmsbmvc5kqs4s-python3.13-qrcode-8.2-dist",
+        "out": "/nix/store/9qcpwyz347jxzp32ia8bp33sfjpw1hqz-python3.13-qrcode-8.2"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "ruff",
+      "broken": false,
+      "derivation": "/nix/store/k3wx9i7hrjyynbzkj7n1njpbxfg6cpaw-ruff-0.17.3.drv",
+      "description": "Extremely fast Python linter and code formatter",
+      "install_id": "ruff",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "name": "ruff-0.17.3",
+      "pname": "ruff",
+      "rev": "1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "rev_count": 1107793,
+      "rev_date": "2026-11-03T17:13:28Z",
+      "scrape_date": "2026-11-05T05:47:44.461332Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.17.3",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/82xjs5mxxnwjy7s8fwhf9156z0palyvw-ruff-0.17.3"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "ruff",
+      "broken": false,
+      "derivation": "/nix/store/xhq4m9b2lj52p1zv2fcd1jh58inkszrj-ruff-0.17.3.drv",
+      "description": "Extremely fast Python linter and code formatter",
+      "install_id": "ruff",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "name": "ruff-0.17.3",
+      "pname": "ruff",
+      "rev": "1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "rev_count": 1107793,
+      "rev_date": "2026-11-03T17:13:28Z",
+      "scrape_date": "2026-11-05T06:15:19.475731Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.17.3",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/fg9g7mlv5gwgbf32yb654a6il7z4lkfk-ruff-0.17.3"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "ruff",
+      "broken": false,
+      "derivation": "/nix/store/whm6v1v6mk1imb6ap3g0l0pa9w7fkrcq-ruff-0.17.3.drv",
+      "description": "Extremely fast Python linter and code formatter",
+      "install_id": "ruff",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "name": "ruff-0.17.3",
+      "pname": "ruff",
+      "rev": "1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "rev_count": 1107793,
+      "rev_date": "2026-11-03T17:13:28Z",
+      "scrape_date": "2026-11-05T06:44:47.605648Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.17.3",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/hksfr588300r7xqvzcpiicj10gh4chfb-ruff-0.17.3"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python313Packages.uvicorn",
+      "broken": false,
+      "derivation": "/nix/store/70hxivnvrl5kvjnyn72aw29ri91qnafc-python3.13-uvicorn-0.51.0.drv",
+      "description": "Lightning-fast ASGI server",
+      "install_id": "uvicorn",
+      "license": "BSD-3-Clause",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "name": "python3.13-uvicorn-0.51.0",
+      "pname": "uvicorn",
+      "rev": "1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "rev_count": 1107793,
+      "rev_date": "2026-11-03T17:13:28Z",
+      "scrape_date": "2026-11-05T05:47:44.374119Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.51.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/xy7yqid2dyaalprvpcrfhba5k39xpbxp-python3.13-uvicorn-0.51.0-dist",
+        "out": "/nix/store/aq581b2nsnhg2n5c0bn2q2asgw0a8216-python3.13-uvicorn-0.51.0",
+        "testsout": "/nix/store/k9l3sl3h0x7wylw5z25d7ph2pww3w8ky-python3.13-uvicorn-0.51.0-testsout"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python313Packages.uvicorn",
+      "broken": false,
+      "derivation": "/nix/store/8sdqwgfmc26saq51ia6y9x69x71381lx-python3.13-uvicorn-0.51.0.drv",
+      "description": "Lightning-fast ASGI server",
+      "install_id": "uvicorn",
+      "license": "BSD-3-Clause",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "name": "python3.13-uvicorn-0.51.0",
+      "pname": "uvicorn",
+      "rev": "1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "rev_count": 1107793,
+      "rev_date": "2026-11-03T17:13:28Z",
+      "scrape_date": "2026-11-05T06:15:19.414824Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.51.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/r2j08jv2b5bppx6g0b966zqnpplb8w0s-python3.13-uvicorn-0.51.0-dist",
+        "out": "/nix/store/2zz86q9kbifpcls5sglxx3fa1f37wizw-python3.13-uvicorn-0.51.0",
+        "testsout": "/nix/store/ywfkwvp3slslqkxrj54warpw0yq57z3a-python3.13-uvicorn-0.51.0-testsout"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python313Packages.uvicorn",
+      "broken": false,
+      "derivation": "/nix/store/4v0mwmhxy8v0qva750q9fmsj1qz7ddfw-python3.13-uvicorn-0.51.0.drv",
+      "description": "Lightning-fast ASGI server",
+      "install_id": "uvicorn",
+      "license": "BSD-3-Clause",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "name": "python3.13-uvicorn-0.51.0",
+      "pname": "uvicorn",
+      "rev": "1d060086d60cb76a40cf37109f979d88a5bd6396",
+      "rev_count": 1107793,
+      "rev_date": "2026-11-03T17:13:28Z",
+      "scrape_date": "2026-11-05T06:44:47.547154Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.51.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/1jm1f1q6s1bph7n9nsd27yn11zkg5ax6-python3.13-uvicorn-0.51.0-dist",
+        "out": "/nix/store/92r99r6l5jrs60yji7qh3im43gj0a2m8-python3.13-uvicorn-0.51.0",
+        "testsout": "/nix/store/12n23kl0k2mb1hqbsk1mwcsfq174l7xx-python3.13-uvicorn-0.51.0-testsout"
       },
       "system": "x86_64-linux",
       "group": "toplevel",

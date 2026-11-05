@@ -185,8 +185,7 @@ Python.</p>
 
 ```toml
 [install]
-python.pkg-path       = "python312"
-uv.pkg-path           = "uv"
+app.pkg-path          = "library-ai-lab/library-assistant"
 answer-model.pkg-path = "agent-stacks/agent-model-gpt-oss-20b"
 screen-model.pkg-path = "agent-stacks/agent-model-qwen3.5-4b"
 
@@ -199,15 +198,49 @@ command = '''exec "$FLOX_ENV"/share/agent-models/qwen3.5-4b/bin/serve \
   --listen 127.0.0.1:11435 --protocol openai-chat-completions'''
 
 [services.assistant]
-command = 'exec "$FLOX_ENV_CACHE/venv/bin/python" -m library_assistant'
+command = 'exec library-assistant'
 ```
 
-<p class="muted">Abridged. Two model packages and three services, all in one environment.</p>
+<p class="muted">Abridged. Three packages and three services, all in one environment.</p>
 
 <!--
 [APRIL] Assumes model packages are published under these names and can be installed outside
 a stack. The names are illustrative until they exist. Today ./stack runs Ollama itself, with
-models from `ollama pull`.
+models from `ollama pull`. The app's package exists today (flox build library-assistant, next
+slide); publishing it under this name hasn't happened yet.
+-->
+
+---
+
+## The app is a package too
+
+- **Its libraries come from the Flox catalog,** in the same lock as Python: no PyPI, no venv.
+  The tests run on what ships.
+- **`flox build` makes the package.** The gate starts it with an empty environment on every
+  PR, so it can't lean on the developer's shell.
+- **`runtime-packages` decides what ships:** the app's libraries, not pytest, ruff or the
+  model servers.
+
+<div class="box">
+
+**One library wasn't in the catalog:** pymarc, which reads a school's catalog export. So I
+wrote its Nix for nixpkgs, where it belongs. Until that lands, the project carries a copy;
+then the project has no Nix at all.
+
+</div>
+
+<!--
+This is "way 5" from the Flox offsite talk: a [build] on the catalog's libraries. Before it,
+activation ran uv pip install from PyPI into a venv, so the Python dependencies sat outside the
+lock and "store paths are the bill of materials" wasn't true.
+
+It's also what makes the district slide work: an environment pulled from FloxHub has no
+checkout of our source, so the app has to arrive as a package, the same way the models do.
+
+If asked: Python 3.13, because the catalog's python312Packages trail PyPI. The package's closure
+is 1.4 GiB, and 1.3 GiB of that is python3 itself on macOS, which keeps a reference to clang in
+its static libpython. The app's own files are small. pymarc builds from its upstream tag with
+all 174 of its tests passing on Python 3.11 to 3.14.
 -->
 
 ---
@@ -374,7 +407,8 @@ them. The Library Assistant's licence lets a school or district run it free, ins
 operated by its own employees (README, "License"), so FloxHub is what a district pays for, not
 the app.
 
-How it works: `flox push` publishes the environment to the district's FloxHub organization;
+How it works: `flox publish` puts the app's package in the district's FloxHub catalog and
+`flox push` publishes the environment that installs it;
 each library's Mac runs `flox pull <district>/library-assistant` and `flox activate -s`. An
 upgrade is a new generation pushed once and pulled by every library in its update window,
 which is the one outbound window the intranet-only rule (ADR-0006) already allows. What

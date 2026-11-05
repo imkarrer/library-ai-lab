@@ -43,3 +43,36 @@ def test_assistant_service_uses_the_one_start_command():
     command = _service_command("assistant")
     assert "-m library_assistant" in command
     assert "uvicorn" not in command
+
+
+def _manifest() -> dict:
+    return tomllib.loads(MANIFEST.read_text())
+
+
+def test_python_libraries_come_from_the_catalog_in_one_lock():
+    """No uv, no PyPI: every library is the catalog's, for the one Python installed."""
+    install = _manifest()["install"]
+    assert "uv" not in install
+    python = install["python3"]["pkg-path"]  # e.g. python313
+    libraries = {
+        name: entry["pkg-path"]
+        for name, entry in install.items()
+        if "Packages." in entry.get("pkg-path", "")
+    }
+    assert libraries
+    for name, pkg_path in libraries.items():
+        assert pkg_path.startswith(f"{python}Packages."), name
+
+
+def test_the_package_ships_the_apps_libraries_and_no_dev_tools():
+    """runtime-packages decides what ships: the app's libraries, not the gate's tools."""
+    manifest = _manifest()
+    shipped = set(manifest["build"]["library-assistant"]["runtime-packages"])
+    libraries = {
+        name
+        for name, entry in manifest["install"].items()
+        if "Packages." in entry.get("pkg-path", "")
+    }
+    assert "python3" in shipped
+    assert libraries - {"pytest"} <= shipped
+    assert not shipped & {"pytest", "ruff", "nodejs", "ollama", "llama-cpp"}

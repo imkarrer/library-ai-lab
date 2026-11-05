@@ -52,8 +52,8 @@ Do this at home, online, on the M5 Pro. Everything here downloads; nothing after
    ```
 
 2. Get the code you will demo, and make sure it is the version you will rehearse with. Do not
-   `git pull` after Step 3: a change to `requirements.txt` makes the next activation try to
-   install from PyPI, which fails offline.
+   `git pull` after Step 3: a change to the manifest makes the next activation fetch packages,
+   which fails offline.
 
    ```bash
    cd ~/src/library-ai-lab        # wherever your checkout is
@@ -63,12 +63,12 @@ Do this at home, online, on the M5 Pro. Everything here downloads; nothing after
    Run every later command from this same folder. The model is cached inside the checkout
    (`.flox/cache/models/`), so a second checkout or worktree does not see it.
 
-3. Activate once, online. The first activation installs Python, uv, Ollama, llama.cpp,
-   and the Python packages (from PyPI). It prints `Installing Python packages...` the first
-   time.
+3. Activate once, online. The first activation installs Python and its libraries, Ollama
+   and llama.cpp, all from the Flox catalog, and builds pymarc, the one library the catalog
+   doesn't have yet. It prints `Building pymarc (once)...` the first time.
 
    ```bash
-   flox activate -- python3 -c "import fastapi, uvicorn, qrcode, httpx; print('env ok')"
+   flox activate -- python3 -c "import fastapi, uvicorn, qrcode, httpx, pymarc; print('env ok')"
    ```
 
 4. Get the demo models. The M5 Pro runs both Lanes on the environment's own Ollama

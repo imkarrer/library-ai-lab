@@ -136,7 +136,10 @@ def test_builder_runs_as_the_readme_documents():
         cwd=repo_root,
         capture_output=True,
         text=True,
-        env={"PATH": os.environ.get("PATH", "")},
+        # The environment's libraries reach Python through PYTHONPATH (flox activate).
+        env={
+            key: os.environ[key] for key in ("PATH", "PYTHONPATH") if key in os.environ
+        },
         check=False,
     )
     assert result.returncode == 0, result.stderr
