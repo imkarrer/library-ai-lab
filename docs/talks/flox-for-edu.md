@@ -97,11 +97,12 @@ becomes realistic.
 
 ```toml
 [install]
-python.pkg-path = "python312"
-uv.pkg-path = "uv"
+python3.pkg-path = "python313"
+fastapi.pkg-path = "python313Packages.fastapi"
+uvicorn.pkg-path = "python313Packages.uvicorn"
 
 [services.assistant]
-command = "uvicorn library_assistant.app:app --host 127.0.0.1 --port 8000"
+command = "python3 -m library_assistant"
 
 [options]
 systems = ["aarch64-darwin", "aarch64-linux", "x86_64-linux"]
@@ -112,7 +113,8 @@ Then: `flox activate --start-services` (short form: `flox activate -s`).
 **Notes (Engineer, 60 s):** Flox is an environment manager built on Nix. The manifest says
 what the tool needs. The lock file (`manifest.lock`) records the exact versions. Both live in
 the repo next to the code. Anyone who clones the repo and runs `flox activate` gets the same
-Python and the same tools, on a Mac or a Linux box, with no container and no admin image.
+Python, the same libraries and the same tools, on a Mac or a Linux box, with no container and
+no admin image.
 `[services]` means the environment also starts the program and keeps it running. Sources:
 [environments](https://flox.dev/docs/concepts/environments/) and
 [services](https://flox.dev/docs/concepts/services/) in the flox docs.
@@ -180,15 +182,15 @@ See "Demo beats" below. The slide itself is a title card and a screenshot with W
 **On the slide:** A short checklist.
 1. Put the setup in a manifest in the repo, with its lock file.
 2. Make the program a `[services]` entry, so starting it is one command.
-3. Pin the language and tools with flox. Let the language's own installer fetch libraries,
-   but only during setup.
+3. Pin the language, its libraries and the tools with flox, so one lock file says what
+   runs.
 4. Do anything that needs the internet in a separate, one-off step, then run with it off.
 5. List the platforms you support in `[options] systems`, so nobody has to guess.
 
 **Notes (Engineer, 2 min):** Each item maps to something in this repo. Item 3 describes how the
-project works today: flox supplies Python 3.12 and uv, and on first activation the hook runs
-`uv pip install` from `requirements.txt`. That first activation needs the internet, and
-nothing after it does. Item 4 is ADR-0006's one exception, building the demo Catalog from
+project works today: flox supplies Python 3.13 and its libraries from the Flox catalog, in the
+same lock, and a `[build]` packages the app from them. The first activation needs the
+internet, and nothing after it does. Item 4 is ADR-0006's one exception, building the demo Catalog from
 Library of Congress records.
 
 ### Slide 11: Other school tools this fits
@@ -224,8 +226,8 @@ The demo follows the lib-f24.9 runbook, which doesn't exist yet. These beats are
 runbook has to support. Rehearse each one on the demo machine before submitting the talk.
 
 **Before the talk (offstage, online):** Build the demo Catalog from Library of Congress MARC
-records (lib-f24.3's builder, ADR-0006). Run `flox activate` once so the venv and packages are
-in place. Print a backup sheet of the demo Batch in case the printer or projector fails.
+records (lib-f24.3's builder, ADR-0006). Run `flox activate` once so Python and its libraries
+are in place. Print a backup sheet of the demo Batch in case the printer or projector fails.
 
 | Beat | Who | What the audience sees | Line to say |
 |---|---|---|---|

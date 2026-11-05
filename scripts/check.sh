@@ -23,3 +23,7 @@ ruff check .
 ruff format --check .
 python scripts/confidentiality.py
 pytest
+
+# What ships: the package builds from this lock and starts on its own store paths.
+flox build library-assistant
+bash scripts/check_package.sh

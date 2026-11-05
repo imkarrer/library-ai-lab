@@ -122,9 +122,10 @@ advice.
 
 ## Gaps this exposed
 
-- **The Python dependencies are outside the closure.** `.flox/env/manifest.toml` runs
-  `uv pip install` at activation, which uses the network. Until that changes, the whole assistant
-  can't be called a closure.
+- **The Python dependencies were outside the closure.** The manifest ran `uv pip install` at
+  activation, from PyPI. Since then the libraries come from the catalog and
+  `[build.library-assistant]` packages the app, so the assistant is a closure; pymarc is built
+  from `.flox/pkgs/pymarc` until nixpkgs has it.
 - **flox may reach the internet on an Install.** A default-config log shows the upgrade check
   calling `api.flox.dev`. From the source, `upgrade-notifications = false` only hides the notice.
   Not confirmed at runtime; the test only hit throttling.

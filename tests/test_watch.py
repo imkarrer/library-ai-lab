@@ -261,8 +261,11 @@ def test_stand_in_stream_pings_and_heartbeat_keeps_watch(db, clock, client):
 
     response = stream_client.get("/staff/live/events")
 
+    # The stream ends in _StreamDone, and starlette 1.7's test client then drops the body it
+    # had: what a ping says is event_stream's test below. Here, the stream waited for a ping.
     assert response.status_code == 200
-    assert response.text.startswith("event: ping\ndata: {}\n\n")
+    assert response.headers["content-type"].startswith("text/event-stream")
+    assert waits
 
     # The page answers the ping: past the grace from Start watch, still on.
     _later(clock, 60)

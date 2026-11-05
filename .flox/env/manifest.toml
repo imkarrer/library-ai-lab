@@ -1,14 +1,25 @@
 schema-version = "1.16.0"
 
 [install]
-python.pkg-path = "python312"
-uv.pkg-path = "uv"
+# The app's Python libraries come from the catalog, in this lock, not from PyPI: what the
+# tests run on is what [build.library-assistant] ships. pymarc isn't in the catalog yet:
+# .flox/pkgs/pymarc builds it until it is.
+python3.pkg-path = "python313"
+fastapi.pkg-path = "python313Packages.fastapi"
+uvicorn.pkg-path = "python313Packages.uvicorn"
+httpx.pkg-path = "python313Packages.httpx"
+qrcode.pkg-path = "python313Packages.qrcode"
+python-multipart.pkg-path = "python313Packages.python-multipart"
+cryptography.pkg-path = "python313Packages.cryptography"
+# Development only: left out of the package by runtime-packages below.
+pytest.pkg-path = "python313Packages.pytest"
+ruff.pkg-path = "ruff"
 nodejs.pkg-path = "nodejs"
 
 [install.llama-cpp]
 pkg-path = "llama-cpp"
 # Own group: the model servers upgrade on their own (`flox upgrade models`), not with
-# python and uv.
+# Python and its libraries.
 pkg-group = "models"
 # Only the M5 Pro demo runs the model server; dev boxes point LIBRARY_ASSISTANT_OPENAI_*
 # at llm-box instead (ADR-0008).
@@ -21,29 +32,14 @@ pkg-group = "models"
 # Ollama.app. Linux dev boxes use llm-box (ADR-0008).
 systems = ["aarch64-darwin"]
 
-[vars]
-UV_PYTHON_DOWNLOADS = "never"
-
 [hook]
 on-activate = '''
-  venv="$FLOX_ENV_CACHE/venv"
-  if [ ! -d "$venv" ]; then
-    uv venv --quiet --python "$(command -v python3)" "$venv"
+  # pymarc until the catalog has it: built once from .flox/pkgs/pymarc, then on the path.
+  if [ ! -e "$FLOX_ENV_PROJECT/result-pymarc" ]; then
+    echo "Building pymarc (once)..." >&2
+    (cd "$FLOX_ENV_PROJECT" && flox build pymarc >&2)
   fi
-
-  stamp="$venv/.requirements.sha"
-  want="$(cat "$FLOX_ENV_PROJECT/requirements.txt" "$FLOX_ENV_PROJECT/requirements-dev.txt" | sha256sum | cut -d' ' -f1)"
-  if [ "$(cat "$stamp" 2>/dev/null)" != "$want" ]; then
-    echo "Installing Python packages..." >&2
-    VIRTUAL_ENV="$venv" uv pip install --quiet \
-      -r "$FLOX_ENV_PROJECT/requirements.txt" \
-      -r "$FLOX_ENV_PROJECT/requirements-dev.txt" >&2 \
-      && echo "$want" > "$stamp"
-  fi
-
-  # `flox activate -- cmd` runs no profile script, so put the venv on PATH
-  # here for it; interactive shells get the venv from [profile] below.
-  export PATH="$venv/bin:$PATH"
+  export PYTHONPATH="$FLOX_ENV_PROJECT/result-pymarc/lib/python3.13/site-packages${PYTHONPATH:+:$PYTHONPATH}"
 
   # The demo model, once scripts/fetch_demo_model.sh has fetched it (ADR-0006's one online
   # setup exception). `:-` keeps an override, so development keeps pointing at llm-box
@@ -52,15 +48,27 @@ on-activate = '''
   export LIBRARY_ASSISTANT_OPENAI_MODEL="${LIBRARY_ASSISTANT_OPENAI_MODEL:-Qwen3-30B-A3B-Instruct-2507}"
 '''
 
-[profile]
-bash = '''
-  source "$FLOX_ENV_CACHE/venv/bin/activate"
-'''
-zsh = '''
-  source "$FLOX_ENV_CACHE/venv/bin/activate"
-'''
-fish = '''
-  source "$FLOX_ENV_CACHE/venv/bin/activate.fish"
+[build.library-assistant]
+description = "The Library Assistant: a local AI assistant for a school library"
+version = "0.1.0"
+# Only the app's own libraries ship; pytest, ruff, nodejs and the model servers don't.
+runtime-packages = ["python3", "fastapi", "uvicorn", "httpx", "qrcode", "python-multipart", "cryptography"]
+command = '''
+  lib="$out/lib/library-assistant"
+  mkdir -p "$lib" "$out/bin"
+  cp -R library_assistant "$lib/"
+  find "$lib" -name __pycache__ -prune -exec rm -rf {} +
+  # minting_page.py reads it from beside the package.
+  cp offline-minting.html "$lib/"
+  # Flox wraps this script with a PYTHONPATH of the runtime packages; the app and pymarc
+  # are added here, from the store.
+  cat > "$out/bin/library-assistant" <<LAUNCHER
+#!/usr/bin/env python3
+import runpy, sys
+sys.path[:0] = ["$lib", "${pymarc}/lib/python3.13/site-packages"]
+runpy.run_module("library_assistant", run_name="__main__", alter_sys=True)
+LAUNCHER
+  chmod +x "$out/bin/library-assistant"
 '''
 
 [services.assistant]
@@ -68,7 +76,7 @@ command = '''
   # library_assistant/__main__.py runs uvicorn with no access log (it writes the raw path
   # and query, which could carry a Token or Card number; ADR-0003 addendum) and a bounded
   # shutdown, and reads LIBRARY_ASSISTANT_HOST / _PORT.
-  cd "$FLOX_ENV_PROJECT" && exec "$FLOX_ENV_CACHE/venv/bin/python" -m library_assistant
+  cd "$FLOX_ENV_PROJECT" && exec python3 -m library_assistant
 '''
 
 [services.model]
