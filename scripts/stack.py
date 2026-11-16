@@ -248,12 +248,20 @@ def ollama_env(port: int, context_length: int, slots: int) -> dict[str, str]:
     """One Ollama's environment. 127.0.0.1 only and no cloud features (ADR-0006: unset,
     `ollama serve` fetches model recommendations from ollama.com at start); no debug
     logging, which writes prompts and request bodies (ADR-0003 addendum). The model stays
-    loaded for as long as the Ollama runs, so no Student waits for it to load again."""
+    loaded for as long as the Ollama runs, so no Student waits for it to load again.
+
+    The models come from the flox environment (models/, ADR-0006's setup fetch), read-only
+    in the store: NOPRUNE keeps Ollama from stopping at start when it can't prune them."""
     env = {
         name: value
         for name, value in os.environ.items()
         if name not in ("OLLAMA_DEBUG", "OLLAMA_DEBUG_LOG_REQUESTS")
     }
+    models = (
+        Path(os.environ.get("FLOX_ENV", "/nonexistent")) / "share" / "ollama" / "models"
+    )
+    if models.is_dir():
+        env |= {"OLLAMA_MODELS": str(models), "OLLAMA_NOPRUNE": "1"}
     return {
         **env,
         "OLLAMA_HOST": f"127.0.0.1:{port}",

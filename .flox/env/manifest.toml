@@ -32,6 +32,12 @@ pkg-group = "models"
 # Ollama.app. Linux dev boxes use llm-box (ADR-0008).
 systems = ["aarch64-darwin"]
 
+# Both demo models, read-only in the store: models/ on main, pinned by digest. Activation
+# never fetches them (ADR-0006): bash scripts/fetch_models.sh, once, online, first.
+[install.library-models]
+flake = "github:imkarrer/library-ai-lab?dir=models"
+systems = ["aarch64-darwin"]
+
 [hook]
 on-activate = '''
   # pymarc until the catalog has it: built once from .flox/pkgs/pymarc, then on the path.
@@ -41,7 +47,7 @@ on-activate = '''
   fi
   export PYTHONPATH="$FLOX_ENV_PROJECT/result-pymarc/lib/python3.13/site-packages${PYTHONPATH:+:$PYTHONPATH}"
 
-  # The demo model, once scripts/fetch_demo_model.sh has fetched it (ADR-0006's one online
+  # The demo model, once scripts/fetch_demo_model.sh has fetched it (ADR-0006's model-fetch
   # setup exception). `:-` keeps an override, so development keeps pointing at llm-box
   # (ADR-0008) by exporting these two before activating.
   export LIBRARY_ASSISTANT_OPENAI_ENDPOINT="${LIBRARY_ASSISTANT_OPENAI_ENDPOINT:-http://127.0.0.1:8080/v1}"

@@ -12,6 +12,12 @@
       "httpx": {
         "pkg-path": "python313Packages.httpx"
       },
+      "library-models": {
+        "flake": "github:imkarrer/library-ai-lab?dir=models",
+        "systems": [
+          "aarch64-darwin"
+        ]
+      },
       "llama-cpp": {
         "pkg-path": "llama-cpp",
         "pkg-group": "models",
@@ -49,7 +55,7 @@
       }
     },
     "hook": {
-      "on-activate": "  # pymarc until the catalog has it: built once from .flox/pkgs/pymarc, then on the path.\n  if [ ! -e \"$FLOX_ENV_PROJECT/result-pymarc\" ]; then\n    echo \"Building pymarc (once)...\" >&2\n    (cd \"$FLOX_ENV_PROJECT\" && flox build pymarc >&2)\n  fi\n  export PYTHONPATH=\"$FLOX_ENV_PROJECT/result-pymarc/lib/python3.13/site-packages${PYTHONPATH:+:$PYTHONPATH}\"\n\n  # The demo model, once scripts/fetch_demo_model.sh has fetched it (ADR-0006's one online\n  # setup exception). `:-` keeps an override, so development keeps pointing at llm-box\n  # (ADR-0008) by exporting these two before activating.\n  export LIBRARY_ASSISTANT_OPENAI_ENDPOINT=\"${LIBRARY_ASSISTANT_OPENAI_ENDPOINT:-http://127.0.0.1:8080/v1}\"\n  export LIBRARY_ASSISTANT_OPENAI_MODEL=\"${LIBRARY_ASSISTANT_OPENAI_MODEL:-Qwen3-30B-A3B-Instruct-2507}\"\n"
+      "on-activate": "  # pymarc until the catalog has it: built once from .flox/pkgs/pymarc, then on the path.\n  if [ ! -e \"$FLOX_ENV_PROJECT/result-pymarc\" ]; then\n    echo \"Building pymarc (once)...\" >&2\n    (cd \"$FLOX_ENV_PROJECT\" && flox build pymarc >&2)\n  fi\n  export PYTHONPATH=\"$FLOX_ENV_PROJECT/result-pymarc/lib/python3.13/site-packages${PYTHONPATH:+:$PYTHONPATH}\"\n\n  # The demo model, once scripts/fetch_demo_model.sh has fetched it (ADR-0006's model-fetch\n  # setup exception). `:-` keeps an override, so development keeps pointing at llm-box\n  # (ADR-0008) by exporting these two before activating.\n  export LIBRARY_ASSISTANT_OPENAI_ENDPOINT=\"${LIBRARY_ASSISTANT_OPENAI_ENDPOINT:-http://127.0.0.1:8080/v1}\"\n  export LIBRARY_ASSISTANT_OPENAI_MODEL=\"${LIBRARY_ASSISTANT_OPENAI_MODEL:-Qwen3-30B-A3B-Instruct-2507}\"\n"
     },
     "options": {
       "systems": [
@@ -1052,6 +1058,29 @@
       },
       "system": "x86_64-linux",
       "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "install_id": "library-models",
+      "locked-url": "github:imkarrer/library-ai-lab/56afe3676ae5262e8ed02ec181bbe3158a3cb3c0?dir=models&narHash=sha256-IntOd6ChD3LJtWLT6x/YTqqJ%2BoG%2B5MjgWzWvR5jM/So%3D",
+      "flake-description": "The Library Assistant's local models, pinned by digest",
+      "locked-flake-attr-path": "packages.aarch64-darwin.default",
+      "derivation": "/nix/store/0inb12djf7p1swj9sy2sizpnf8piayvv-library-models.drv",
+      "outputs": {
+        "out": "/nix/store/vz95zq168rb4cbvk5g81ri7j8qv2cfn2-library-models"
+      },
+      "output-names": [
+        "out"
+      ],
+      "outputs-to-install": [
+        "out"
+      ],
+      "requested-outputs-to-install": [],
+      "package-system": "aarch64-darwin",
+      "system": "aarch64-darwin",
+      "name": "library-models",
+      "broken": false,
+      "unfree": false,
       "priority": 5
     }
   ]
