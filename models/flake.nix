@@ -13,9 +13,10 @@
       ];
     in {
       packages.aarch64-darwin = {
-        # What the flox environment installs: never fetches (ADR-0006).
+        # Never fetches: for an Install that must refuse rather than download a missing file.
         default = ollamaModels { name = "library-models"; inherit models; };
-        # The one setup fetch, ./stack fetch-models: the same store paths, downloaded.
+        # What the flox environment installs: the same store paths, fetched by the first
+        # activation or scripts/fetch_models.sh (ADR-0006's model exception).
         online = ollamaModels { name = "library-models"; inherit models; canFetch = true; };
       };
     };

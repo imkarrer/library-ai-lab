@@ -6,8 +6,9 @@
 #   bash scripts/fetch_models.sh --from-ollama  files already pulled into ~/.ollama/models
 #                                               first, then download only what is missing
 #
-# Runs outside flox: the environment that installs the models can't activate before they
-# are here. Re-running fetches nothing that is already in the store.
+# The first flox activate fetches missing models too, but behind a spinner; this shows
+# progress. It runs outside flox, so it works before that first activation. Re-running
+# fetches nothing that is already in the store.
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")/.." && pwd)"
@@ -32,4 +33,4 @@ if [ "${1:-}" = "--from-ollama" ]; then
 fi
 
 nix build "$models.online" --no-link --print-out-paths
-echo "Models are in the store; activation builds them without a network." >&2
+echo "Models are in the store; activation links them without a download." >&2

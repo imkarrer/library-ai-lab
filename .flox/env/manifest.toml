@@ -32,10 +32,11 @@ pkg-group = "models"
 # Ollama.app. Linux dev boxes use llm-box (ADR-0008).
 systems = ["aarch64-darwin"]
 
-# Both demo models, read-only in the store: models/ on main, pinned by digest. Activation
-# never fetches them (ADR-0006): bash scripts/fetch_models.sh, once, online, first.
+# Both demo models, read-only in the store: models/ on main, pinned by digest. The first
+# activation downloads any that are missing (ADR-0006's model exception);
+# scripts/fetch_models.sh does it first, with progress and files already in ~/.ollama.
 [install.library-models]
-flake = "github:imkarrer/library-ai-lab?dir=models"
+flake = "github:imkarrer/library-ai-lab?dir=models#online"
 systems = ["aarch64-darwin"]
 
 [hook]

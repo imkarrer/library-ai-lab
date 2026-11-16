@@ -13,7 +13,7 @@
         "pkg-path": "python313Packages.httpx"
       },
       "library-models": {
-        "flake": "github:imkarrer/library-ai-lab?dir=models",
+        "flake": "github:imkarrer/library-ai-lab?dir=models#online",
         "systems": [
           "aarch64-darwin"
         ]
@@ -1064,8 +1064,8 @@
       "install_id": "library-models",
       "locked-url": "github:imkarrer/library-ai-lab/56afe3676ae5262e8ed02ec181bbe3158a3cb3c0?dir=models&narHash=sha256-IntOd6ChD3LJtWLT6x/YTqqJ%2BoG%2B5MjgWzWvR5jM/So%3D",
       "flake-description": "The Library Assistant's local models, pinned by digest",
-      "locked-flake-attr-path": "packages.aarch64-darwin.default",
-      "derivation": "/nix/store/0inb12djf7p1swj9sy2sizpnf8piayvv-library-models.drv",
+      "locked-flake-attr-path": "packages.aarch64-darwin.online",
+      "derivation": "/nix/store/rhn1xswkj1xfvwsq7b6wzm44b5bcmw07-library-models.drv",
       "outputs": {
         "out": "/nix/store/vz95zq168rb4cbvk5g81ri7j8qv2cfn2-library-models"
       },

@@ -76,3 +76,10 @@ def test_the_package_ships_the_apps_libraries_and_no_dev_tools():
     assert "python3" in shipped
     assert libraries - {"pytest"} <= shipped
     assert not shipped & {"pytest", "ruff", "nodejs", "ollama", "llama-cpp"}
+
+
+def test_the_first_activation_fetches_the_pinned_models():
+    """ADR-0006's model exception: models/ from main, the build that can fetch a missing file."""
+    models = tomllib.loads(MANIFEST.read_text())["install"]["library-models"]
+    assert models["flake"] == "github:imkarrer/library-ai-lab?dir=models#online"
+    assert models["systems"] == ["aarch64-darwin"]

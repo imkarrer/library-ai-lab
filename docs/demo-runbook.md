@@ -67,15 +67,15 @@ Do this at home, online, on the M5 Pro. Everything here downloads; nothing after
    (`ollama` in the manifest, from the Flox catalog), on the GPU: about 59 tokens/s on
    `gpt-oss:20b`, the same as Ollama.app. The models themselves are in the environment too
    (`library-models`, built from `models/`), pinned by digest and read-only in the Nix store.
-   Fetch them once, online (about 14 GB and 3.4 GB; ADR-0006's model exception), before the
-   first `flox activate`, which refuses to start without them:
+   The first activation downloads them if they are missing (about 14 GB and 3.4 GB;
+   ADR-0006's model exception), with only a spinner to show for it. Fetch them first instead,
+   with progress, and with any file already pulled into `~/.ollama/models` taken from there:
 
    ```bash
    bash scripts/fetch_models.sh --from-ollama
    ```
 
-   `--from-ollama` takes any file already pulled into `~/.ollama/models` and downloads only
-   the rest; without it, everything downloads. It ends with `Models are in the store`.
+   Without `--from-ollama`, everything downloads. It ends with `Models are in the store`.
 
    `gpt-oss:20b` (Apache-2.0) answers in 3 to 8 seconds here and writes the `SEARCH:` line
    the Catalog search reads. Measured on this Mac and rejected: `qwen3.6:27b` (18 GB, does
