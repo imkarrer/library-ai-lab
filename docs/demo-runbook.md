@@ -63,25 +63,19 @@ Do this at home, online, on the M5 Pro. Everything here downloads; nothing after
    Run every later command from this same folder. The model is cached inside the checkout
    (`.flox/cache/models/`), so a second checkout or worktree does not see it.
 
-3. Activate once, online. The first activation installs Python and its libraries, Ollama
-   and llama.cpp, all from the Flox catalog, and builds pymarc, the one library the catalog
-   doesn't have yet. It prints `Building pymarc (once)...` the first time.
-
-   ```bash
-   flox activate -- python3 -c "import fastapi, uvicorn, qrcode, httpx, pymarc; print('env ok')"
-   ```
-
-4. Get the demo models. The M5 Pro runs both Lanes on the environment's own Ollama
+3. Get the demo models. The M5 Pro runs both Lanes on the environment's own Ollama
    (`ollama` in the manifest, from the Flox catalog), on the GPU: about 59 tokens/s on
-   `gpt-oss:20b`, the same as Ollama.app. Pull the models once, online (about 14 GB and
-   3.4 GB) into `~/.ollama/models`, which every Ollama on this Mac shares. Pulling needs a
-   server running, so this starts a temporary one on a spare port and stops it after:
+   `gpt-oss:20b`, the same as Ollama.app. The models themselves are in the environment too
+   (`library-models`, built from `models/`), pinned by digest and read-only in the Nix store.
+   The first activation downloads them if they are missing (about 14 GB and 3.4 GB;
+   ADR-0006's model exception), with only a spinner to show for it. Fetch them first instead,
+   with progress, and with any file already pulled into `~/.ollama/models` taken from there:
 
    ```bash
-   flox activate -- bash -c 'export OLLAMA_HOST=127.0.0.1:11499
-     ollama serve >/dev/null 2>&1 & s=$!; sleep 3
-     ollama pull gpt-oss:20b && ollama pull qwen3.5:4b; kill $s'
+   bash scripts/fetch_models.sh --from-ollama
    ```
+
+   Without `--from-ollama`, everything downloads. It ends with `Models are in the store`.
 
    `gpt-oss:20b` (Apache-2.0) answers in 3 to 8 seconds here and writes the `SEARCH:` line
    the Catalog search reads. Measured on this Mac and rejected: `qwen3.6:27b` (18 GB, does
@@ -89,6 +83,15 @@ Do this at home, online, on the M5 Pro. Everything here downloads; nothing after
    `SEARCH:` line; it screens for Oversight instead). Each Ollama listens on `127.0.0.1`
    only and keeps no log or copy of a question (`~/.ollama/cache` holds only its model
    list).
+
+4. Activate once, online. The first activation installs Python and its libraries, Ollama
+   and llama.cpp, all from the Flox catalog, links the models fetched above, and builds
+   pymarc, the one library the catalog doesn't have yet. It prints `Building pymarc
+   (once)...` the first time.
+
+   ```bash
+   flox activate -- python3 -c "import fastapi, uvicorn, qrcode, httpx, pymarc; print('env ok')"
+   ```
 
    The flox model server (llama.cpp) is the fallback: fetch its model with
    `flox activate -- bash scripts/fetch_demo_model.sh` (about 19 GB; it ends with

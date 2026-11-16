@@ -5,7 +5,7 @@
 { name
 , models                               # [ { repo = "library/qwen3.5"; tag = "4b"; manifestFile = ./pins/qwen3.5-4b.json; } ]
 , registry ? "registry.ollama.ai"
-, canFetch ? false                     # true only for the one setup fetch (ADR-0006)
+, canFetch ? false                     # true: missing files download (ADR-0006 setup)
 }:
 let
   hexOf = digest: lib.removePrefix "sha256:" digest;

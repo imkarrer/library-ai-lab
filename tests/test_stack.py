@@ -211,6 +211,29 @@ def test_ollama_env_is_local_only_with_no_cloud_and_no_prompt_logging(monkeypatc
     assert env["OLLAMA_CONTEXT_LENGTH"] == "4096"
 
 
+def test_ollama_serves_the_environments_models_read_only(monkeypatch, tmp_path):
+    sys.path.insert(0, str(REPO / "scripts"))
+    import stack
+
+    models = tmp_path / "share" / "ollama" / "models"
+    models.mkdir(parents=True)
+    monkeypatch.setenv("FLOX_ENV", str(tmp_path))
+    env = stack.ollama_env(11436, 8192, 6)
+    assert env["OLLAMA_MODELS"] == str(models)  # the store, never ~/.ollama
+    assert env["OLLAMA_NOPRUNE"] == "1"  # or a read-only store stops it at start
+
+
+def test_without_the_environments_models_ollama_keeps_its_own(monkeypatch, tmp_path):
+    sys.path.insert(0, str(REPO / "scripts"))
+    import stack
+
+    monkeypatch.setenv("FLOX_ENV", str(tmp_path))
+    monkeypatch.delenv("OLLAMA_MODELS", raising=False)
+    env = stack.ollama_env(11436, 8192, 6)
+    assert "OLLAMA_MODELS" not in env
+    assert "OLLAMA_NOPRUNE" not in env
+
+
 def test_both_lanes_stay_loaded_and_answers_start_together():
     sys.path.insert(0, str(REPO / "scripts"))
     import stack

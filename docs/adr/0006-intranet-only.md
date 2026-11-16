@@ -17,12 +17,15 @@ disabled in an Install's config; a school builds its Catalog from its own system
 ## Exception: fetching the models
 
 One setup step may also reach the internet: fetching the model weights, once, before an
-Install goes into use. `scripts/fetch_models.sh` downloads each file from the Ollama
-registry into the Nix store, where its path is fixed by the digest pinned in `models/pins`,
-so a changed or truncated file fails the fetch. It is a separate command, never part of the
-running assistant or the model servers.
+Install goes into use. Each file comes from the Ollama registry into the Nix store, where
+its path is fixed by the digest pinned in `models/pins`, so a changed or truncated file
+fails the fetch. The first `flox activate` does this for any file not yet in the store;
+`scripts/fetch_models.sh` does it ahead of time, with progress, and can take files already
+pulled into `~/.ollama`. Either way the download is Nix's, never the running assistant's or
+the model servers'.
 
-Nothing after setup fetches a model. The models the flox environment installs are built by
-a derivation that can only refuse, so a missing file stops activation with a message
-instead of downloading; Ollama serves them from the read-only store with `OLLAMA_NO_CLOUD`
-set. A new model or version is a new pin and another setup fetch, never an automatic pull.
+After setup nothing is missing, so nothing is fetched: the environment holds the files
+against garbage collection, and Ollama serves them from the read-only store with
+`OLLAMA_NO_CLOUD` set. A new model or version is a new pin and another setup fetch, never
+an automatic pull. A school whose Install must never fetch even a missing file installs
+`models/`'s default build instead, which can only refuse.
