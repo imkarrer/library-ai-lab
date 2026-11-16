@@ -27,7 +27,7 @@ let
         inherit name;
         system = "aarch64-darwin";
         builder = "/bin/sh";
-        args = [ "-c" "echo 'Model file ${name} (${toString layer.size} bytes) is not on this computer. Run ./stack fetch-models once, online.' >&2; exit 1" ];
+        args = [ "-c" "echo 'Model file ${name} (${toString layer.size} bytes) is not on this computer. Run bash scripts/fetch_models.sh once, online.' >&2; exit 1" ];
         outputHashMode = "flat";
         outputHashAlgo = "sha256";
         outputHash = sha256;
