@@ -13,3 +13,16 @@ records to build the demo's SQLite Catalog. It runs once, before the demo, on th
 presenter's machine, and is a separate command, never part of the running assistant. Once
 the Catalog is built, the demo runs with networking off. The step is for demos only and ships
 disabled in an Install's config; a school builds its Catalog from its own systems.
+
+## Exception: fetching the models
+
+One setup step may also reach the internet: fetching the model weights, once, before an
+Install goes into use. `scripts/fetch_models.sh` downloads each file from the Ollama
+registry into the Nix store, where its path is fixed by the digest pinned in `models/pins`,
+so a changed or truncated file fails the fetch. It is a separate command, never part of the
+running assistant or the model servers.
+
+Nothing after setup fetches a model. The models the flox environment installs are built by
+a derivation that can only refuse, so a missing file stops activation with a message
+instead of downloading; Ollama serves them from the read-only store with `OLLAMA_NO_CLOUD`
+set. A new model or version is a new pin and another setup fetch, never an automatic pull.
