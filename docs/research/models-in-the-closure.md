@@ -1,15 +1,23 @@
 # Models in the closure
 
-Research for the Planet Nix talk's "Models as inputs" ask, 1 Nov 2026. Nothing here is built
-into the product yet: models still arrive by `ollama pull`. Binding context: ADR-0006 (intranet
-only) and ADR-0008 (one flox environment). The prototype is in
-[`model-closure/`](model-closure/).
+Research for the Planet Nix talk's "Models as inputs" ask, 1 Nov 2026. Binding context:
+ADR-0006 (intranet only, with its model-fetch exception) and ADR-0008 (one flox environment).
+The prototype became [`models/`](../../models/) on 16 Nov; until the flox environment installs
+it, the stack still serves models pulled into `~/.ollama`.
 
 ## Result
 
-This works today with no Nix or flox changes, but it is proven only on `smollm:135m` (92 MB).
-gpt-oss and qwen3.5 evaluate as derivations and have not been run through it. The largest file
-put through Nix was 256 MiB, so every 10–20 GB figure below is extrapolated.
+This works today with no Nix or flox changes. First proven on `smollm:135m` (92 MB); on 16 Nov
+both demo models went through it on the M5 Pro, as one 16.0 GiB assembly: Ollama 0.40.6 served
+`gpt-oss:20b` and `qwen3.5:4b` from the read-only store and both answered, and `/api/copy`
+failed with `permission denied`. Ingesting the 13.8 GB gpt-oss file from `~/.ollama` with
+`nix-store --add-fixed` took 39 s, in line with the 256 MiB extrapolation below.
+
+The 1 Nov pins no longer matched what Ollama runs. An anonymous request to
+`registry.ollama.ai` still returns the older manifests (qwen3.5:4b with a separate projector),
+while Ollama 0.40 signs its requests and receives repackaged ones (one 3.4 GB GGUF, a
+`renderer` and `parser` in the config). The pins are now the manifests Ollama pulled, kept
+verbatim; their blobs download anonymously by digest, so setup needs no Ollama keypair.
 
 ## Design
 
@@ -108,6 +116,7 @@ out on size (4 GiB limit). A USB stick must be exFAT or APFS.
 | Route | Result |
 |---|---|
 | `[install]` with `flake =` | Works. Fresh checkout gave the identical environment path. **Use this** |
+| `[install]` with `flake = "path:./models"` | Works, but the lock records the checkout's absolute path, so another Mac can't use it: use a `github:` reference |
 | `[install]` with `store-path =` | Works; handy for a demo |
 | `.flox/pkgs/*.nix` with `flox build` | Works; the assembly path drifts with the catalog's nixpkgs |
 | `[build]` in the manifest | Avoid: a second full copy, no hash check, `pure` can't fetch |
@@ -151,14 +160,14 @@ advice.
 
 | Work | Rough size |
 |---|---|
-| Real models in the closure on this Mac: pins, flake reference, `stack.py`, a gate check | 1–2 days |
+| Real models in the closure on this Mac: pins, flake reference, `stack.py`, a gate check | `models/` and the gate check done; the flox install and `stack.py` next |
 | Install path: bundle command, signing, a clean Mac | 2–3 days |
 | App and Python dependencies in the closure | 1 week or more |
 
 ## Not verified
 
-- Nothing above 256 MiB, and no gpt-oss or qwen3.5 inference through this path. qwen3.5's
-  projector layer is untested.
+- A download through the derivation above 256 MiB: the 16 Nov run ingested files already on
+  disk.
 - A clean Mac. The test machine already had the flake source, nixpkgs and build tools.
 - `flox publish`, FloxHub limits, imports as a non-trusted user, resuming a failed download, a
   real USB stick.
